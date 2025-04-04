@@ -1,3 +1,5 @@
+// front/src/lib/services/api.js
+
 // Base API URL from environment variable
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
@@ -31,6 +33,11 @@ async function apiFetch(endpoint, options = {}) {
 	};
 
 	try {
+		console.log(
+			`API Request: ${fetchOptions.method || 'GET'} ${url}`,
+			fetchOptions.body ? JSON.parse(fetchOptions.body) : ''
+		);
+
 		const response = await fetch(url, fetchOptions);
 
 		// Handle 401 Unauthorized (token expired)
@@ -55,6 +62,9 @@ async function apiFetch(endpoint, options = {}) {
 		} else {
 			data = await response.text();
 		}
+
+		// Log response for debugging
+		console.log(`API Response: ${response.status}`, data);
 
 		// Handle error responses
 		if (!response.ok) {
@@ -121,7 +131,8 @@ export function handleApiError(error) {
 	return error.message || 'حدث خطأ في الاتصال بالخادم';
 }
 
-export default {
+// Create the API service object
+const apiService = {
 	get: (endpoint) => apiFetch(endpoint, { method: 'GET' }),
 	post: (endpoint, data) =>
 		apiFetch(endpoint, {
@@ -146,3 +157,7 @@ export default {
 			body: formData
 		})
 };
+
+// Use named and default exports to ensure compatibility
+export { apiService };
+export default apiService;

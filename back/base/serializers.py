@@ -22,7 +22,7 @@ class JsonFieldMixin:
         value = getattr(obj, field_name, None)
         if not value:
             return default if default is not None else ([] if field_name in ['images', 'videos', 'files', 'attachments'] else {})
-            
+
         try:
             return json.loads(value)
         except (json.JSONDecodeError, TypeError):
@@ -39,7 +39,7 @@ class PropertyListSerializer(JsonFieldMixin, serializers.ModelSerializer):
     property_type_display = serializers.CharField(source='get_property_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     main_image_url = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Property
         fields = [
@@ -48,10 +48,10 @@ class PropertyListSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'bedrooms', 'bathrooms', 'is_featured', 'is_published', 'views_count',
             'owner', 'owner_name', 'created_at', 'updated_at', 'main_image_url'
         ]
-    
+
     def get_owner_name(self, obj):
         return obj.owner.get_full_name() or obj.owner.email
-    
+
     def get_main_image_url(self, obj):
         return obj.main_image_url
 
@@ -86,65 +86,65 @@ class PropertyDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
     location_coordinates = serializers.SerializerMethodField()
     active_auction_id = serializers.SerializerMethodField()
     documents_count = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Property
         fields = '__all__'
         read_only_fields = [
-            'property_number', 'slug', 'views_count', 'verified_by', 
+            'property_number', 'slug', 'views_count', 'verified_by',
             'verification_date', 'is_verified', 'status_history',
             'has_auction', 'publish_date', 'created_at', 'updated_at'
         ]
-    
+
     def get_images(self, obj):
         return self.get_json_field(obj, 'images', [])
-    
+
     def get_videos(self, obj):
         return self.get_json_field(obj, 'videos', [])
-    
+
     def get_features(self, obj):
         return self.get_json_field(obj, 'features', [])
-    
+
     def get_amenities(self, obj):
         return self.get_json_field(obj, 'amenities', [])
-    
+
     def get_street_details(self, obj):
         return self.get_json_field(obj, 'street_details', {})
-    
+
     def get_rooms(self, obj):
         return self.get_json_field(obj, 'rooms', {})
-    
+
     def get_outdoor_spaces(self, obj):
         return self.get_json_field(obj, 'outdoor_spaces', {})
-    
+
     def get_rental_details(self, obj):
         return self.get_json_field(obj, 'rental_details', {})
-    
+
     def get_parking(self, obj):
         return self.get_json_field(obj, 'parking', {})
-    
+
     def get_building_services(self, obj):
         return self.get_json_field(obj, 'building_services', {})
-    
+
     def get_infrastructure(self, obj):
         return self.get_json_field(obj, 'infrastructure', {})
-    
+
     def get_surroundings(self, obj):
         return self.get_json_field(obj, 'surroundings', {})
-    
+
     def get_location(self, obj):
         return self.get_json_field(obj, 'location', {})
-    
+
     def get_reference_ids(self, obj):
         return self.get_json_field(obj, 'reference_ids', [])
-    
+
     def get_location_coordinates(self, obj):
         return obj.location_coordinates
-    
+
     def get_active_auction_id(self, obj):
         active_auction = obj.auctions.filter(status__in=['active', 'pending']).first()
         return active_auction.id if active_auction else None
-    
+
     def get_documents_count(self, obj):
         return obj.property_documents.count()
 
@@ -168,7 +168,7 @@ class PropertySerializer(JsonFieldMixin, serializers.ModelSerializer):
     infrastructure = serializers.JSONField(required=False)
     surroundings = serializers.JSONField(required=False)
     reference_ids = serializers.JSONField(required=False)
-    
+
     class Meta:
         model = Property
         exclude = ['property_number', 'slug', 'status_history', 'verification_details']
@@ -176,39 +176,39 @@ class PropertySerializer(JsonFieldMixin, serializers.ModelSerializer):
             'views_count', 'created_at', 'updated_at', 'verification_date',
             'publish_date', 'verified_by', 'is_verified'
         ]
-    
+
     def to_internal_value(self, data):
         """Convert JSON fields to string for models using TextField for JSON"""
         # Process JSON fields that need to be stored as string in TextField
         json_fields = [
-            'images', 'videos', 'features', 'amenities', 'location', 
+            'images', 'videos', 'features', 'amenities', 'location',
             'street_details', 'rooms', 'outdoor_spaces', 'rental_details',
-            'parking', 'building_services', 'infrastructure', 'surroundings', 
+            'parking', 'building_services', 'infrastructure', 'surroundings',
             'reference_ids'
         ]
-        
+
         # Make a mutable copy if we have an immutable QueryDict
         if hasattr(data, '_mutable'):
             data = data.copy()
-        
+
         # Convert JSON fields to string if they're dictionaries or lists
         for field in json_fields:
             if field in data and data[field]:
                 if isinstance(data[field], (dict, list)):
                     data[field] = json.dumps(data[field])
-        
+
         return super().to_internal_value(data)
-    
+
     def validate(self, data):
         """Custom validation for property data"""
         # Ensure area is positive
         if 'area' in data and data['area'] <= 0:
             raise serializers.ValidationError(_("Area must be greater than zero"))
-        
+
         # Ensure estimated_value is positive
         if 'estimated_value' in data and data['estimated_value'] <= 0:
             raise serializers.ValidationError(_("Estimated value must be greater than zero"))
-        
+
         # Validate status transition if updating
         if self.instance and 'status' in data and data['status'] != self.instance.status:
             try:
@@ -219,7 +219,7 @@ class PropertySerializer(JsonFieldMixin, serializers.ModelSerializer):
                 )
             except Exception as e:
                 raise serializers.ValidationError({"status": str(e)})
-        
+
         return data
 
 
@@ -239,7 +239,7 @@ class AuctionListSerializer(JsonFieldMixin, serializers.ModelSerializer):
     time_remaining = serializers.IntegerField(read_only=True)
     is_active = serializers.BooleanField(read_only=True)
     featured_image_url = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Auction
         fields = [
@@ -250,7 +250,7 @@ class AuctionListSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'property_type', 'property_city', 'time_remaining', 'is_active', 'featured_image_url',
             'created_at', 'auctioneer'
         ]
-    
+
     def get_featured_image_url(self, obj):
         return obj.featured_image_url
 
@@ -286,25 +286,25 @@ class AuctionDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'uuid', 'slug', 'views_count', 'current_bid', 'winning_bid',
             'winning_bidder', 'publish_date', 'created_at', 'updated_at'
         ]
-    
+
     def get_images(self, obj):
         return self.get_json_field(obj, 'images', [])
-    
+
     def get_videos(self, obj):
         return self.get_json_field(obj, 'videos', [])
-    
+
     def get_documents(self, obj):
         return self.get_json_field(obj, 'documents', [])
-    
+
     def get_location(self, obj):
         return self.get_json_field(obj, 'location', {})
-    
+
     def get_location_coordinates(self, obj):
         return obj.location_coordinates
-    
+
     def get_invited_bidders_count(self, obj):
         return obj.invited_bidders.count()
-    
+
     def get_documents_count(self, obj):
         return obj.auction_documents.count()
 
@@ -326,30 +326,30 @@ class AuctionSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'views_count', 'current_bid', 'winning_bid', 'winning_bidder',
             'publish_date', 'created_at', 'updated_at'
         ]
-    
+
     def to_internal_value(self, data):
         """Convert JSON fields to string for models using TextField for JSON"""
         json_fields = ['images', 'videos', 'documents', 'location']
-        
+
         # Make a mutable copy if we have an immutable QueryDict
         if hasattr(data, '_mutable'):
             data = data.copy()
-        
+
         # Convert JSON fields to string if they're dictionaries or lists
         for field in json_fields:
             if field in data and data[field]:
                 if isinstance(data[field], (dict, list)):
                     data[field] = json.dumps(data[field])
-        
+
         return super().to_internal_value(data)
-    
+
     def validate(self, data):
         """Custom validation for auction data"""
         # Ensure start_date is in the future for new auctions
         if not self.instance and 'start_date' in data:
             if data['start_date'] <= timezone.now():
                 raise serializers.ValidationError({"start_date": _("Start date must be in the future")})
-        
+
         # Ensure end_date is after start_date
         if 'start_date' in data and 'end_date' in data:
             if data['end_date'] <= data['start_date']:
@@ -360,7 +360,7 @@ class AuctionSerializer(JsonFieldMixin, serializers.ModelSerializer):
         elif 'start_date' in data and self.instance:
             if self.instance.end_date <= data['start_date']:
                 raise serializers.ValidationError({"start_date": _("Start date must be before end date")})
-        
+
         # Validate status transition if updating
         if self.instance and 'status' in data and data['status'] != self.instance.status:
             try:
@@ -371,16 +371,16 @@ class AuctionSerializer(JsonFieldMixin, serializers.ModelSerializer):
                 )
             except Exception as e:
                 raise serializers.ValidationError({"status": str(e)})
-        
+
         # Ensure starting_price is positive
         if 'starting_price' in data and data['starting_price'] <= 0:
             raise serializers.ValidationError({"starting_price": _("Starting price must be greater than zero")})
-        
+
         # Ensure reserve_price is greater than or equal to starting_price
         if 'reserve_price' in data and 'starting_price' in data:
             if data['reserve_price'] < data['starting_price']:
                 raise serializers.ValidationError({"reserve_price": _("Reserve price must be greater than or equal to starting price")})
-        
+
         return data
 
 
@@ -393,7 +393,7 @@ class BidListSerializer(serializers.ModelSerializer):
     bidder_name = serializers.SerializerMethodField()
     auction_title = serializers.CharField(source='auction.title', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+
     class Meta:
         model = Bid
         fields = [
@@ -401,7 +401,7 @@ class BidListSerializer(serializers.ModelSerializer):
             'bid_amount', 'bid_time', 'status', 'status_display',
             'is_auto_bid', 'created_at', 'updated_at'
         ]
-    
+
     def get_bidder_name(self, obj):
         return obj.bidder.get_full_name() or obj.bidder.email
 
@@ -415,12 +415,12 @@ class BidDetailSerializer(serializers.ModelSerializer):
     auction_details = AuctionListSerializer(source='auction', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     device_info = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Bid
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at', 'bid_time', 'ip_address', 'user_agent']
-    
+
     def get_device_info(self, obj):
         try:
             if obj.device_info:
@@ -437,16 +437,16 @@ class BidSerializer(serializers.ModelSerializer):
     class Meta:
         model = Bid
         fields = [
-            'auction', 'bidder', 'bid_amount', 'status', 
+            'auction', 'bidder', 'bid_amount', 'status',
             'max_bid_amount', 'is_auto_bid', 'notes'
         ]
-    
+
     def validate(self, data):
         """Custom validation for bid data"""
         # Ensure bid_amount is positive
         if 'bid_amount' in data and data['bid_amount'] <= 0:
             raise serializers.ValidationError({"bid_amount": _("Bid amount must be greater than zero")})
-        
+
         # If creating a new bid
         if not self.instance:
             auction = data.get('auction')
@@ -454,32 +454,32 @@ class BidSerializer(serializers.ModelSerializer):
                 # Check auction status
                 if auction.status != 'active':
                     raise serializers.ValidationError(_("Cannot place bid on an inactive auction"))
-                
+
                 # Check auction timing
                 now = timezone.now()
                 if now < auction.start_date:
                     raise serializers.ValidationError(_("The auction hasn't started yet"))
                 if now > auction.end_date:
                     raise serializers.ValidationError(_("The auction has already ended"))
-                
+
                 # Validate bid amount
                 highest_bid = auction.highest_bid
                 min_bid = highest_bid + auction.min_bid_increment
-                
+
                 if data.get('bid_amount', 0) < min_bid:
                     raise serializers.ValidationError({
                         "bid_amount": _("Bid amount must be at least {}").format(min_bid)
                     })
-        
+
         return data
-    
+
     def to_internal_value(self, data):
         """Convert device_info JSON to string for models using TextField for JSON"""
         if 'device_info' in data and data['device_info']:
             if isinstance(data['device_info'], dict):
                 data = data.copy() if hasattr(data, '_mutable') else data
                 data['device_info'] = json.dumps(data['device_info'])
-        
+
         return super().to_internal_value(data)
 
 
@@ -494,7 +494,7 @@ class DocumentListSerializer(JsonFieldMixin, serializers.ModelSerializer):
     verification_status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
     files_count = serializers.SerializerMethodField()
     main_file_url = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Document
         fields = [
@@ -504,16 +504,16 @@ class DocumentListSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'issue_date', 'expiry_date', 'created_at', 'updated_at',
             'files_count', 'main_file_url'
         ]
-    
+
     def get_uploaded_by_name(self, obj):
         if obj.uploaded_by:
             return obj.uploaded_by.get_full_name() or obj.uploaded_by.email
         return None
-    
+
     def get_files_count(self, obj):
         files = self.get_json_field(obj, 'files', [])
         return len(files)
-    
+
     def get_main_file_url(self, obj):
         return obj.main_file_url
 
@@ -533,7 +533,7 @@ class DocumentDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
     property_title = serializers.SerializerMethodField()
     auction_title = serializers.SerializerMethodField()
     contract_title = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Document
         fields = '__all__'
@@ -541,23 +541,23 @@ class DocumentDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'document_number', 'verification_date', 'verified_by',
             'created_at', 'updated_at'
         ]
-    
+
     def get_files(self, obj):
         return self.get_json_field(obj, 'files', [])
-    
+
     def get_metadata(self, obj):
         return self.get_json_field(obj, 'metadata', {})
-    
+
     def get_property_title(self, obj):
         if obj.related_property:
             return obj.related_property.title
         return None
-    
+
     def get_auction_title(self, obj):
         if obj.auction:
             return obj.auction.title
         return None
-    
+
     def get_contract_title(self, obj):
         if obj.contract:
             return obj.contract.title
@@ -571,36 +571,36 @@ class DocumentSerializer(JsonFieldMixin, serializers.ModelSerializer):
     """
     files = serializers.JSONField(required=False)
     metadata = serializers.JSONField(required=False)
-    
+
     class Meta:
         model = Document
         exclude = ['document_number']
         read_only_fields = [
             'verification_date', 'verified_by', 'created_at', 'updated_at'
         ]
-    
+
     def to_internal_value(self, data):
         """Convert JSON fields to string for models using TextField for JSON"""
         json_fields = ['files', 'metadata']
-        
+
         # Make a mutable copy if we have an immutable QueryDict
         if hasattr(data, '_mutable'):
             data = data.copy()
-        
+
         # Convert JSON fields to string if they're dictionaries or lists
         for field in json_fields:
             if field in data and data[field]:
                 if isinstance(data[field], (dict, list)):
                     data[field] = json.dumps(data[field])
-        
+
         return super().to_internal_value(data)
-    
+
     def validate(self, data):
         """Custom validation for document data"""
         # Ensure at least one related entity
         if not data.get('related_property') and not data.get('auction') and not data.get('contract'):
             raise serializers.ValidationError(_("Document must be related to a property, auction, or contract"))
-        
+
         # Validate verification status transition if updating
         if self.instance and 'verification_status' in data and data['verification_status'] != self.instance.verification_status:
             try:
@@ -611,12 +611,12 @@ class DocumentSerializer(JsonFieldMixin, serializers.ModelSerializer):
                 )
             except Exception as e:
                 raise serializers.ValidationError({"verification_status": str(e)})
-        
+
         # Validate expiry date is after issue date
         if 'issue_date' in data and 'expiry_date' in data and data['expiry_date'] and data['issue_date']:
             if data['expiry_date'] <= data['issue_date']:
                 raise serializers.ValidationError({"expiry_date": _("Expiry date must be after issue date")})
-        
+
         return data
 
 
@@ -633,7 +633,7 @@ class ContractListSerializer(JsonFieldMixin, serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
     signing_status = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Contract
         fields = [
@@ -645,13 +645,13 @@ class ContractListSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'buyer_signed', 'seller_signed', 'agent_signed', 'signing_status',
             'created_at', 'updated_at'
         ]
-    
+
     def get_buyer_name(self, obj):
         return obj.buyer.get_full_name() or obj.buyer.email
-    
+
     def get_seller_name(self, obj):
         return obj.seller.get_full_name() or obj.seller.email
-    
+
     def get_signing_status(self, obj):
         """Get contract signing status"""
         if obj.buyer_signed and obj.seller_signed and (not obj.agent or obj.agent_signed):
@@ -680,7 +680,7 @@ class ContractDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
     documents_count = serializers.SerializerMethodField()
     payments_total = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Contract
         fields = '__all__'
@@ -690,21 +690,21 @@ class ContractDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'is_verified', 'verification_authority', 'verification_date',
             'created_at', 'updated_at'
         ]
-    
+
     def get_files(self, obj):
         return self.get_json_field(obj, 'files', [])
-    
+
     def get_payments_count(self, obj):
         return obj.payments.count()
-    
+
     def get_documents_count(self, obj):
         return obj.contract_documents.count()
-    
+
     def get_payments_total(self, obj):
         completed_payments = obj.payments.filter(status='completed')
         total = completed_payments.aggregate(Sum('amount'))['amount__sum'] or 0
         return total
-    
+
     def get_remaining_amount(self, obj):
         completed_payments = obj.payments.filter(status='completed')
         total_paid = completed_payments.aggregate(Sum('amount'))['amount__sum'] or 0
@@ -717,7 +717,7 @@ class ContractSerializer(JsonFieldMixin, serializers.ModelSerializer):
     Handles JSON serialization for SQLite compatibility.
     """
     files = serializers.JSONField(required=False)
-    
+
     class Meta:
         model = Contract
         exclude = ['contract_number']
@@ -727,34 +727,34 @@ class ContractSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'is_verified', 'verification_authority', 'verification_date',
             'created_at', 'updated_at'
         ]
-    
+
     def to_internal_value(self, data):
         """Convert JSON fields to string for models using TextField for JSON"""
         if 'files' in data and data['files']:
             if isinstance(data['files'], (dict, list)):
                 data = data.copy() if hasattr(data, '_mutable') else data
                 data['files'] = json.dumps(data['files'])
-        
+
         return super().to_internal_value(data)
-    
+
     def validate(self, data):
         """Custom validation for contract data"""
         # Ensure contract_amount is positive
         if 'contract_amount' in data and data['contract_amount'] <= 0:
             raise serializers.ValidationError({"contract_amount": _("Contract amount must be greater than zero")})
-        
+
         # Validate total_amount is greater than or equal to contract_amount
         if 'total_amount' in data and 'contract_amount' in data:
             if data['total_amount'] < data['contract_amount']:
                 raise serializers.ValidationError({
                     "total_amount": _("Total amount must be greater than or equal to contract amount")
                 })
-        
+
         # Validate property matches auction property
         if 'auction' in data and 'related_property' in data:
             if data['auction'].related_property.id != data['related_property'].id:
                 raise serializers.ValidationError(_("Property must match the auction's property"))
-        
+
         # Validate status transition if updating
         if self.instance and 'status' in data and data['status'] != self.instance.status:
             try:
@@ -765,21 +765,21 @@ class ContractSerializer(JsonFieldMixin, serializers.ModelSerializer):
                 )
             except Exception as e:
                 raise serializers.ValidationError({"status": str(e)})
-        
+
         # Validate effective date is on or after contract date
         if 'contract_date' in data and 'effective_date' in data and data['effective_date']:
             if data['effective_date'] < data['contract_date']:
                 raise serializers.ValidationError({
                     "effective_date": _("Effective date must be on or after contract date")
                 })
-        
+
         # Validate expiry date is after effective date
         if 'effective_date' in data and 'expiry_date' in data and data['expiry_date'] and data['effective_date']:
             if data['expiry_date'] <= data['effective_date']:
                 raise serializers.ValidationError({
                     "expiry_date": _("Expiry date must be after effective date")
                 })
-        
+
         return data
 
 
@@ -795,7 +795,7 @@ class PaymentListSerializer(JsonFieldMixin, serializers.ModelSerializer):
     payment_type_display = serializers.CharField(source='get_payment_type_display', read_only=True)
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+
     class Meta:
         model = Payment
         fields = [
@@ -806,10 +806,10 @@ class PaymentListSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'payee', 'payee_name', 'confirmed_at', 'is_overdue',
             'created_at', 'updated_at'
         ]
-    
+
     def get_payer_name(self, obj):
         return obj.payer.get_full_name() or obj.payer.email
-    
+
     def get_payee_name(self, obj):
         return obj.payee.get_full_name() or obj.payee.email
 
@@ -830,7 +830,7 @@ class PaymentDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
     transactions = serializers.SerializerMethodField()
     is_overdue = serializers.BooleanField(read_only=True)
     receipt_url = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Payment
         fields = '__all__'
@@ -838,13 +838,13 @@ class PaymentDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'payment_number', 'confirmed_at', 'confirmed_by',
             'created_at', 'updated_at'
         ]
-    
+
     def get_files(self, obj):
         return self.get_json_field(obj, 'files', [])
-    
+
     def get_receipt_url(self, obj):
         return obj.receipt_url
-    
+
     def get_transactions(self, obj):
         """Get basic transaction info for this payment"""
         transactions = obj.transactions.all()
@@ -864,36 +864,36 @@ class PaymentSerializer(JsonFieldMixin, serializers.ModelSerializer):
     Handles JSON serialization for SQLite compatibility.
     """
     files = serializers.JSONField(required=False)
-    
+
     class Meta:
         model = Payment
         exclude = ['payment_number']
         read_only_fields = [
             'confirmed_at', 'confirmed_by', 'created_at', 'updated_at'
         ]
-    
+
     def to_internal_value(self, data):
         """Convert JSON fields to string for models using TextField for JSON"""
         if 'files' in data and data['files']:
             if isinstance(data['files'], (dict, list)):
                 data = data.copy() if hasattr(data, '_mutable') else data
                 data['files'] = json.dumps(data['files'])
-        
+
         return super().to_internal_value(data)
-    
+
     def validate(self, data):
         """Custom validation for payment data"""
         # Ensure amount is positive
         if 'amount' in data and data['amount'] <= 0:
             raise serializers.ValidationError({"amount": _("Amount must be greater than zero")})
-        
+
         # Validate payment_date is not in the future for new payments
         if not self.instance and 'payment_date' in data:
             if data['payment_date'] > timezone.now() + timedelta(minutes=5):  # Allow 5 min buffer
                 raise serializers.ValidationError({
                     "payment_date": _("Payment date cannot be in the future")
                 })
-        
+
         # Validate due date is after payment date
         if 'payment_date' in data and 'due_date' in data and data['due_date']:
             payment_date = data['payment_date'].date() if hasattr(data['payment_date'], 'date') else data['payment_date']
@@ -901,7 +901,7 @@ class PaymentSerializer(JsonFieldMixin, serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     "due_date": _("Due date must be on or after payment date")
                 })
-        
+
         # Validate status transition if updating
         if self.instance and 'status' in data and data['status'] != self.instance.status:
             try:
@@ -912,23 +912,23 @@ class PaymentSerializer(JsonFieldMixin, serializers.ModelSerializer):
                 )
             except Exception as e:
                 raise serializers.ValidationError({"status": str(e)})
-        
+
         # For certain payment types, validate payer/payee match contract roles
         if 'payment_type' in data and 'contract' in data:
             payment_type = data['payment_type']
             contract = data['contract']
-            
+
             if payment_type in ['deposit', 'full_payment', 'installment']:
                 if 'payer' in data and data['payer'] != contract.buyer:
                     raise serializers.ValidationError({
                         "payer": _("For {} payments, the payer must be the buyer").format(payment_type)
                     })
-                
+
                 if 'payee' in data and data['payee'] != contract.seller:
                     raise serializers.ValidationError({
                         "payee": _("For {} payments, the payee must be the seller").format(payment_type)
                     })
-        
+
         return data
 
 
@@ -942,7 +942,7 @@ class TransactionListSerializer(serializers.ModelSerializer):
     to_user_name = serializers.SerializerMethodField()
     transaction_type_display = serializers.CharField(source='get_transaction_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-    
+
     class Meta:
         model = Transaction
         fields = [
@@ -952,10 +952,10 @@ class TransactionListSerializer(serializers.ModelSerializer):
             'payment', 'auction', 'contract', 'reference',
             'processed_at', 'created_at', 'updated_at'
         ]
-    
+
     def get_from_user_name(self, obj):
         return obj.from_user.get_full_name() or obj.from_user.email
-    
+
     def get_to_user_name(self, obj):
         return obj.to_user.get_full_name() or obj.to_user.email
 
@@ -974,14 +974,14 @@ class TransactionDetailSerializer(serializers.ModelSerializer):
     auction_details = serializers.SerializerMethodField()
     contract_details = serializers.SerializerMethodField()
     total_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
-    
+
     class Meta:
         model = Transaction
         fields = '__all__'
         read_only_fields = [
             'transaction_number', 'processed_at', 'created_at', 'updated_at'
         ]
-    
+
     def get_auction_details(self, obj):
         if obj.auction:
             return {
@@ -990,7 +990,7 @@ class TransactionDetailSerializer(serializers.ModelSerializer):
                 'status': obj.auction.status
             }
         return None
-    
+
     def get_contract_details(self, obj):
         if obj.contract:
             return {
@@ -1012,24 +1012,24 @@ class TransactionSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'processed_at', 'created_at', 'updated_at'
         ]
-    
+
     def validate(self, data):
         """Custom validation for transaction data"""
         # Ensure amount is positive
         if 'amount' in data and data['amount'] <= 0:
             raise serializers.ValidationError({"amount": _("Amount must be greater than zero")})
-        
+
         # Validate transaction_date is not in the future
         if 'transaction_date' in data:
             if data['transaction_date'] > timezone.now() + timedelta(minutes=5):  # Allow 5 min buffer
                 raise serializers.ValidationError({
                     "transaction_date": _("Transaction date cannot be in the future")
                 })
-        
+
         # Ensure at least one related entity
         if not data.get('payment') and not data.get('auction') and not data.get('contract'):
             raise serializers.ValidationError(_("Transaction must be related to a payment, auction, or contract"))
-        
+
         # Validate status transition if updating
         if self.instance and 'status' in data and data['status'] != self.instance.status:
             try:
@@ -1040,11 +1040,12 @@ class TransactionSerializer(serializers.ModelSerializer):
                 )
             except Exception as e:
                 raise serializers.ValidationError({"status": str(e)})
-        
+
         return data
 
 
 # PropertyView Serializers
+
 class PropertyViewListSerializer(JsonFieldMixin, serializers.ModelSerializer):
     """
     Serializer for listing property views with essential information.
@@ -1054,7 +1055,7 @@ class PropertyViewListSerializer(JsonFieldMixin, serializers.ModelSerializer):
     main_image_url = serializers.SerializerMethodField()
     auction_title = serializers.CharField(source='auction.title', read_only=True)
     property_title = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = PropertyView
         fields = [
@@ -1063,10 +1064,10 @@ class PropertyViewListSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'condition', 'main_image_url', 'property_title',
             'created_at', 'updated_at'
         ]
-    
+
     def get_main_image_url(self, obj):
         return obj.main_image_url
-    
+
     def get_property_title(self, obj):
         if obj.related_property:
             return obj.related_property.title
@@ -1085,21 +1086,21 @@ class PropertyViewDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
     property_details = serializers.SerializerMethodField()
     main_image_url = serializers.SerializerMethodField()
     formatted_elevation = serializers.CharField(read_only=True)
-    
+
     class Meta:
         model = PropertyView
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
-    
+
     def get_images(self, obj):
         return self.get_json_field(obj, 'images', [])
-    
+
     def get_historical_views(self, obj):
         return self.get_json_field(obj, 'historical_views', {})
-    
+
     def get_main_image_url(self, obj):
         return obj.main_image_url
-    
+
     def get_property_details(self, obj):
         if obj.related_property:
             return PropertyListSerializer(obj.related_property).data
@@ -1113,34 +1114,34 @@ class PropertyViewSerializer(JsonFieldMixin, serializers.ModelSerializer):
     """
     images = serializers.JSONField(required=False)
     historical_views = serializers.JSONField(required=False)
-    
+
     class Meta:
         model = PropertyView
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
-    
+
     def to_internal_value(self, data):
         """Convert JSON fields to string for models using TextField for JSON"""
         json_fields = ['images', 'historical_views']
-        
+
         # Make a mutable copy if we have an immutable QueryDict
         if hasattr(data, '_mutable'):
             data = data.copy()
-        
+
         # Convert JSON fields to string if they're dictionaries or lists
         for field in json_fields:
             if field in data and data[field]:
                 if isinstance(data[field], (dict, list)):
                     data[field] = json.dumps(data[field])
-        
+
         return super().to_internal_value(data)
-    
+
     def validate(self, data):
         """Custom validation for property view data"""
         # Ensure size_sqm is positive
         if 'size_sqm' in data and data['size_sqm'] <= 0:
             raise serializers.ValidationError({"size_sqm": _("Size must be greater than zero")})
-        
+
         return data
 
 
@@ -1157,7 +1158,7 @@ class MessageThreadListSerializer(serializers.ModelSerializer):
     unread_messages = serializers.SerializerMethodField()
     message_count = serializers.IntegerField(read_only=True)
     related_entity = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = MessageThread
         fields = [
@@ -1168,27 +1169,27 @@ class MessageThreadListSerializer(serializers.ModelSerializer):
             'related_property', 'related_auction', 'related_contract',
             'related_entity', 'created_at', 'updated_at'
         ]
-    
+
     def get_creator_name(self, obj):
         if obj.creator:
             return obj.creator.get_full_name() or obj.creator.email
         return None
-    
+
     def get_participants_count(self, obj):
         return obj.thread_participants.filter(is_active=True).count()
-    
+
     def get_unread_messages(self, obj):
         """Get unread message count for current user"""
         user = self.context.get('user')
         if not user:
             return 0
-        
+
         participant = obj.thread_participants.filter(user=user, is_active=True).first()
         if not participant:
             return 0
-        
+
         return participant.unread_count
-    
+
     def get_related_entity(self, obj):
         """Get details of the primary related entity"""
         if obj.related_property:
@@ -1228,14 +1229,14 @@ class MessageThreadDetailSerializer(serializers.ModelSerializer):
     auction_details = serializers.SerializerMethodField()
     contract_details = serializers.SerializerMethodField()
     user_participant = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = MessageThread
         fields = '__all__'
         read_only_fields = [
             'uuid', 'created_at', 'updated_at', 'last_message_at'
         ]
-    
+
     def get_participants(self, obj):
         """Get basic info about active participants"""
         participants = obj.thread_participants.filter(is_active=True)
@@ -1250,10 +1251,10 @@ class MessageThreadDetailSerializer(serializers.ModelSerializer):
             'last_read_at': p.last_read_at,
             'joined_at': p.created_at
         } for p in participants]
-    
+
     def get_messages_count(self, obj):
         return obj.messages.count()
-    
+
     def get_property_details(self, obj):
         if obj.related_property:
             return {
@@ -1263,7 +1264,7 @@ class MessageThreadDetailSerializer(serializers.ModelSerializer):
                 'city': obj.related_property.city
             }
         return None
-    
+
     def get_auction_details(self, obj):
         if obj.related_auction:
             return {
@@ -1273,7 +1274,7 @@ class MessageThreadDetailSerializer(serializers.ModelSerializer):
                 'auction_type': obj.related_auction.auction_type
             }
         return None
-    
+
     def get_contract_details(self, obj):
         if obj.related_contract:
             return {
@@ -1283,17 +1284,17 @@ class MessageThreadDetailSerializer(serializers.ModelSerializer):
                 'status': obj.related_contract.status
             }
         return None
-    
+
     def get_user_participant(self, obj):
         """Get current user's participation details"""
         user = self.context.get('user')
         if not user:
             return None
-        
+
         participant = obj.thread_participants.filter(user=user, is_active=True).first()
         if not participant:
             return None
-        
+
         return {
             'id': participant.id,
             'role': participant.role.name if participant.role else 'member',
@@ -1315,13 +1316,13 @@ class MessageThreadSerializer(serializers.ModelSerializer):
         read_only_fields = [
             'last_message_at', 'created_at', 'updated_at'
         ]
-    
+
     def validate(self, data):
         """Custom validation for message thread data"""
         # Ensure only one status is active
         if 'status' in data and data['status'] not in ['active', 'closed', 'archived', 'deleted']:
             raise serializers.ValidationError({"status": _("Invalid status value")})
-        
+
         return data
 
 
@@ -1335,7 +1336,7 @@ class MessageListSerializer(JsonFieldMixin, serializers.ModelSerializer):
     message_type_display = serializers.CharField(source='get_message_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     has_attachments = serializers.BooleanField(read_only=True)
-    
+
     class Meta:
         model = Message
         fields = [
@@ -1345,7 +1346,7 @@ class MessageListSerializer(JsonFieldMixin, serializers.ModelSerializer):
             'read_at', 'is_system_message', 'is_important',
             'has_attachments', 'parent_message', 'created_at'
         ]
-    
+
     def get_sender_name(self, obj):
         return obj.sender.get_full_name() or obj.sender.email
 
@@ -1365,17 +1366,17 @@ class MessageDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
     auction_details = serializers.SerializerMethodField()
     contract_details = serializers.SerializerMethodField()
     thread_subject = serializers.CharField(source='thread.subject', read_only=True)
-    
+
     class Meta:
         model = Message
         fields = '__all__'
         read_only_fields = [
             'sent_at', 'delivered_at', 'read_at', 'created_at', 'updated_at'
         ]
-    
+
     def get_attachments(self, obj):
         return self.get_json_field(obj, 'attachments', [])
-    
+
     def get_parent_message_details(self, obj):
         if obj.parent_message:
             return {
@@ -1385,10 +1386,10 @@ class MessageDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
                 'sent_at': obj.parent_message.sent_at
             }
         return None
-    
+
     def get_replies_count(self, obj):
         return obj.replies.count()
-    
+
     def get_property_details(self, obj):
         if obj.related_property:
             return {
@@ -1396,7 +1397,7 @@ class MessageDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
                 'title': obj.related_property.title
             }
         return None
-    
+
     def get_auction_details(self, obj):
         if obj.related_auction:
             return {
@@ -1404,7 +1405,7 @@ class MessageDetailSerializer(JsonFieldMixin, serializers.ModelSerializer):
                 'title': obj.related_auction.title
             }
         return None
-    
+
     def get_contract_details(self, obj):
         if obj.related_contract:
             return {
@@ -1421,7 +1422,7 @@ class MessageSerializer(JsonFieldMixin, serializers.ModelSerializer):
     Handles JSON serialization for SQLite compatibility.
     """
     attachments = serializers.JSONField(required=False)
-    
+
     class Meta:
         model = Message
         fields = [
@@ -1432,44 +1433,44 @@ class MessageSerializer(JsonFieldMixin, serializers.ModelSerializer):
         read_only_fields = [
             'sent_at', 'delivered_at', 'read_at'
         ]
-    
+
     def to_internal_value(self, data):
         """Convert JSON fields to string for models using TextField for JSON"""
         if 'attachments' in data and data['attachments']:
             if isinstance(data['attachments'], (dict, list)):
                 data = data.copy() if hasattr(data, '_mutable') else data
                 data['attachments'] = json.dumps(data['attachments'])
-        
+
         return super().to_internal_value(data)
-    
+
     def validate(self, data):
         """Custom validation for message data"""
         # Ensure content is not empty
         if 'content' in data and not data['content'].strip():
             raise serializers.ValidationError({"content": _("Content cannot be empty")})
-        
+
         # Ensure sender is a participant in the thread
         if 'thread' in data and 'sender' in data:
             thread = data['thread']
             sender = data['sender']
-            
+
             # Check if user is a participant
             is_participant = ThreadParticipant.objects.filter(
                 thread=thread,
                 user=sender,
                 is_active=True
             ).exists()
-            
+
             if not is_participant:
                 raise serializers.ValidationError(_("Sender must be an active participant in the thread"))
-        
+
         # Validate parent message belongs to the same thread
         if 'parent_message' in data and data['parent_message'] and 'thread' in data:
             if data['parent_message'].thread != data['thread']:
                 raise serializers.ValidationError({
                     "parent_message": _("Parent message must belong to the same thread")
                 })
-        
+
         return data
 
 
@@ -1480,17 +1481,17 @@ class ThreadParticipantSerializer(serializers.ModelSerializer):
     """
     user_name = serializers.SerializerMethodField()
     role_name = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = ThreadParticipant
         fields = [
             'id', 'thread', 'user', 'user_name', 'role', 'role_name',
             'is_active', 'is_muted', 'last_read_at', 'created_at'
         ]
-    
+
     def get_user_name(self, obj):
         return obj.user.get_full_name() or obj.user.email
-    
+
     def get_role_name(self, obj):
         if obj.role:
             return obj.role.get_name_display()
@@ -1506,7 +1507,7 @@ class ThreadParticipantDetailSerializer(serializers.ModelSerializer):
     custom_permissions = serializers.JSONField(read_only=True)
     has_unread_messages = serializers.BooleanField(read_only=True)
     unread_count = serializers.IntegerField(read_only=True)
-    
+
     class Meta:
         model = ThreadParticipant
         fields = '__all__'
@@ -1520,7 +1521,7 @@ class NotificationListSerializer(serializers.ModelSerializer):
     Used for notification listings with minimal details.
     """
     notification_type_display = serializers.CharField(source='get_notification_type_display', read_only=True)
-    
+
     class Meta:
         model = Notification
         fields = [
@@ -1548,12 +1549,12 @@ class NotificationDetailSerializer(serializers.ModelSerializer):
     contract_details = serializers.SerializerMethodField()
     payment_details = serializers.SerializerMethodField()
     message_details = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Notification
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at', 'read_at', 'sent_at']
-    
+
     def get_property_details(self, obj):
         if obj.related_property:
             return {
@@ -1562,7 +1563,7 @@ class NotificationDetailSerializer(serializers.ModelSerializer):
                 'property_type': obj.related_property.property_type
             }
         return None
-    
+
     def get_auction_details(self, obj):
         if obj.related_auction:
             return {
@@ -1571,7 +1572,7 @@ class NotificationDetailSerializer(serializers.ModelSerializer):
                 'status': obj.related_auction.status
             }
         return None
-    
+
     def get_bid_details(self, obj):
         if obj.related_bid:
             return {
@@ -1581,7 +1582,7 @@ class NotificationDetailSerializer(serializers.ModelSerializer):
                 'bid_time': obj.related_bid.bid_time
             }
         return None
-    
+
     def get_contract_details(self, obj):
         if obj.related_contract:
             return {
@@ -1591,7 +1592,7 @@ class NotificationDetailSerializer(serializers.ModelSerializer):
                 'status': obj.related_contract.status
             }
         return None
-    
+
     def get_payment_details(self, obj):
         if obj.related_payment:
             return {
@@ -1601,7 +1602,7 @@ class NotificationDetailSerializer(serializers.ModelSerializer):
                 'payment_type': obj.related_payment.payment_type
             }
         return None
-    
+
     def get_message_details(self, obj):
         if obj.related_message:
             return {
@@ -1621,25 +1622,25 @@ class NotificationSerializer(serializers.ModelSerializer):
         model = Notification
         exclude = ['read_at', 'sent_at']
         read_only_fields = ['is_read', 'is_sent', 'created_at', 'updated_at']
-    
+
     def validate(self, data):
         """Custom validation for notification data"""
         # For certain notification types, validate related entities
         notification_type = data.get('notification_type')
-        
+
         if notification_type == 'auction_start' and not data.get('related_auction'):
             raise serializers.ValidationError(_("Auction start notification requires a related auction"))
-        
+
         if notification_type == 'auction_end' and not data.get('related_auction'):
             raise serializers.ValidationError(_("Auction end notification requires a related auction"))
-        
+
         if notification_type == 'new_bid' and not data.get('related_bid'):
             raise serializers.ValidationError(_("New bid notification requires a related bid"))
-        
+
         if notification_type == 'payment' and not data.get('related_payment'):
             raise serializers.ValidationError(_("Payment notification requires a related payment"))
-        
+
         if notification_type == 'message' and not data.get('related_message'):
             raise serializers.ValidationError(_("Message notification requires a related message"))
-        
+
         return data

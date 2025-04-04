@@ -45,69 +45,27 @@
 		validationErrors = {};
 
 		try {
-			// Prepare property data for backend - ensuring it matches backend format
-			const propertyData = {
-				...formData,
-				// Convert objects to JSON strings for backend storage (as required by models.py)
-				location:
-					typeof formData.location === 'object'
-						? JSON.stringify(formData.location)
-						: formData.location,
-				features: Array.isArray(formData.features)
-					? JSON.stringify(formData.features)
-					: formData.features,
-				amenities: Array.isArray(formData.amenities)
-					? JSON.stringify(formData.amenities)
-					: formData.amenities,
-				images: Array.isArray(formData.images) ? JSON.stringify(formData.images) : formData.images,
-				videos: Array.isArray(formData.videos) ? JSON.stringify(formData.videos) : formData.videos,
-				street_details:
-					typeof formData.street_details === 'object'
-						? JSON.stringify(formData.street_details)
-						: formData.street_details,
-				rooms: typeof formData.rooms === 'object' ? JSON.stringify(formData.rooms) : formData.rooms,
-				outdoor_spaces:
-					typeof formData.outdoor_spaces === 'object'
-						? JSON.stringify(formData.outdoor_spaces)
-						: formData.outdoor_spaces,
-				rental_details:
-					typeof formData.rental_details === 'object'
-						? JSON.stringify(formData.rental_details)
-						: formData.rental_details,
-				parking:
-					typeof formData.parking === 'object'
-						? JSON.stringify(formData.parking)
-						: formData.parking,
-				building_services:
-					typeof formData.building_services === 'object'
-						? JSON.stringify(formData.building_services)
-						: formData.building_services,
-				infrastructure:
-					typeof formData.infrastructure === 'object'
-						? JSON.stringify(formData.infrastructure)
-						: formData.infrastructure,
-				surroundings:
-					typeof formData.surroundings === 'object'
-						? JSON.stringify(formData.surroundings)
-						: formData.surroundings,
-				reference_ids:
-					typeof formData.reference_ids === 'object'
-						? JSON.stringify(formData.reference_ids)
-						: formData.reference_ids
-			};
+			console.log('Received form data:', formData);
+
+			// The data should already be properly formatted by PropertyForm
+			// No need to transform JSON fields - the backend will handle the serialization
 
 			// Create property - this will use IsSellerPermission from backend
-			const result = await propertiesStore.createProperty(propertyData);
+			const result = await propertiesStore.createProperty(formData);
 
 			// Navigate to property detail page after successful creation
 			goto(`/properties/${result.slug}`);
 			uiStore.addToast('تم إضافة العقار بنجاح', 'success');
 		} catch (err) {
 			error = err;
+			console.error('Property creation error:', err);
 
 			// Handle validation errors from backend
 			if (err.data?.error_code === 'validation_error') {
 				validationErrors = formatValidationErrors(err.data.error);
+
+				// Log specific validation errors for debugging
+				console.log('Validation errors:', validationErrors);
 			}
 
 			uiStore.addToast('حدث خطأ أثناء حفظ العقار. يرجى التحقق من البيانات المدخلة.', 'error');

@@ -1,40 +1,23 @@
-<!-- src/routes/properties/+page.svelte -->
+<!-- src/routes/properties/add/+page.svelte -->
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { propertiesStore } from '$lib/stores/properties';
-	import { isAuthenticated, hasRole } from '$lib/stores/auth';
+	import { auth, roles } from '$lib/stores/auth';
+	import { ROLES, PERMISSIONS, hasRole, hasPermission } from '$lib/utils/permissions';
 	import { uiStore } from '$lib/stores/ui';
-	import PropertyCard from '$lib/components/properties/PropertyCard.svelte';
-	import Pagination from '$lib/components/common/Pagination.svelte';
-	import Button from '$lib/components/common/Button.svelte';
+	import { formatValidationErrors } from '$lib/utils/formatting';
+	import PropertyForm from '$lib/components/properties/PropertyForm.svelte';
 	import Loader from '$lib/components/common/Loader.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
-	import FilterBar from '$lib/components/properties/FilterBar.svelte';
-	import SearchBar from '$lib/components/common/SearchBar.svelte';
 
-	// Properties state
-	let properties = [];
 	let isLoading = true;
+	let isSubmitting = false;
 	let error = null;
-	let currentPage = 1;
-	let totalPages = 1;
-	let totalResults = 0;
-	let pageSize = 12;
+	let validationErrors = {};
+	let isSearchingCoordinates = false;
 
-	// Filter state
-	let filters = {
-		property_type: '',
-		city: '',
-		min_price: '',
-		max_price: '',
-		status: 'active' // Default to active properties
-	};
-
-	// Search state
-	let searchQuery = '';
-
-	// Cities list for filters - matching backend options
+	// Available city options for dropdown - matching Saudi cities from the backend
 	const cities = [
 		'الرياض',
 		'جدة',
@@ -54,203 +37,136 @@
 		'عرعر'
 	];
 
-	// Property types matching backend
-	const propertyTypes = [
-		{ value: 'apartment', label: 'شقة' },
-		{ value: 'villa', label: 'فيلا' },
-		{ value: 'land', label: 'أرض' },
-		{ value: 'commercial', label: 'تجاري' },
-		{ value: 'building', label: 'مبنى' },
-		{ value: 'farm', label: 'مزرعة' },
-		{ value: 'industrial', label: 'صناعي' },
-		{ value: 'office', label: 'مكتب' },
-		{ value: 'retail', label: 'محل تجاري' },
-		{ value: 'mixed_use', label: 'متعدد الاستخدامات' }
-	];
-
-	// Property statuses matching backend
-	const propertyStatuses = [
-		{ value: 'active', label: 'نشط' },
-		{ value: 'sold', label: 'مباع' },
-		{ value: 'pending_approval', label: 'قيد الموافقة' },
-		{ value: 'under_contract', label: 'تحت التعاقد' },
-		{ value: 'inactive', label: 'غير نشط' }
-	];
-
-	// Load properties with filters and pagination
-	async function loadProperties() {
-		isLoading = true;
+	// Handle form submission
+	async function handleSubmit(event) {
+		const formData = event.detail;
+		isSubmitting = true;
 		error = null;
+		validationErrors = {};
 
 		try {
-			uiStore.startLoading('جاري تحميل العقارات...');
+			// Let the formatPropertyData function in the service handle formatting
+			// instead of manually converting everything to JSON strings
+			const result = await propertiesStore.createProperty(formData);
 
-			// Build query params for backend API
-			const queryParams = {
-				page: currentPage,
-				page_size: pageSize,
-				search: searchQuery,
-				...filters
-			};
-
-			// Filter out empty values
-			Object.keys(queryParams).forEach((key) => {
-				if (!queryParams[key]) delete queryParams[key];
-			});
-
-			// Load properties from store
-			const result = await propertiesStore.loadProperties(queryParams);
-
-			properties = result.results;
-			totalPages = result.total_pages;
-			totalResults = result.count;
-
-			// Process JSON fields for each property
-			properties = properties.map((property) => ({
-				...property,
-				images: typeof property.images === 'string' ? JSON.parse(property.images) : property.images,
-				features:
-					typeof property.features === 'string' ? JSON.parse(property.features) : property.features,
-				amenities:
-					typeof property.amenities === 'string'
-						? JSON.parse(property.amenities)
-						: property.amenities
-			}));
-
-			uiStore.stopLoading();
+			// Navigate to property detail page after successful creation
+			goto(`/properties/${result.slug}`);
+			uiStore.addToast('تم إضافة العقار بنجاح', 'success');
 		} catch (err) {
 			error = err;
-			uiStore.stopLoading();
-			uiStore.addToast('حدث خطأ أثناء تحميل العقارات. يرجى المحاولة مرة أخرى.', 'error');
+
+			// Handle validation errors from backend
+			if (err.data?.error_code === 'validation_error') {
+				validationErrors = formatValidationErrors(err.data.error);
+			}
+
+			uiStore.addToast('حدث خطأ أثناء حفظ العقار. يرجى التحقق من البيانات المدخلة.', 'error');
 		} finally {
-			isLoading = false;
+			isSubmitting = false;
 		}
 	}
 
-	// Handle page change from pagination component
-	function handlePageChange(event) {
-		currentPage = event.detail.page;
-		loadProperties();
+	// Handle cancel
+	function handleCancel() {
+		goto('/properties');
 	}
 
-	// Handle filter changes
-	function handleFilterChange(event) {
-		filters = { ...filters, ...event.detail };
-		currentPage = 1; // Reset to first page when filters change
-		loadProperties();
+	/**
+	 * Check if user has permission to add a property
+	 * This matches the backend IsSellerPermission class:
+	 * - User must be authenticated AND
+	 * - User must have SELLER or AGENT role OR be staff
+	 *
+	 * @returns {boolean} True if user has permission
+	 */
+	function checkAddPropertyPermission() {
+		// Must be authenticated
+		if (!$auth.isAuthenticated) {
+			return false;
+		}
+
+		// Staff users bypass role checks (same as backend)
+		if ($auth.user?.is_staff || $auth.user?.is_superuser) {
+			return true;
+		}
+
+		// Check user roles - must match IsSellerPermission class from backend
+		// "return request.user.is_authenticated and (
+		//     request.user.has_role(Role.SELLER)
+		//     or request.user.has_role(Role.AGENT)
+		//     or request.user.is_staff
+		// )"
+
+		if (
+			hasRole(ROLES.SELLER) ||
+			hasRole(ROLES.AGENT) ||
+			hasPermission(PERMISSIONS.CREATE_PROPERTY)
+		) {
+			return true;
+		}
+
+		return false;
 	}
 
-	// Handle search
-	function handleSearch(event) {
-		searchQuery = event.detail;
-		currentPage = 1; // Reset to first page when search changes
-		loadProperties();
-	}
+	onMount(async () => {
+		try {
+			// Check authentication first
+			if (!$auth.isAuthenticated) {
+				uiStore.addToast('يجب تسجيل الدخول أولاً', 'warning');
+				goto('/login?redirect=/properties/add');
+				return;
+			}
 
-	// Handle filter reset
-	function handleResetFilters() {
-		filters = {
-			property_type: '',
-			city: '',
-			min_price: '',
-			max_price: '',
-			status: 'active'
-		};
-		searchQuery = '';
-		currentPage = 1;
-		loadProperties();
-	}
+			// Verify permissions against backend requirements
+			const hasPermission = checkAddPropertyPermission();
 
-	// Add property button clicked
-	function handleAddProperty() {
-		goto('/properties/add');
-	}
-
-	// Initialize component
-	onMount(() => {
-		loadProperties();
+			if (!hasPermission) {
+				uiStore.addToast('ليس لديك الصلاحية لإضافة عقار. يجب أن تكون بائع أو وكيل عقاري.', 'error');
+				goto('/properties');
+				return;
+			}
+		} catch (err) {
+			error = err;
+			console.error('Error checking permissions:', err);
+		} finally {
+			isLoading = false;
+		}
 	});
 </script>
 
 <svelte:head>
-	<title>استعراض العقارات | نظام المزادات العقارية</title>
-	<meta
-		name="description"
-		content="استعراض العقارات المتاحة للبيع والمزاد في منصة المزادات العقارية"
-	/>
+	<title>إضافة عقار جديد | نظام المزادات العقارية</title>
+	<meta name="description" content="إضافة عقار جديد للبيع أو المزاد في منصة المزادات العقارية" />
 </svelte:head>
 
 <div class="container mx-auto px-4 py-8">
-	<div class="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-		<div>
-			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">العقارات</h1>
-			<p class="mt-2 text-gray-600 dark:text-gray-400">استعراض العقارات المتاحة في النظام</p>
-		</div>
-
-		<!-- Add property button - only for authenticated users with seller, agent, or admin roles -->
-		{#if $isAuthenticated && ($hasRole('seller') || $hasRole('agent') || $hasRole('admin'))}
-			<Button on:click={handleAddProperty} variant="solid" color="primary">إضافة عقار جديد</Button>
-		{/if}
+	<div class="mb-6">
+		<h1 class="text-3xl font-bold text-gray-900 dark:text-white">إضافة عقار جديد</h1>
+		<p class="mt-2 text-gray-600 dark:text-gray-400">
+			قم بإدخال معلومات العقار الجديد للنشر في المنصة
+		</p>
 	</div>
 
-	<!-- Search and filters section -->
-	<div class="mb-8 rounded-lg bg-white p-4 shadow dark:bg-gray-800">
-		<div class="mb-4">
-			<SearchBar
-				placeholder="ابحث عن عقار بالعنوان أو الحي أو الوصف..."
-				value={searchQuery}
-				on:search={handleSearch}
-			/>
-		</div>
-
-		<FilterBar
-			{cities}
-			{propertyTypes}
-			{propertyStatuses}
-			{filters}
-			on:filter={handleFilterChange}
-			on:reset={handleResetFilters}
-		/>
-	</div>
-
-	<!-- Results count and sorting -->
-	{#if !isLoading && !error}
-		<div class="mb-4 flex flex-wrap items-center justify-between gap-4">
-			<div class="text-gray-600 dark:text-gray-400">
-				{totalResults} نتيجة
-			</div>
-		</div>
-	{/if}
-
-	<!-- Properties grid -->
 	{#if isLoading}
 		<div class="flex min-h-[50vh] items-center justify-center">
 			<Loader size="lg" />
 		</div>
-	{:else if error}
+	{:else if error && Object.keys(validationErrors).length === 0}
 		<Alert
 			type="error"
-			title="خطأ في تحميل العقارات"
-			message={error.message || 'حدث خطأ أثناء تحميل العقارات. يرجى المحاولة مرة أخرى.'}
-		/>
-	{:else if properties.length === 0}
-		<Alert
-			type="info"
-			title="لا توجد عقارات"
-			message="لا توجد عقارات متاحة تطابق معايير البحث. يرجى تغيير معايير البحث أو المحاولة مرة أخرى."
+			title="خطأ في حفظ العقار"
+			message={error.message || 'حدث خطأ أثناء حفظ العقار. يرجى المحاولة مرة أخرى.'}
 		/>
 	{:else}
-		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-			{#each properties as property (property.id)}
-				<PropertyCard {property} />
-			{/each}
-		</div>
-
-		<!-- Pagination -->
-		{#if totalPages > 1}
-			<div class="mt-8 flex justify-center">
-				<Pagination {currentPage} {totalPages} on:pageChange={handlePageChange} />
-			</div>
-		{/if}
+		<PropertyForm
+			property={null}
+			{cities}
+			{isSubmitting}
+			{isSearchingCoordinates}
+			editMode={false}
+			imageUploadUrl="/api/properties/upload-images/"
+			on:submit={handleSubmit}
+			on:cancel={handleCancel}
+		/>
 	{/if}
 </div>

@@ -1,6 +1,42 @@
 import api, { handleApiError } from './api';
 
 /**
+ * Format property data for API submission
+ * @param {Object} data - Property data to format
+ * @returns {Object} - Formatted property data
+ */
+function formatPropertyData(data) {
+	// Create a copy to avoid modifying the original
+	const formattedData = { ...data };
+
+	// Ensure JSON fields are properly stringified
+	const jsonFields = [
+		'location',
+		'features',
+		'amenities',
+		'images',
+		'videos',
+		'street_details',
+		'rooms',
+		'outdoor_spaces',
+		'rental_details',
+		'parking',
+		'building_services',
+		'infrastructure',
+		'surroundings',
+		'reference_ids'
+	];
+
+	for (const field of jsonFields) {
+		if (formattedData[field] && typeof formattedData[field] === 'object') {
+			formattedData[field] = JSON.stringify(formattedData[field]);
+		}
+	}
+
+	return formattedData;
+}
+
+/**
  * Property management services
  */
 export default {
@@ -11,7 +47,7 @@ export default {
 	getProperties: async (filters = {}) => {
 		try {
 			const queryParams = new URLSearchParams(filters).toString();
-			return await api.get(`/properties/${queryParams ? '?' + queryParams : ''}`);
+			return await api.get(`properties/${queryParams ? '?' + queryParams : ''}`);
 		} catch (error) {
 			throw handleApiError(error);
 		}
@@ -23,7 +59,7 @@ export default {
 	 */
 	getPropertyBySlug: async (slug) => {
 		try {
-			return await api.get(`/properties/by-slug/${slug}/`);
+			return await api.get(`properties/by-slug/${slug}/`);
 		} catch (error) {
 			throw handleApiError(error);
 		}
@@ -35,7 +71,7 @@ export default {
 	 */
 	getProperty: async (id) => {
 		try {
-			return await api.get(`/properties/${id}/`);
+			return await api.get(`properties/${id}/`);
 		} catch (error) {
 			throw handleApiError(error);
 		}
@@ -48,7 +84,7 @@ export default {
 	createProperty: async (propertyData) => {
 		try {
 			const formattedData = formatPropertyData(propertyData);
-			return await api.post('/properties/', formattedData);
+			return await api.post('properties/', formattedData);
 		} catch (error) {
 			throw handleApiError(error);
 		}
@@ -62,7 +98,19 @@ export default {
 	updateProperty: async (id, propertyData) => {
 		try {
 			const formattedData = formatPropertyData(propertyData);
-			return await api.patch(`/properties/${id}/`, formattedData);
+			return await api.patch(`properties/${id}/`, formattedData);
+		} catch (error) {
+			throw handleApiError(error);
+		}
+	},
+
+	/**
+	 * Delete a property
+	 * @param {string} id - Property ID
+	 */
+	deleteProperty: async (id) => {
+		try {
+			return await api.delete(`properties/${id}/`);
 		} catch (error) {
 			throw handleApiError(error);
 		}
@@ -73,7 +121,7 @@ export default {
 	 */
 	getMyProperties: async () => {
 		try {
-			return await api.get('/properties/my-properties/');
+			return await api.get('properties/my-properties/');
 		} catch (error) {
 			throw handleApiError(error);
 		}
@@ -85,7 +133,7 @@ export default {
 	 */
 	verifyProperty: async (id) => {
 		try {
-			return await api.post(`/properties/${id}/verify/`);
+			return await api.post(`properties/${id}/verify/`);
 		} catch (error) {
 			throw handleApiError(error);
 		}
@@ -93,20 +141,76 @@ export default {
 
 	/**
 	 * Upload property images
-	 * @param {string} id - Property ID
-	 * @param {FileList} images - Property images
+	 * @param {string} id - Property ID (optional, only if property exists)
+	 * @param {FileList|File[]} images - Property images
 	 */
 	uploadPropertyImages: async (id, images) => {
 		try {
 			const formData = new FormData();
-			for (let i = 0; i < images.length; i++) {
-				formData.append('images', images[i]);
+
+			// Add multiple files
+			if (images.length) {
+				for (let i = 0; i < images.length; i++) {
+					formData.append('images', images[i]);
+				}
 			}
-			return await api.upload(`/properties/${id}/upload-images/`, formData);
+
+			// If we have an ID, use it (for existing property)
+			if (id) {
+				return await api.upload(`properties/${id}/upload-images/`, formData);
+			} else {
+				// For new properties or standalone uploads
+				return await api.upload('properties/upload-images/', formData);
+			}
+		} catch (error) {
+			throw handleApiError(error);
+		}
+	},
+
+	/**
+	 * Search properties by keyword
+	 * @param {string} query - Search query
+	 */
+	searchProperties: async (query) => {
+		try {
+			return await api.get(`properties/?search=${encodeURIComponent(query)}`);
+		} catch (error) {
+			throw handleApiError(error);
+		}
+	},
+
+	/**
+	 * Get property statistics (for admins and agents)
+	 */
+	getPropertyStats: async () => {
+		try {
+			return await api.get('properties/stats/');
+		} catch (error) {
+			throw handleApiError(error);
+		}
+	},
+
+	/**
+	 * Get featured properties
+	 */
+	getFeaturedProperties: async (limit = 5) => {
+		try {
+			return await api.get(`properties/?is_featured=true&limit=${limit}`);
+		} catch (error) {
+			throw handleApiError(error);
+		}
+	},
+
+	/**
+	 * Get recommended properties similar to a given property
+	 * @param {string} propertyId - Property ID
+	 * @param {number} limit - Number of recommendations to get
+	 */
+	getRecommendedProperties: async (propertyId, limit = 5) => {
+		try {
+			return await api.get(`properties/${propertyId}/recommended/?limit=${limit}`);
 		} catch (error) {
 			throw handleApiError(error);
 		}
 	}
-
-	// The rest of the functions remain the same
 };

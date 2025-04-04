@@ -244,25 +244,81 @@
 		try {
 			const formData = { ...form };
 
-			// Convert location to JSON string if not already
-			if (formData.location && typeof formData.location === 'object') {
-				formData.location = JSON.stringify(formData.location);
+			// IMPORTANT: DON'T stringify JSON fields - send objects/arrays directly to the backend
+			// Instead, ensure numeric fields are proper numbers
+
+			// Convert string numeric values to actual numbers
+			formData.area = formData.area ? Number(formData.area) : null;
+			formData.built_up_area = formData.built_up_area ? Number(formData.built_up_area) : null;
+			formData.estimated_value = formData.estimated_value ? Number(formData.estimated_value) : null;
+			formData.asking_price = formData.asking_price ? Number(formData.asking_price) : null;
+			formData.bedrooms = formData.bedrooms ? Number(formData.bedrooms) : null;
+			formData.bathrooms = formData.bathrooms ? Number(formData.bathrooms) : null;
+			formData.floor_number = formData.floor_number ? Number(formData.floor_number) : null;
+			formData.total_floors = formData.total_floors ? Number(formData.total_floors) : null;
+			formData.year_built = formData.year_built ? Number(formData.year_built) : null;
+
+			// If any JSON fields are already strings, parse them (don't double-encode)
+			if (formData.location && typeof formData.location === 'string') {
+				try {
+					formData.location = JSON.parse(formData.location);
+				} catch (e) {
+					console.warn('Could not parse location string:', e);
+				}
 			}
 
-			// Convert features and amenities to JSON strings if not already
-			if (formData.features && Array.isArray(formData.features)) {
-				formData.features = JSON.stringify(formData.features);
+			if (formData.features && typeof formData.features === 'string') {
+				try {
+					formData.features = JSON.parse(formData.features);
+				} catch (e) {
+					console.warn('Could not parse features string:', e);
+				}
 			}
 
-			if (formData.amenities && Array.isArray(formData.amenities)) {
-				formData.amenities = JSON.stringify(formData.amenities);
+			if (formData.amenities && typeof formData.amenities === 'string') {
+				try {
+					formData.amenities = JSON.parse(formData.amenities);
+				} catch (e) {
+					console.warn('Could not parse amenities string:', e);
+				}
 			}
 
-			if (formData.images && Array.isArray(formData.images)) {
-				// Images should already be uploaded and have paths from server
-				formData.images = JSON.stringify(formData.images);
+			if (formData.images && typeof formData.images === 'string') {
+				try {
+					formData.images = JSON.parse(formData.images);
+				} catch (e) {
+					console.warn('Could not parse images string:', e);
+				}
 			}
 
+			// Handle other possible JSON fields the same way
+			const jsonFields = [
+				'videos',
+				'street_details',
+				'rooms',
+				'outdoor_spaces',
+				'rental_details',
+				'parking',
+				'building_services',
+				'infrastructure',
+				'surroundings',
+				'reference_ids'
+			];
+
+			jsonFields.forEach((field) => {
+				if (formData[field] && typeof formData[field] === 'string') {
+					try {
+						formData[field] = JSON.parse(formData[field]);
+					} catch (e) {
+						console.warn(`Could not parse ${field} string:`, e);
+					}
+				}
+			});
+
+			// Log what we're sending to the parent
+			console.log('Submitting property data:', formData);
+
+			// Dispatch the data to the parent component
 			dispatch('submit', formData);
 		} catch (error) {
 			console.error('Error preparing form data:', error);
@@ -328,60 +384,91 @@
 	}
 
 	// Upload images
+	// This should replace the uploadImages function in PropertyForm.svelte
+
 	async function uploadImages() {
 		if (!imageFiles.length) return;
-
-		const formData = new FormData();
-		imageFiles.forEach((file) => {
-			formData.append('images', file);
-		});
-
-		if (property && property.id) {
-			formData.append('property_id', property.id);
-		}
 
 		try {
 			uploadProgress = 0;
 			uploadError = '';
 
-			const xhr = new XMLHttpRequest();
+			// For existing properties, upload directly
+			if (property && property.id) {
+				const formData = new FormData();
 
-			xhr.upload.addEventListener('progress', (e) => {
-				if (e.lengthComputable) {
-					uploadProgress = Math.round((e.loaded / e.total) * 100);
-				}
-			});
+				// Use 'files' instead of 'images' to match backend expectations
+				imageFiles.forEach((file) => {
+					formData.append('files', file);
+				});
 
-			xhr.addEventListener('load', () => {
-				if (xhr.status === 200 || xhr.status === 201) {
-					const response = JSON.parse(xhr.responseText);
+				// Use XHR for progress tracking
+				const xhr = new XMLHttpRequest();
 
-					// Add uploaded images to form.images
-					if (response.images && Array.isArray(response.images)) {
-						form.images = [...form.images, ...response.images];
+				xhr.upload.addEventListener('progress', (e) => {
+					if (e.lengthComputable) {
+						uploadProgress = Math.round((e.loaded / e.total) * 100);
 					}
+				});
 
-					// Clear uploaded files
-					imageFiles = [];
-					uploadProgress = 0;
+				xhr.addEventListener('load', () => {
+					if (xhr.status === 200 || xhr.status === 201) {
+						try {
+							const response = JSON.parse(xhr.responseText);
+							console.log('Upload response:', response);
 
-					dispatch('imagesUploaded', response);
-				} else {
-					uploadError = 'Failed to upload images. Please try again.';
+							// Add uploaded images to form.images
+							if (response.files && Array.isArray(response.files)) {
+								form.images = [...form.images, ...response.files];
+							} else if (response.images && Array.isArray(response.images)) {
+								form.images = [...form.images, ...response.images];
+							}
+
+							// Clear uploaded files
+							imageFiles = [];
+							uploadProgress = 0;
+
+							dispatch('imagesUploaded', { success: true, images: form.images });
+						} catch (error) {
+							console.error('Error processing upload response:', error);
+							uploadError = 'Error processing server response';
+							uploadProgress = 0;
+						}
+					} else {
+						console.error('Upload failed with status:', xhr.status, xhr.responseText);
+						uploadError = `Failed to upload images: ${xhr.status} ${xhr.statusText}`;
+						uploadProgress = 0;
+					}
+				});
+
+				xhr.addEventListener('error', () => {
+					console.error('XHR error occurred during upload');
+					uploadError = 'Network error occurred during upload.';
 					uploadProgress = 0;
+				});
+
+				// Construct URL with property ID
+				// Important: Make sure there are no double slashes in the URL
+				const url = `${imageUploadUrl.replace(/\/$/, '')}/${property.id}/`;
+				console.log('Upload URL:', url);
+
+				xhr.open('POST', url);
+
+				// Add authorization header
+				const token = localStorage.getItem('access_token');
+				if (token) {
+					xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 				}
-			});
 
-			xhr.addEventListener('error', () => {
-				uploadError = 'Network error occurred during upload.';
-				uploadProgress = 0;
-			});
-
-			xhr.open('POST', imageUploadUrl);
-			xhr.send(formData);
+				xhr.send(formData);
+			} else {
+				// For new properties, we need to store the files and upload after property creation
+				console.log('New property - storing files for later upload');
+				dispatch('pendingUploads', { files: imageFiles });
+			}
 		} catch (error) {
-			console.error('Error uploading images:', error);
-			uploadError = 'An error occurred during upload.';
+			console.error('Error preparing upload:', error);
+			uploadError = 'An error occurred preparing the upload.';
 			uploadProgress = 0;
 		}
 	}

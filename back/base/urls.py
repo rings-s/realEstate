@@ -1,20 +1,23 @@
 from django.urls import path, register_converter
 
 from .views import (
+    # Base API views
+    BaseAPIView, BaseUploadView, MediaUploadView,
+
     # Property views
     PropertyListCreateView, PropertyDetailView, PropertyBySlugView, VerifyPropertyView, MyPropertiesView,
-    UploadPropertyImagesView,
+    PropertyImageUploadView, PropertyImageSetPrimaryView, PropertyImageDeleteView,
 
     # Auction views
     AuctionListCreateView, AuctionDetailView, AuctionBySlugView, PlaceBidView, ExtendAuctionView,
-    CloseAuctionView, MyAuctionsView, UploadAuctionImagesView,
+    CloseAuctionView, MyAuctionsView, AuctionImageUploadView,
 
     # Bid views
     BidListCreateView, BidDetailView, MarkBidAsWinningView, MyBidsView,
 
     # Document views
     DocumentListCreateView, DocumentDetailView, VerifyDocumentView, MyDocumentsView,
-    UploadDocumentFilesView,
+    DocumentFileUploadView,
 
     # Contract views
     ContractListCreateView, ContractDetailView, SignContractAsBuyerView, SignContractAsSellerView,
@@ -56,95 +59,95 @@ register_converter(ArabicSlugConverter, 'arabic_slug')
 
 
 urlpatterns = [
-    # Property URLs
+    # List/Create endpoints - consistent pattern: /{resource}/
     path('properties/', PropertyListCreateView.as_view(), name='property-list'),
-    path('properties/<int:pk>/', PropertyDetailView.as_view(), name='property-detail'),
-    path('properties/by-slug/<arabic_slug:slug>/', PropertyBySlugView.as_view(), name='property-detail-by-slug'),
-    path('properties/<int:pk>/verify/', VerifyPropertyView.as_view(), name='property-verify'),
-    path('properties/my-properties/', MyPropertiesView.as_view(), name='property-my-properties'),
-    path('properties/<int:pk>/upload-images/', UploadPropertyImagesView.as_view(), name='property-upload-images'),
-
-    # Auction URLs
     path('auctions/', AuctionListCreateView.as_view(), name='auction-list'),
-    path('auctions/<int:pk>/', AuctionDetailView.as_view(), name='auction-detail'),
-    path('auctions/by-slug/<arabic_slug:slug>/', AuctionBySlugView.as_view(), name='auction-detail-by-slug'),
-    path('auctions/<int:pk>/place-bid/', PlaceBidView.as_view(), name='auction-place-bid'),
-    path('auctions/<int:pk>/extend/', ExtendAuctionView.as_view(), name='auction-extend'),
-    path('auctions/<int:pk>/close/', CloseAuctionView.as_view(), name='auction-close'),
-    path('auctions/my-auctions/', MyAuctionsView.as_view(), name='auction-my-auctions'),
-    path('auctions/<int:pk>/upload-images/', UploadAuctionImagesView.as_view(), name='auction-upload-images'),
-
-    # Bid URLs
     path('bids/', BidListCreateView.as_view(), name='bid-list'),
-    path('bids/<int:pk>/', BidDetailView.as_view(), name='bid-detail'),
-    path('bids/<int:pk>/mark-winning/', MarkBidAsWinningView.as_view(), name='bid-mark-winning'),
-    path('bids/my-bids/', MyBidsView.as_view(), name='bid-my-bids'),
-
-    # Document URLs
     path('documents/', DocumentListCreateView.as_view(), name='document-list'),
-    path('documents/<int:pk>/', DocumentDetailView.as_view(), name='document-detail'),
-    path('documents/<int:pk>/verify/', VerifyDocumentView.as_view(), name='document-verify'),
-    path('documents/my-documents/', MyDocumentsView.as_view(), name='document-my-documents'),
-    path('documents/<int:pk>/upload-files/', UploadDocumentFilesView.as_view(), name='document-upload-files'),
-
-    # Contract URLs
     path('contracts/', ContractListCreateView.as_view(), name='contract-list'),
-    path('contracts/<int:pk>/', ContractDetailView.as_view(), name='contract-detail'),
-    path('contracts/<int:pk>/sign-buyer/', SignContractAsBuyerView.as_view(), name='contract-sign-buyer'),
-    path('contracts/<int:pk>/sign-seller/', SignContractAsSellerView.as_view(), name='contract-sign-seller'),
-    path('contracts/<int:pk>/sign-agent/', SignContractAsAgentView.as_view(), name='contract-sign-agent'),
-    path('contracts/my-contracts/', MyContractsView.as_view(), name='contract-my-contracts'),
-    path('contracts/<int:pk>/upload-files/', UploadContractFilesView.as_view(), name='contract-upload-files'),
-
-    # Payment URLs
     path('payments/', PaymentListCreateView.as_view(), name='payment-list'),
-    path('payments/<int:pk>/', PaymentDetailView.as_view(), name='payment-detail'),
-    path('payments/<int:pk>/confirm/', ConfirmPaymentView.as_view(), name='payment-confirm'),
-    path('payments/my-payments/', MyPaymentsView.as_view(), name='payment-my-payments'),
-    path('payments/<int:pk>/upload-receipt/', UploadPaymentReceiptView.as_view(), name='payment-upload-receipt'),
-
-    # Message Thread URLs
-    path('message-threads/', MessageThreadListCreateView.as_view(), name='messagethread-list'),
-    path('message-threads/<int:pk>/', MessageThreadDetailView.as_view(), name='messagethread-detail'),
-    path('message-threads/by-slug/<arabic_slug:slug>/', ThreadBySlugView.as_view(), name='message-thread-detail-by-slug'),
-    path('message-threads/<int:pk>/add-participant/', AddThreadParticipantView.as_view(), name='message-thread-add-participant'),
-    path('message-threads/<int:pk>/remove-participant/', RemoveThreadParticipantView.as_view(), name='message-thread-remove-participant'),
-    path('message-threads/<int:pk>/mark-read/', MarkThreadAsReadView.as_view(), name='message-thread-mark-read'),
-    path('message-threads/<int:pk>/close/', CloseThreadView.as_view(), name='message-thread-close'),
-    path('message-threads/<int:pk>/reopen/', ReopenThreadView.as_view(), name='message-thread-reopen'),
-    path('message-threads/my-threads/', MyThreadsView.as_view(), name='message-thread-my-threads'),
-
-    # Message URLs
+    path('threads/', MessageThreadListCreateView.as_view(), name='thread-list'),
     path('messages/', MessageListCreateView.as_view(), name='message-list'),
-    path('messages/<int:pk>/', MessageDetailView.as_view(), name='message-detail'),
-    path('messages/<int:pk>/mark-read/', MarkMessageAsReadView.as_view(), name='message-mark-read'),
-    path('messages/my-messages/', MyMessagesView.as_view(), name='message-my-messages'),
-    path('messages/<int:pk>/upload-attachment/', UploadMessageAttachmentView.as_view(), name='message-upload-attachment'),
-
-    # Transaction URLs
     path('transactions/', TransactionListCreateView.as_view(), name='transaction-list'),
-    path('transactions/<int:pk>/', TransactionDetailView.as_view(), name='transaction-detail'),
-    path('transactions/<int:pk>/mark-completed/', MarkTransactionAsCompletedView.as_view(), name='transaction-mark-completed'),
-    path('transactions/<int:pk>/mark-failed/', MarkTransactionAsFailedView.as_view(), name='transaction-mark-failed'),
-    path('transactions/my-transactions/', MyTransactionsView.as_view(), name='transaction-my-transactions'),
-
-    # Notification URLs
     path('notifications/', NotificationListCreateView.as_view(), name='notification-list'),
+
+    # Detail endpoints - consistent pattern: /{resource}/{id}/
+    path('properties/<int:pk>/', PropertyDetailView.as_view(), name='property-detail'),
+    path('auctions/<int:pk>/', AuctionDetailView.as_view(), name='auction-detail'),
+    path('bids/<int:pk>/', BidDetailView.as_view(), name='bid-detail'),
+    path('documents/<int:pk>/', DocumentDetailView.as_view(), name='document-detail'),
+    path('contracts/<int:pk>/', ContractDetailView.as_view(), name='contract-detail'),
+    path('payments/<int:pk>/', PaymentDetailView.as_view(), name='payment-detail'),
+    path('threads/<int:pk>/', MessageThreadDetailView.as_view(), name='thread-detail'),
+    path('messages/<int:pk>/', MessageDetailView.as_view(), name='message-detail'),
+    path('transactions/<int:pk>/', TransactionDetailView.as_view(), name='transaction-detail'),
     path('notifications/<int:pk>/', NotificationDetailView.as_view(), name='notification-detail'),
-    path('notifications/<int:pk>/mark-read/', MarkNotificationAsReadView.as_view(), name='notification-mark-read'),
-    path('notifications/mark-all-read/', MarkAllNotificationsAsReadView.as_view(), name='notification-mark-all-read'),
-    path('notifications/my-notifications/', MyNotificationsView.as_view(), name='notification-my-notifications'),
+
+    # Slug-based detail endpoints - consistent pattern: /{resource}/slug/{slug}/
+    path('properties/slug/<arabic_slug:slug>/', PropertyBySlugView.as_view(), name='property-by-slug'),
+    path('auctions/slug/<arabic_slug:slug>/', AuctionBySlugView.as_view(), name='auction-by-slug'),
+    path('threads/slug/<arabic_slug:slug>/', ThreadBySlugView.as_view(), name='thread-by-slug'),
+
+    # My resources endpoints - consistent pattern: /{resource}/my/
+    path('properties/my/', MyPropertiesView.as_view(), name='my-properties'),
+    path('auctions/my/', MyAuctionsView.as_view(), name='my-auctions'),
+    path('bids/my/', MyBidsView.as_view(), name='my-bids'),
+    path('documents/my/', MyDocumentsView.as_view(), name='my-documents'),
+    path('contracts/my/', MyContractsView.as_view(), name='my-contracts'),
+    path('payments/my/', MyPaymentsView.as_view(), name='my-payments'),
+    path('threads/my/', MyThreadsView.as_view(), name='my-threads'),
+    path('messages/my/', MyMessagesView.as_view(), name='my-messages'),
+    path('transactions/my/', MyTransactionsView.as_view(), name='my-transactions'),
+    path('notifications/my/', MyNotificationsView.as_view(), name='my-notifications'),
+
+    # Upload endpoints - consistent pattern: /{resource}/{id}/uploads/
+    path('properties/<int:pk>/uploads/', PropertyImageUploadView.as_view(), name='property-upload'),
+    path('auctions/<int:pk>/uploads/', AuctionImageUploadView.as_view(), name='auction-upload'),
+    path('documents/<int:pk>/uploads/', DocumentFileUploadView.as_view(), name='document-upload'),
+    path('contracts/<int:pk>/uploads/', UploadContractFilesView.as_view(), name='contract-upload'),
+    path('payments/<int:pk>/uploads/', UploadPaymentReceiptView.as_view(), name='payment-upload'),
+    path('messages/<int:pk>/uploads/', UploadMessageAttachmentView.as_view(), name='message-upload'),
+
+    # Action endpoints - consistent pattern: /{resource}/{id}/actions/{action}/
+    # Property actions
+    path('properties/<int:pk>/actions/verify/', VerifyPropertyView.as_view(), name='property-verify'),
+    path('properties/<int:pk>/actions/set-primary-image/', PropertyImageSetPrimaryView.as_view(), name='property-set-primary-image'),
+    path('properties/<int:pk>/actions/delete-image/<int:image_index>/', PropertyImageDeleteView.as_view(), name='property-delete-image'),
+
+    # Auction actions
+    path('auctions/<int:pk>/actions/bid/', PlaceBidView.as_view(), name='auction-bid'),
+    path('auctions/<int:pk>/actions/extend/', ExtendAuctionView.as_view(), name='auction-extend'),
+    path('auctions/<int:pk>/actions/close/', CloseAuctionView.as_view(), name='auction-close'),
+
+    # Bid actions
+    path('bids/<int:pk>/actions/mark-winning/', MarkBidAsWinningView.as_view(), name='bid-mark-winning'),
+
+    # Document actions
+    path('documents/<int:pk>/actions/verify/', VerifyDocumentView.as_view(), name='document-verify'),
+
+    # Contract actions
+    path('contracts/<int:pk>/actions/sign-buyer/', SignContractAsBuyerView.as_view(), name='contract-sign-buyer'),
+    path('contracts/<int:pk>/actions/sign-seller/', SignContractAsSellerView.as_view(), name='contract-sign-seller'),
+    path('contracts/<int:pk>/actions/sign-agent/', SignContractAsAgentView.as_view(), name='contract-sign-agent'),
+
+    # Payment actions
+    path('payments/<int:pk>/actions/confirm/', ConfirmPaymentView.as_view(), name='payment-confirm'),
+
+    # Thread actions
+    path('threads/<int:pk>/actions/add-participant/', AddThreadParticipantView.as_view(), name='thread-add-participant'),
+    path('threads/<int:pk>/actions/remove-participant/', RemoveThreadParticipantView.as_view(), name='thread-remove-participant'),
+    path('threads/<int:pk>/actions/mark-read/', MarkThreadAsReadView.as_view(), name='thread-mark-read'),
+    path('threads/<int:pk>/actions/close/', CloseThreadView.as_view(), name='thread-close'),
+    path('threads/<int:pk>/actions/reopen/', ReopenThreadView.as_view(), name='thread-reopen'),
+
+    # Message actions
+    path('messages/<int:pk>/actions/mark-read/', MarkMessageAsReadView.as_view(), name='message-mark-read'),
+
+    # Transaction actions
+    path('transactions/<int:pk>/actions/mark-completed/', MarkTransactionAsCompletedView.as_view(), name='transaction-mark-completed'),
+    path('transactions/<int:pk>/actions/mark-failed/', MarkTransactionAsFailedView.as_view(), name='transaction-mark-failed'),
+
+    # Notification actions
+    path('notifications/<int:pk>/actions/mark-read/', MarkNotificationAsReadView.as_view(), name='notification-mark-read'),
+    path('notifications/actions/mark-all-read/', MarkAllNotificationsAsReadView.as_view(), name='notification-mark-all-read'),
 ]
-
-
-
-"""
-/properties/${id}/upload-images/
-/auctions/${id}/upload-images/
-/documents/${id}/upload-files/
-/contracts/${id}/upload-files/
-/payments/${id}/upload-receipt/
-/messages/${id}/upload-attachment/
-
-
-"""

@@ -2,9 +2,10 @@ import logging
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import F, Q
+from django.db.models import F, Q, Exists, OuterRef, Subquery
 from django.http import Http404
-from rest_framework import permissions, status, filters
+from django.utils.translation import gettext_lazy as _
+from rest_framework import permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
@@ -28,32 +29,16 @@ from .decorators import (
     debug_request, handle_exceptions, cache_view, timer,
     CACHE_SHORT, CACHE_MEDIUM, CACHE_LONG
 )
+from .utils import MediaHandler, create_response
 from accounts.models import Role
 
 logger = logging.getLogger(__name__)
 
-def create_response(data=None, message=None, error=None, error_code=None, status_code=status.HTTP_200_OK):
-    """Create a standardized API response"""
-    response_data = {"status": "success" if not error else "error"}
-
-    if message:
-        response_data["message"] = message
-
-    if data is not None:
-        response_data["data"] = data
-
-    if error:
-        response_data["error"] = error
-
-    if error_code:
-        response_data["error_code"] = error_code
-
-    return Response(response_data, status=status_code)
-
-
+# Base API View
 class BaseAPIView(APIView):
     """Base API view with common functionality and error handling"""
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = PageNumberPagination
 
     # Define permission map for different HTTP methods
     action_permission_map = {
@@ -63,9 +48,6 @@ class BaseAPIView(APIView):
         'patch': [permissions.IsAdminUser],
         'delete': [permissions.IsAdminUser],
     }
-
-    # Add pagination
-    pagination_class = PageNumberPagination
 
     @handle_exceptions
     def dispatch(self, request, *args, **kwargs):
@@ -89,7 +71,7 @@ class BaseAPIView(APIView):
         """Return a paginated response"""
         return self._paginator.get_paginated_response(data)
 
-    # Helper methods for consistent responses
+    # Shorthand response methods
     def error_response(self, error, error_code=None, status_code=status.HTTP_400_BAD_REQUEST):
         return create_response(error=error, error_code=error_code, status_code=status_code)
 
@@ -99,133 +81,348 @@ class BaseAPIView(APIView):
     def not_found(self, message="Resource not found"):
         return self.error_response(error=message, error_code="not_found", status_code=status.HTTP_404_NOT_FOUND)
 
+    def permission_denied(self, message="Permission denied"):
+        return self.error_response(error=message, error_code="permission_denied", status_code=status.HTTP_403_FORBIDDEN)
 
+# Base class for file uploads
 class BaseUploadView(BaseAPIView):
-    """Base view for file uploads"""
+    """
+    Base class for handling file uploads.
+    This should be subclassed for specific entity types.
+    """
     permission_classes = [permissions.IsAuthenticated]
+
+    # Configuration to be set by subclasses
     model_class = None
-    file_field_name = None
-    allow_multiple = False
-    allowed_extensions = None
-    max_file_size = 10 * 1024 * 1024  # 10MB default
+    file_field_name = 'files'
+    allow_multiple = True
+    allowed_extensions = []
+    max_file_size = 5 * 1024 * 1024  # 5MB default
 
     def get_object(self, pk):
-        """Get the object for file upload with permissions check"""
+        """Get the object and verify permissions"""
+        if not self.model_class:
+            raise ValueError("model_class must be set in subclass")
+
         obj = get_object_or_404(self.model_class, pk=pk)
-
-        # Check owner permissions
-        user = self.request.user
-        if not user.is_staff:
-            if hasattr(obj, 'owner') and obj.owner != user:
-                # Property ownership
-                if hasattr(obj, 'created_by') and obj.created_by != user:
-                    # Auction creation
-                    if hasattr(obj, 'auctioneer') and obj.auctioneer != user:
-                        # Is buyer/seller/agent for contract
-                        if not (hasattr(obj, 'buyer') and obj.buyer == user or
-                                hasattr(obj, 'seller') and obj.seller == user or
-                                hasattr(obj, 'agent') and obj.agent == user):
-                            raise PermissionDenied("You don't have permission to upload files to this object")
-
+        self.check_object_permissions(self.request, obj)
         return obj
 
-    def validate_file(self, file):
-        """Validate file size and type"""
-        if file.size > self.max_file_size:
-            return False, f"File size exceeds the limit of {self.max_file_size / (1024 * 1024)}MB"
-
-        if self.allowed_extensions:
-            ext = file.name.split('.')[-1].lower()
-            if ext not in self.allowed_extensions:
-                return False, f"File type not allowed. Allowed types: {', '.join(self.allowed_extensions)}"
-
-        return True, None
-
+    @handle_exceptions
     @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Handle file upload"""
+    def post(self, request, pk):
+        """Upload files for an entity"""
         try:
+            # Get entity and check permissions
             obj = self.get_object(pk)
 
             # Check if files were provided
-            if 'file' not in request.FILES and 'files' not in request.FILES:
-                return self.error_response('No files were submitted', 'no_files_error')
-
-            # Handle multiple files
-            if self.allow_multiple and 'files' in request.FILES:
-                files = request.FILES.getlist('files')
-
-                # Validate all files
-                for file in files:
-                    is_valid, error_msg = self.validate_file(file)
-                    if not is_valid:
-                        return self.error_response(error_msg, 'file_validation_error')
-
-                # Process all files
-                uploaded_files = []
-                for file in files:
-                    if hasattr(obj, self.file_field_name):
-                        field = getattr(obj, self.file_field_name)
-                        if hasattr(field, 'create'):  # It's a related manager
-                            uploaded_file = field.create(
-                                file=file,
-                                uploaded_by=request.user,
-                                file_name=file.name,
-                                file_size=file.size,
-                                file_type=file.content_type
-                            )
-                        else:  # It's a direct field
-                            setattr(obj, self.file_field_name, file)
-                            obj.save()
-                            uploaded_file = getattr(obj, self.file_field_name)
-
-                    uploaded_files.append(uploaded_file)
-
-                return self.success_response(
-                    message=f"{len(uploaded_files)} files uploaded successfully",
-                    status_code=status.HTTP_201_CREATED
+            if self.file_field_name not in request.FILES:
+                return self.error_response(
+                    _('No files were provided'),
+                    'no_files',
+                    status.HTTP_400_BAD_REQUEST
                 )
 
-            # Handle single file
-            file = request.FILES.get('file') or request.FILES.getlist('files')[0]
+            # Get files
+            files = request.FILES.getlist(self.file_field_name)
 
-            # Validate the file
-            is_valid, error_msg = self.validate_file(file)
-            if not is_valid:
-                return self.error_response(error_msg, 'file_validation_error')
+            # Check if multiple files are allowed
+            if not self.allow_multiple and len(files) > 1:
+                return self.error_response(
+                    _('Only one file is allowed'),
+                    'too_many_files',
+                    status.HTTP_400_BAD_REQUEST
+                )
 
-            # Save the file
-            if hasattr(obj, self.file_field_name):
-                field = getattr(obj, self.file_field_name)
-                if hasattr(field, 'create'):  # It's a related manager
-                    uploaded_file = field.create(
-                        file=file,
-                        uploaded_by=request.user,
-                        file_name=file.name,
-                        file_size=file.size,
-                        file_type=file.content_type
+            # Check for max files
+            if len(files) > 10:  # Hardcoded limit for safety
+                return self.error_response(
+                    _('Too many files. Maximum is 10 files per upload.'),
+                    'too_many_files',
+                    status.HTTP_400_BAD_REQUEST
+                )
+
+            # Validate file extensions
+            if self.allowed_extensions:
+                for file in files:
+                    ext = file.name.split('.')[-1].lower()
+                    if ext not in self.allowed_extensions:
+                        return self.error_response(
+                            _('Invalid file type. Allowed types: {}').format(
+                                ', '.join(self.allowed_extensions)
+                            ),
+                            'invalid_file_type',
+                            status.HTTP_400_BAD_REQUEST
+                        )
+
+            # Validate file sizes
+            for file in files:
+                if file.size > self.max_file_size:
+                    return self.error_response(
+                        _('File too large. Maximum size is {} MB').format(
+                            self.max_file_size / (1024 * 1024)
+                        ),
+                        'file_too_large',
+                        status.HTTP_400_BAD_REQUEST
                     )
-                else:  # It's a direct field
-                    setattr(obj, self.file_field_name, file)
-                    obj.save()
 
+            # Process files based on model type
+            if self.model_class.__name__ == 'Property' and self.file_field_name == 'images':
+                new_files = MediaHandler.process_property_images(obj, files)
+            elif self.model_class.__name__ == 'Auction' and self.file_field_name == 'images':
+                new_files = MediaHandler.process_auction_images(obj, files)
+            elif self.model_class.__name__ == 'Document' and self.file_field_name == 'files':
+                new_files = MediaHandler.process_document_files(obj, files)
+            elif hasattr(obj, 'get_json_field') and hasattr(obj, 'set_json_field'):
+                # Generic handling for models with JsonFieldMixin
+                current_files = obj.get_json_field(self.file_field_name, [])
+                new_files = []
+
+                for file in files:
+                    file_info = MediaHandler.save_file(
+                        file,
+                        self.model_class.__name__.lower(),
+                        obj.pk,
+                        self.file_field_name
+                    )
+                    new_files.append(file_info)
+
+                updated_files = current_files + new_files
+                obj.set_json_field(self.file_field_name, updated_files)
+                obj.save(update_fields=[self.file_field_name, 'updated_at'])
+            else:
+                return self.error_response(
+                    _('Unsupported model or file field'),
+                    'configuration_error',
+                    status.HTTP_400_BAD_REQUEST
+                )
+
+            # Return success response
             return self.success_response(
-                message="File uploaded successfully",
+                data={
+                    'count': len(new_files),
+                    self.file_field_name: new_files
+                },
+                message=_('Files uploaded successfully'),
                 status_code=status.HTTP_201_CREATED
             )
 
+        except PermissionDenied as e:
+            return self.permission_denied(str(e))
         except Http404:
             return self.not_found(f"{self.model_class.__name__} not found")
+        except ValueError as e:
+            return self.error_response(str(e), 'validation_error', status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"Error uploading file: {str(e)}")
+            logger.error(f"Error uploading files: {str(e)}")
             return self.error_response(
-                f"An error occurred while uploading the file: {str(e)}",
+                _('Failed to process file uploads'),
                 'upload_error',
                 status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
 
-# Property Views
+# ============================================================================
+# Media Upload Views - Unified approach using MediaHandler
+# ============================================================================
+
+class MediaUploadView(BaseAPIView):
+    """
+    Unified media upload view for handling file uploads across different entity types.
+    This replaces multiple redundant upload views with a single, configurable implementation.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    # Configuration to be set by subclasses
+    entity_model = None
+    entity_type = None
+    media_type = 'image'
+    max_files = 10
+
+    def get_entity(self, pk):
+        """Get the entity and verify permissions"""
+        if not self.entity_model:
+            raise ValueError("entity_model must be set in subclass")
+
+        entity = get_object_or_404(self.entity_model, pk=pk)
+        user = self.request.user
+
+        # Check permissions based on entity type
+        if not user.is_staff:
+            if hasattr(entity, 'owner') and entity.owner != user:
+                if hasattr(entity, 'created_by') and entity.created_by != user:
+                    if hasattr(entity, 'auctioneer') and entity.auctioneer != user:
+                        raise PermissionDenied(_("You don't have permission to upload files for this {entity_type}"))
+
+        return entity
+
+    @handle_exceptions
+    @transaction.atomic
+    def post(self, request, pk):
+        """Upload files for an entity"""
+        try:
+            # Get entity and check permissions
+            entity = self.get_entity(pk)
+
+            # Determine field name based on media type
+            field_name = 'files' if self.media_type == 'document' else 'images'
+
+            # Check if files were provided
+            if field_name not in request.FILES:
+                return self.error_response(
+                    _('No files were provided'),
+                    'no_files',
+                    status.HTTP_400_BAD_REQUEST
+                )
+
+            # Get files
+            files = request.FILES.getlist(field_name)
+
+            # Check for max files
+            if len(files) > self.max_files:
+                return self.error_response(
+                    _('Too many files. Maximum is {max} files per upload.').format(max=self.max_files),
+                    'too_many_files',
+                    status.HTTP_400_BAD_REQUEST
+                )
+
+            # Process uploads based on entity and media type
+            if self.entity_type == 'property' and self.media_type == 'image':
+                new_files = MediaHandler.process_property_images(entity, files)
+            elif self.entity_type == 'auction' and self.media_type == 'image':
+                new_files = MediaHandler.process_auction_images(entity, files)
+            elif self.entity_type == 'document' and self.media_type == 'document':
+                new_files = MediaHandler.process_document_files(entity, files)
+            else:
+                return self.error_response(
+                    _('Unsupported entity or media type'),
+                    'configuration_error',
+                    status.HTTP_400_BAD_REQUEST
+                )
+
+            # Return success response
+            return self.success_response(
+                data={
+                    'count': len(new_files),
+                    field_name: new_files
+                },
+                message=_('Files uploaded successfully'),
+                status_code=status.HTTP_201_CREATED
+            )
+
+        except PermissionDenied as e:
+            return self.permission_denied(str(e))
+        except Http404:
+            return self.not_found(f"{self.entity_type.title()} not found")
+        except ValueError as e:
+            return self.error_response(str(e), 'validation_error', status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error uploading files: {str(e)}")
+            return self.error_response(
+                _('Failed to process file uploads'),
+                'upload_error',
+                status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class PropertyImageUploadView(MediaUploadView):
+    """Upload images for a property"""
+    entity_model = Property
+    entity_type = 'property'
+    media_type = 'image'
+    max_files = 10
+
+
+class PropertyImageSetPrimaryView(BaseAPIView):
+    """Set a primary image for a property"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    @handle_exceptions
+    def post(self, request, pk):
+        """Set a property image as primary"""
+        try:
+            # Get property and check permissions
+            property_obj = get_object_or_404(Property, pk=pk)
+
+            if not request.user.is_staff and property_obj.owner != request.user:
+                return self.permission_denied(_('You do not have permission to modify this property'))
+
+            # Get image index
+            try:
+                image_index = int(request.data.get('image_index', -1))
+            except (TypeError, ValueError):
+                return self.error_response(_('Invalid image index'), 'invalid_index', status.HTTP_400_BAD_REQUEST)
+
+            # Set primary image
+            primary_image = MediaHandler.set_primary_image(property_obj, image_index)
+
+            return self.success_response(
+                data={'image': primary_image},
+                message=_('Primary image set successfully')
+            )
+
+        except Http404:
+            return self.not_found(_('Property not found'))
+        except ValueError as e:
+            return self.error_response(str(e), 'invalid_index', status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error setting primary image: {str(e)}")
+            return self.error_response(_('Failed to set primary image'), 'update_error', status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PropertyImageDeleteView(BaseAPIView):
+    """Delete a property image"""
+    permission_classes = [permissions.IsAuthenticated]
+
+    @handle_exceptions
+    @transaction.atomic
+    def delete(self, request, pk, image_index):
+        """Delete an image from a property"""
+        try:
+            # Get property and check permissions
+            property_obj = get_object_or_404(Property, pk=pk)
+
+            if not request.user.is_staff and property_obj.owner != request.user:
+                return self.permission_denied(_('You do not have permission to modify this property'))
+
+            # Convert image_index to integer
+            try:
+                image_index = int(image_index)
+            except ValueError:
+                return self.error_response(_('Invalid image index'), 'invalid_index', status.HTTP_400_BAD_REQUEST)
+
+            # Delete the image
+            deleted_image = MediaHandler.delete_image(property_obj, image_index)
+
+            return self.success_response(
+                data={'deleted_image': deleted_image},
+                message=_('Image deleted successfully')
+            )
+
+        except Http404:
+            return self.not_found(_('Property not found'))
+        except ValueError as e:
+            return self.error_response(str(e), 'invalid_index', status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error deleting image: {str(e)}")
+            return self.error_response(_('Failed to delete image'), 'delete_error', status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class AuctionImageUploadView(MediaUploadView):
+    """Upload images for an auction"""
+    entity_model = Auction
+    entity_type = 'auction'
+    media_type = 'image'
+    max_files = 10
+
+
+class DocumentFileUploadView(MediaUploadView):
+    """Upload files for a document"""
+    entity_model = Document
+    entity_type = 'document'
+    media_type = 'document'
+    max_files = 5
+
 class PropertyListCreateView(BaseAPIView):
     """List and create properties"""
     action_permission_map = {
@@ -293,12 +490,12 @@ class PropertyListCreateView(BaseAPIView):
             property_obj = serializer.save(owner=request.user)
             return self.success_response(
                 data=serializer.data,
-                message='Property created successfully',
+                message=_('Property created successfully'),
                 status_code=status.HTTP_201_CREATED
             )
         except Exception as e:
             logger.error(f"Error creating property: {str(e)}")
-            return self.error_response('Failed to create property', 'creation_failed',
+            return self.error_response(_('Failed to create property'), 'creation_failed',
                                       status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class PropertyDetailView(BaseAPIView):
@@ -376,6 +573,7 @@ class PropertyBySlugView(BaseAPIView):
             return self.error_response("An error occurred", "retrieval_error",
                                       status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
 class MyPropertiesView(BaseAPIView):
     """List properties owned by current user"""
     permission_classes = [permissions.IsAuthenticated]
@@ -414,16 +612,10 @@ class VerifyPropertyView(BaseAPIView):
 
         return Response({'status': 'Property verified'})
 
-class UploadPropertyImagesView(BaseUploadView):
-    """Upload images for a property"""
-    model_class = Property
-    file_field_name = 'images'
-    allow_multiple = True
-    allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
-    max_file_size = 5 * 1024 * 1024  # 5MB
 
 
-# Auction Views
+##### ======> Auction Views
+
 class AuctionListCreateView(BaseAPIView):
     """List and create auctions"""
     action_permission_map = {
@@ -500,7 +692,6 @@ class AuctionListCreateView(BaseAPIView):
             )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 class AuctionDetailView(BaseAPIView):
     """Retrieve, update and delete an auction"""
     action_permission_map = {
@@ -672,6 +863,7 @@ class CloseAuctionView(BaseAPIView):
             return self.error_response('An error occurred', 'closure_error',
                                      status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+# Fix for UploadAuctionImagesView - replace BaseUploadView with our new class
 class UploadAuctionImagesView(BaseUploadView):
     """Upload images for an auction"""
     model_class = Auction
@@ -679,6 +871,11 @@ class UploadAuctionImagesView(BaseUploadView):
     allow_multiple = True
     allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
     max_file_size = 5 * 1024 * 1024  # 5MB
+
+
+
+
+
 
 
 # Bid Views
@@ -1144,6 +1341,7 @@ class MyDocumentsView(BaseAPIView):
         serializer = DocumentSerializer(documents, many=True)
         return Response(serializer.data)
 
+# Replace BaseUploadView with our implementation
 class UploadDocumentFilesView(BaseUploadView):
     """Upload files to a document"""
     model_class = Document
@@ -1269,6 +1467,7 @@ class ContractDetailView(BaseAPIView):
         contract.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+# Replace BaseUploadView with our implementation
 class UploadContractFilesView(BaseUploadView):
     """Upload files to a contract"""
     model_class = Contract
@@ -1606,6 +1805,7 @@ class MyPaymentsView(BaseAPIView):
         serializer = PaymentSerializer(payments, many=True)
         return Response(serializer.data)
 
+# Replace BaseUploadView with our implementation
 class UploadPaymentReceiptView(BaseUploadView):
     """Upload receipt for a payment"""
     model_class = Payment
@@ -2269,11 +2469,15 @@ class MyMessagesView(BaseAPIView):
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
 
+
+
+
 class UploadMessageAttachmentView(BaseUploadView):
     """Upload attachment to a message"""
     model_class = Message
     file_field_name = 'attachments'
     allow_multiple = True
+    allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'txt']
     max_file_size = 10 * 1024 * 1024  # 10MB
 
     def get_object(self, pk):
@@ -2290,7 +2494,6 @@ class UploadMessageAttachmentView(BaseUploadView):
             raise PermissionDenied("Cannot upload attachments to messages in closed threads")
 
         return message
-
 
 # Transaction Views
 class TransactionListCreateView(BaseAPIView):

@@ -20,13 +20,17 @@ from accounts.models import CustomUser, Role
 # Configure logger
 logger = logging.getLogger(__name__)
 
-# Mixin for handling JSON fields
 class JsonFieldMixin:
     """
-    Mixin to handle JSON fields stored as TextField for SQLite compatibility.
+    Enhanced mixin to handle JSON fields stored as TextField
+    Provides convenient methods for accessing and manipulating
+    JSON data, especially for media files
     """
     def get_json_field(self, field_name, default=None):
-        """Get a JSON field as a dictionary or list"""
+        """
+        Get a JSON field as a dictionary or list
+        Uses smart defaults based on field name
+        """
         value = getattr(self, field_name, None)
         if not value:
             return default if default is not None else (
@@ -40,11 +44,63 @@ class JsonFieldMixin:
             )
 
     def set_json_field(self, field_name, value):
-        """Set a JSON field from a dictionary or list"""
+        """
+        Set a JSON field from a dictionary or list
+        Handles None values properly
+        """
         if value is not None:
             setattr(self, field_name, json.dumps(value))
         else:
             setattr(self, field_name, None)
+
+    def append_to_json_field(self, field_name, item):
+        """
+        Append an item to a JSON array field
+        Creates the array if it doesn't exist
+        """
+        current = self.get_json_field(field_name, [])
+        if not isinstance(current, list):
+            current = []
+        current.append(item)
+        self.set_json_field(field_name, current)
+
+    def update_json_item(self, field_name, item_id, updates):
+        """
+        Update a specific item in a JSON array by id
+        For updating properties of media items
+        """
+        items = self.get_json_field(field_name, [])
+        updated = False
+
+        for item in items:
+            if item.get('id') == item_id:
+                item.update(updates)
+                updated = True
+                break
+
+        if updated:
+            self.set_json_field(field_name, items)
+
+        return updated
+
+    def remove_from_json_field(self, field_name, item_id):
+        """
+        Remove an item from a JSON array by id
+        Returns the removed item or None
+        """
+        items = self.get_json_field(field_name, [])
+        removed_item = None
+
+        for i, item in enumerate(items):
+            if item.get('id') == item_id:
+                removed_item = items.pop(i)
+                break
+
+        if removed_item:
+            self.set_json_field(field_name, items)
+
+        return removed_item
+
 
 # Arabic Slugify Function
 def arabic_slugify(text):
@@ -92,7 +148,7 @@ class BaseModel(models.Model):
 # PROPERTY MODEL
 class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
     """
-    Property model representing real estate listings with comprehensive
+    Property model representing real estate listings with essential
     features for effective property management.
     """
     PROPERTY_TYPES = [
@@ -101,11 +157,9 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
         ('villa', _('فيلا')),
         ('commercial', _('تجاري')),
         ('building', _('مبنى')),
-        ('farm', _('مزرعة')),
         ('industrial', _('صناعي')),
         ('office', _('مكتب')),
         ('retail', _('محل تجاري')),
-        ('mixed_use', _('متعدد الاستخدامات')),
     ]
 
     PROPERTY_STATUS = [
@@ -115,46 +169,15 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
         ('under_contract', _('تحت التعاقد')),
         ('sold', _('مباع')),
         ('inactive', _('غير نشط')),
-        ('rejected', _('مرفوض')),
-    ]
-
-    PROPERTY_CONDITION = [
-        ('excellent', _('ممتاز')),
-        ('very_good', _('جيد جدا')),
-        ('good', _('جيد')),
-        ('fair', _('مقبول')),
-        ('poor', _('سيئ')),
-        ('under_construction', _('تحت الإنشاء')),
-        ('new', _('جديد')),
-    ]
-
-    FACING_DIRECTIONS = [
-        ('north', _('شمال')),
-        ('east', _('شرق')),
-        ('south', _('جنوب')),
-        ('west', _('غرب')),
-        ('northeast', _('شمال شرق')),
-        ('southeast', _('جنوب شرق')),
-        ('southwest', _('جنوب غرب')),
-        ('northwest', _('شمال غرب')),
-    ]
-
-    USAGE_TYPES = [
-        ('residential', _('سكني')),
-        ('commercial', _('تجاري')),
-        ('mixed', _('مختلط')),
-        ('industrial', _('صناعي')),
-        ('agricultural', _('زراعي')),
     ]
 
     STATUS_TRANSITIONS = {
-        'draft': ['pending_approval', 'inactive', 'rejected'],
-        'pending_approval': ['active', 'rejected', 'inactive'],
+        'draft': ['pending_approval', 'inactive'],
+        'pending_approval': ['active', 'inactive'],
         'active': ['under_contract', 'sold', 'inactive'],
         'under_contract': ['sold', 'active', 'inactive'],
-        'sold': ['inactive'],  # Consider allowing 'active' if sold properties can be reactivated
+        'sold': ['inactive'],
         'inactive': ['draft', 'active'],
-        'rejected': ['draft', 'inactive'],
     }
 
     # Basic information
@@ -167,17 +190,11 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
         verbose_name=_('نوع العقار')
     )
     description = models.TextField(blank=True, null=True, verbose_name=_('وصف تفصيلي'))
-    condition = models.CharField(
-        max_length=50,
-        choices=PROPERTY_CONDITION,
-        default='good',
-        verbose_name=_('حالة العقار')
-    )
 
     # Ownership details
     owner = models.ForeignKey(
         CustomUser,
-        on_delete=models.SET_NULL,  # Changed to SET_NULL to allow property persistence
+        on_delete=models.SET_NULL,
         null=True,
         related_name='owned_properties',
         verbose_name=_('المالك')
@@ -188,50 +205,24 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
         default='draft',
         verbose_name=_('حالة العقار')
     )
-    status_history = models.TextField(blank=True, null=True, verbose_name=_('سجل حالات العقار'))
-    deed_number = models.CharField(max_length=100, blank=True, null=True, verbose_name=_('رقم الصك'))
-    deed_date = models.DateField(blank=True, null=True, verbose_name=_('تاريخ الصك'))
 
-    # Location information
+    # Location information - simplified
     address = models.CharField(max_length=255, verbose_name=_('العنوان'))
     city = models.CharField(max_length=100, verbose_name=_('المدينة'))
     district = models.CharField(max_length=100, verbose_name=_('الحي'))
-    postal_code = models.CharField(max_length=20, blank=True, null=True, verbose_name=_('الرمز البريدي'))
     country = models.CharField(max_length=100, default='Saudi Arabia', verbose_name=_('الدولة'))
     location = models.TextField(blank=True, null=True, verbose_name=_('الموقع الجغرافي'))
-    facing_direction = models.CharField(
-        max_length=20,
-        choices=FACING_DIRECTIONS,
-        blank=True,
-        null=True,
-        verbose_name=_('اتجاه الواجهة')
-    )
-    street_details = models.TextField(blank=True, null=True, verbose_name=_('تفاصيل الشوارع'))
 
-    # Property specifications
+    # Property specifications - essential only
     area = models.DecimalField(
         max_digits=10,
         decimal_places=2,
         validators=[MinValueValidator(Decimal('0.01'))],
         verbose_name=_('مساحة العقار')
     )
-    built_up_area = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        validators=[MinValueValidator(Decimal('0.01'))],
-        blank=True,
-        null=True,
-        verbose_name=_('المساحة المبنية')
-    )
     bedrooms = models.PositiveIntegerField(default=0, verbose_name=_('عدد غرف النوم'))
     bathrooms = models.PositiveIntegerField(default=0, verbose_name=_('عدد الحمامات'))
-    rooms = models.TextField(blank=True, null=True, verbose_name=_('تفاصيل الغرف'), default='[]')
-    floor_number = models.PositiveIntegerField(blank=True, null=True, verbose_name=_('رقم الطابق'))
-    total_floors = models.PositiveIntegerField(blank=True, null=True, verbose_name=_('إجمالي الطوابق'))
     year_built = models.PositiveIntegerField(blank=True, null=True, verbose_name=_('سنة البناء'))
-
-    # Balconies and outdoor spaces
-    outdoor_spaces = models.TextField(blank=True, null=True, verbose_name=_('المساحات الخارجية'))
 
     # Financial details
     estimated_value = models.DecimalField(
@@ -248,52 +239,14 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
         null=True,
         verbose_name=_('السعر المطلوب')
     )
-    price_per_sqm = models.DecimalField(
-        max_digits=14,
-        decimal_places=2,
-        validators=[MinValueValidator(Decimal('0.01'))],
-        blank=True,
-        null=True,
-        verbose_name=_('السعر لكل متر مربع')
-    )
-    rental_details = models.TextField(blank=True, null=True, verbose_name=_('تفاصيل الإيجار'))
 
-    # Parking details
-    parking = models.TextField(blank=True, null=True, verbose_name=_('تفاصيل مواقف السيارات'))
-
-    # Media files
+    # Media files - using JSON fields for flexibility
     images = models.TextField(blank=True, null=True, verbose_name=_('صور العقار'))
     videos = models.TextField(blank=True, null=True, verbose_name=_('فيديوهات العقار'))
-    virtual_tours = models.TextField(blank=True, null=True, verbose_name=_('جولات افتراضية'))
     documents = models.TextField(blank=True, null=True, verbose_name=_('مستندات العقار'))
-    floor_plans = models.TextField(blank=True, null=True, verbose_name=_('مخططات الطوابق'))
 
-    # Features and amenities
-    features = models.TextField(blank=True, null=True, verbose_name=_('المميزات'))
-    amenities = models.TextField(blank=True, null=True, verbose_name=_('المرافق'))
-
-    # Building services and infrastructure
-    building_services = models.TextField(blank=True, null=True, verbose_name=_('خدمات المبنى'))
-    infrastructure = models.TextField(blank=True, null=True, verbose_name=_('البنية التحتية'))
-
-    # Current and potential usage
-    current_usage = models.CharField(
-        max_length=30,
-        choices=USAGE_TYPES,
-        blank=True,
-        null=True,
-        verbose_name=_('الاستخدام الحالي')
-    )
-    optimal_usage = models.CharField(
-        max_length=30,
-        choices=USAGE_TYPES,
-        blank=True,
-        null=True,
-        verbose_name=_('الاستخدام الأمثل')
-    )
-
-    # Surrounding landmarks and services
-    surroundings = models.TextField(blank=True, null=True, verbose_name=_('المحيط'))
+    # Features and amenities - simplified to a single JSON field
+    features = models.TextField(blank=True, null=True, verbose_name=_('المميزات والمرافق'))
 
     # Verification and approvals
     is_verified = models.BooleanField(default=False, verbose_name=_('تم التحقق'))
@@ -305,16 +258,12 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
         verbose_name=_('تم التحقق بواسطة')
     )
     verification_date = models.DateTimeField(blank=True, null=True, verbose_name=_('تاريخ التحقق'))
-    verification_details = models.TextField(blank=True, null=True, verbose_name=_('تفاصيل التحقق'))
 
-    # Auction and visibility settings
+    # Visibility settings
     is_featured = models.BooleanField(default=False, verbose_name=_('مميز'))
     is_published = models.BooleanField(default=False, verbose_name=_('منشور'))
     publish_date = models.DateTimeField(blank=True, null=True, verbose_name=_('تاريخ النشر'))
     views_count = models.PositiveIntegerField(default=0, verbose_name=_('عدد المشاهدات'))
-
-    # Administrative
-    reference_ids = models.TextField(blank=True, null=True, verbose_name=_('أرقام مرجعية'))
 
     class Meta:
         db_table = 'properties'
@@ -326,18 +275,11 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
             models.Index(fields=['city', 'district']),
             models.Index(fields=['status']),
             models.Index(fields=['is_featured', 'is_published']),
-            models.Index(fields=['year_built']),
             models.Index(fields=['area']),
             models.Index(fields=['estimated_value']),
-            models.Index(fields=['bedrooms', 'bathrooms']),
             models.Index(fields=['owner']),
             models.Index(fields=['property_number']),
             models.Index(fields=['slug']),
-            models.Index(fields=['condition']),
-            models.Index(fields=['current_usage']),
-            models.Index(fields=['optimal_usage']),
-            models.Index(fields=['verified_by']),
-            models.Index(fields=['created_at', 'updated_at']),
         ]
 
     def __str__(self):
@@ -347,7 +289,7 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
         """Generate a unique slug with retry limit"""
         base_slug = arabic_slugify(self.title) or arabic_slugify(self.property_number)
         timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
-        max_retries = 10
+        max_retries = 5
         attempt = 0
 
         while attempt < max_retries:
@@ -358,20 +300,6 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
             attempt += 1
 
         raise ValueError(f"Unable to generate a unique slug for '{self.title}' after {max_retries} attempts")
-
-    def clean(self):
-        """Validate model data before saving"""
-        if self.pk:
-            try:
-                original = Property.objects.get(pk=self.pk)
-                if original.status != self.status:
-                    self.validate_status_transition(
-                        original.status,
-                        self.status,
-                        self.STATUS_TRANSITIONS
-                    )
-            except Property.DoesNotExist:
-                pass
 
     def save(self, *args, **kwargs):
         """Save the property with proper validation and side effects"""
@@ -389,12 +317,6 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
         if self.is_published and not self.publish_date:
             self.publish_date = timezone.now()
 
-        if self.estimated_value and self.area and not self.price_per_sqm:
-            try:
-                self.price_per_sqm = self.estimated_value / self.area
-            except (TypeError, ValueError):
-                self.price_per_sqm = 0
-
         original_status = None
         if self.pk:
             try:
@@ -409,15 +331,6 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
                 self.status,
                 self.STATUS_TRANSITIONS
             )
-
-            history_data = self.get_json_field('status_history', []) or []
-            history_data.append({
-                'status': self.status,
-                'previous_status': original_status,
-                'date': timezone.now().isoformat(),
-                'user': getattr(user, 'id', None)
-            })
-            self.set_json_field('status_history', history_data)
 
         super().save(*args, **kwargs)
 
@@ -436,31 +349,18 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
             return None
         for img in images:
             if img.get('is_primary'):
-                return img.get('path')
-        return images[0].get('path') if images else None
+                return img.get('url')
+        return images[0].get('url') if images else None
 
     @property
     def has_auction(self):
         return self.auctions.filter(status__in=['draft', 'pending', 'active']).exists()
 
-    def recommended_properties(self, limit=5):
-        return Property.objects.filter(
-            property_type=self.property_type,
-            city=self.city,
-            is_published=True
-        ).exclude(pk=self.pk).filter(
-            area__range=(self.area * 0.8, self.area * 1.2)
-        ).order_by('-is_featured', '-views_count')[:limit]
-
     @property
-    def location_coordinates(self):
-        location_data = self.get_json_field('location')
-        if location_data and 'latitude' in location_data and 'longitude' in location_data:
-            return {
-                'latitude': location_data.get('latitude'),
-                'longitude': location_data.get('longitude')
-            }
-        return None
+    def features_list(self):
+        return self.get_json_field('features', [])
+
+
 
 # AUCTION MODEL
 class Auction(BaseModel, StatusTransitionMixin, JsonFieldMixin):

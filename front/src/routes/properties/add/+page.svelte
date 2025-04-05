@@ -3,7 +3,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { propertiesStore } from '$lib/stores/properties';
-	import { auth, roles } from '$lib/stores/auth';
+	import { auth } from '$lib/stores/auth';
 	import { ROLES, PERMISSIONS, hasRole, hasPermission } from '$lib/utils/permissions';
 	import { uiStore } from '$lib/stores/ui';
 	import { formatValidationErrors } from '$lib/utils/formatting';
@@ -11,11 +11,17 @@
 	import Loader from '$lib/components/common/Loader.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
 
+	// Import our direct upload function
+	import { uploadPropertyImages } from '$lib/services/directUpload';
+
+	// Page state
 	let isLoading = true;
 	let isSubmitting = false;
 	let error = null;
 	let validationErrors = {};
 	let isSearchingCoordinates = false;
+	let pendingImageFiles = [];
+	let uploadProgress = 0;
 
 	// Available city options for dropdown - matching Saudi cities from the backend
 	const cities = [
@@ -37,14 +43,8 @@
 		'عرعر'
 	];
 
-	// Temporary file storage for uploading after property creation
-	let pendingImageFiles = [];
-
 	/**
 	 * Create a simple clean object with just the required fields
-	 * This approach avoids any issues with complex objects or circular references
-	 * @param {Object} data - Form data
-	 * @returns {Object} Clean data object ready for API
 	 */
 	function createCleanPropertyData(data) {
 		// Create a fresh object with only the fields we need
@@ -60,45 +60,38 @@
 			postal_code: data.postal_code || '',
 			country: data.country || 'Saudi Arabia',
 
-			// Convert all JSON fields to strings with defaults
-			location: JSON.stringify(data.location || { latitude: 0, longitude: 0 }),
-			rooms: JSON.stringify(data.rooms || []),
-			features: JSON.stringify(data.features || []),
-			amenities: JSON.stringify(data.amenities || []),
-			images: JSON.stringify(data.images || []),
-			videos: JSON.stringify(data.videos || []),
-			outdoor_spaces: JSON.stringify(data.outdoor_spaces || []),
-			street_details: JSON.stringify(data.street_details || ''),
-			rental_details: JSON.stringify(data.rental_details || ''),
-			parking: JSON.stringify(data.parking || ''),
-			building_services: JSON.stringify(data.building_services || ''),
-			infrastructure: JSON.stringify(data.infrastructure || ''),
-			surroundings: JSON.stringify(data.surroundings || ''),
-			reference_ids: JSON.stringify(data.reference_ids || []),
+			// Handle JSON fields - ensure they're all strings not objects
+			location:
+				typeof data.location === 'object' ? JSON.stringify(data.location) : data.location || '',
+			rooms: typeof data.rooms === 'object' ? JSON.stringify(data.rooms) : data.rooms || '[]',
+			features:
+				typeof data.features === 'object' ? JSON.stringify(data.features) : data.features || '[]',
+			amenities:
+				typeof data.amenities === 'object'
+					? JSON.stringify(data.amenities)
+					: data.amenities || '[]',
 
 			// Numeric fields
 			area: data.area ? Number(data.area) : 0,
 			built_up_area: data.built_up_area ? Number(data.built_up_area) : null,
 			estimated_value: data.estimated_value ? Number(data.estimated_value) : 0,
 			asking_price: data.asking_price ? Number(data.asking_price) : null,
-			bedrooms: data.bedrooms ? Number(data.bedrooms) : 0,
-			bathrooms: data.bathrooms ? Number(data.bathrooms) : 0,
-			floor_number: data.floor_number ? Number(data.floor_number) : null,
-			total_floors: data.total_floors ? Number(data.total_floors) : null,
+			bedrooms: data.bedrooms !== undefined ? Number(data.bedrooms) : 0,
+			bathrooms: data.bathrooms !== undefined ? Number(data.bathrooms) : 0,
+			floor_number: data.floor_number !== undefined ? Number(data.floor_number) : null,
+			total_floors: data.total_floors !== undefined ? Number(data.total_floors) : null,
 			year_built: data.year_built ? Number(data.year_built) : null,
 
 			// Boolean fields
 			is_published: Boolean(data.is_published),
-			is_featured: Boolean(data.is_featured),
-			is_verified: Boolean(data.is_verified),
 
 			// Date fields
 			deed_date: data.deed_date || null,
 			deed_number: data.deed_number || ''
 		};
 
-		// Log the prepared data
-		console.log('Clean property data created:', cleanData);
+		// Log the prepared data for debugging
+		console.log('Clean property data created for submission:', cleanData);
 		return cleanData;
 	}
 
@@ -108,74 +101,116 @@
 		isSubmitting = true;
 		error = null;
 		validationErrors = {};
+		uploadProgress = 0;
 
 		try {
-			console.log('Raw form data:', formData);
+			console.log('Form data received:', formData);
 
-			// Create a clean object with just the needed fields
-			const cleanData = createCleanPropertyData(formData);
-			console.log('Cleaned data for submission:', cleanData);
-
-			// Store any pending image files for upload after property creation
+			// Store pending images for later upload
 			if (formData.imageFiles && formData.imageFiles.length) {
 				pendingImageFiles = formData.imageFiles;
+				console.log(
+					`${pendingImageFiles.length} images pending for upload after property creation`
+				);
 			}
 
-			// Create property
-			const result = await propertiesStore.createProperty(cleanData);
+			// Create clean data object for API
+			const cleanData = createCleanPropertyData(formData);
 
-			// If we have pending images to upload, do it now
+			// Save the property first
+			console.log('Saving property data to API...');
+			uiStore.startLoading('جاري حفظ بيانات العقار...');
+
+			const result = await propertiesStore.createProperty(cleanData);
+			console.log('Property created successfully:', result);
+
+			uiStore.stopLoading();
+			uiStore.addToast('تم إنشاء العقار بنجاح', 'success');
+
+			// Now handle image uploads if needed
 			if (pendingImageFiles.length > 0 && result && result.id) {
 				try {
-					uiStore.addToast('تم إنشاء العقار بنجاح، جاري رفع الصور...', 'info');
+					console.log(
+						`Starting upload of ${pendingImageFiles.length} images to property ID: ${result.id}`
+					);
+					uiStore.addToast('جاري رفع الصور...', 'info');
 
-					// Prepare FormData for image upload
-					const imageFormData = new FormData();
-					pendingImageFiles.forEach((file) => {
-						imageFormData.append('files', file);
-					});
+					// Use our direct upload function
+					const uploadResult = await uploadPropertyImages(
+						result.id,
+						pendingImageFiles,
+						(progress) => {
+							uploadProgress = progress;
+						}
+					);
 
-					// Upload images to the newly created property
-					await propertiesStore.uploadPropertyImages(result.id, pendingImageFiles);
-
+					console.log('Image upload complete:', uploadResult);
 					uiStore.addToast('تم رفع الصور بنجاح', 'success');
 				} catch (uploadError) {
 					console.error('Error uploading images:', uploadError);
-					uiStore.addToast('تم إنشاء العقار ولكن حدث خطأ أثناء رفع الصور', 'warning');
+					uiStore.addToast(`خطأ في رفع الصور: ${uploadError.message}`, 'error');
 				}
 			}
 
-			// Navigate to property detail page after successful creation
+			// Navigate to property detail page
 			goto(`/properties/${result.slug}`);
-			uiStore.addToast('تم إضافة العقار بنجاح', 'success');
 		} catch (err) {
+			uiStore.stopLoading();
 			error = err;
 			console.error('Property creation error:', err);
 
-			// Handle validation errors from backend
+			// Handle validation errors
 			if (err.data?.error_code === 'validation_error') {
 				validationErrors = formatValidationErrors(err.data.error);
 				console.log('Validation errors:', validationErrors);
 
-				let errorMessage = 'حدث خطأ أثناء حفظ العقار. يرجى التحقق من البيانات المدخلة:';
 				const errorFields = Object.keys(validationErrors);
 				if (errorFields.length > 0) {
-					errorMessage += ' ' + errorFields.join('، ');
+					const errorMessage = `حدث خطأ أثناء حفظ العقار: ${errorFields.join('، ')}`;
+					uiStore.addToast(errorMessage, 'error');
 				}
-
-				uiStore.addToast(errorMessage, 'error');
 			} else {
-				uiStore.addToast('حدث خطأ أثناء حفظ العقار: ' + (err.message || 'خطأ غير معروف'), 'error');
+				uiStore.addToast(`حدث خطأ أثناء حفظ العقار: ${err.message || 'خطأ غير معروف'}`, 'error');
 			}
 		} finally {
 			isSubmitting = false;
 		}
 	}
 
-	// Handle pending uploads that will be processed after property creation
+	// Handle pending uploads - store files for later upload
 	function handlePendingUploads(event) {
 		pendingImageFiles = event.detail.files;
 		console.log(`${pendingImageFiles.length} images pending for upload after property creation`);
+
+		// Validate files early
+		if (pendingImageFiles.length > 0) {
+			let hasInvalidFiles = false;
+
+			// Check file types
+			pendingImageFiles.forEach((file) => {
+				const isValidType = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(
+					file.type
+				);
+				const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB limit
+
+				if (!isValidType) {
+					console.warn(`Invalid file type: ${file.type} for file ${file.name}`);
+					hasInvalidFiles = true;
+				}
+
+				if (!isValidSize) {
+					console.warn(`File too large: ${file.size} bytes for file ${file.name}`);
+					hasInvalidFiles = true;
+				}
+			});
+
+			if (hasInvalidFiles) {
+				uiStore.addToast(
+					'بعض الملفات غير صالحة. تأكد من استخدام ملفات صور بحجم أقل من 5 ميجابايت',
+					'warning'
+				);
+			}
+		}
 	}
 
 	// Handle cancel action
@@ -277,6 +312,21 @@
 			</button>
 		</div>
 	{:else}
+		<!-- Upload Progress -->
+		{#if uploadProgress > 0}
+			<div class="dark:bg-opacity-20 mb-4 rounded-lg bg-blue-50 p-4 dark:bg-blue-900">
+				<h4 class="font-medium text-blue-700 dark:text-blue-300">
+					جاري رفع الصور ({uploadProgress}%)
+				</h4>
+				<div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-blue-200 dark:bg-blue-700">
+					<div
+						class="h-full rounded-full bg-blue-600 dark:bg-blue-400"
+						style="width: {uploadProgress}%"
+					></div>
+				</div>
+			</div>
+		{/if}
+
 		<PropertyForm
 			property={null}
 			{cities}

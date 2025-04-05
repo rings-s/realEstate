@@ -1,4 +1,4 @@
-// front/src/lib/services/uploads.js
+// front/src/lib/services/upload.js
 import api, { handleApiError } from './api';
 
 /**
@@ -19,7 +19,7 @@ export default {
 
 			const formData = new FormData();
 
-			// Append each image - using 'files' to match what BaseUploadView expects
+			// Append each image with field name 'files' to match backend expectations
 			Array.from(images).forEach((file) => {
 				formData.append('files', file);
 			});
@@ -29,8 +29,8 @@ export default {
 				throw new Error('Property ID is required for image upload');
 			}
 
-			// Use the API service for consistent auth headers and error handling
-			return await api.upload(`properties/${propertyId}/upload-images/`, formData);
+			// Use the corrected API endpoint that matches the backend URL pattern
+			return await api.upload(`properties/${propertyId}/uploads/`, formData);
 		} catch (error) {
 			console.error('Image upload error:', error);
 			throw handleApiError(error);

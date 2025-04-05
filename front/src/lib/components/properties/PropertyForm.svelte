@@ -1,4 +1,3 @@
-<!-- src/lib/components/properties/PropertyForm.svelte -->
 <script>
 	import { createEventDispatcher, onMount } from 'svelte';
 	import {
@@ -7,27 +6,25 @@
 		formatCoordinates,
 		validateCoordinates
 	} from '$lib/utils/geocoding';
+	import { uiStore } from '$lib/stores/ui';
 	import PropertyMap from './PropertyMap.svelte';
 	import RoomsManager from './RoomsManager.svelte';
 	import AmenitiesSelector from './AmenitiesSelector.svelte';
-	import { uiStore } from '$lib/stores/ui';
 
 	// Props
 	export let property = null;
 	export let cities = [];
 	export let isSubmitting = false;
 	export let editMode = false;
-	export let imageUploadUrl = '/api/properties/upload-images/';
 	export let isSearchingCoordinates = false;
 
-	// Constants
+	// Constants - moved here to reduce bloat in render code
 	const PROPERTY_TYPES = [
 		{ value: 'land', label: 'أرض' },
 		{ value: 'apartment', label: 'شقة' },
 		{ value: 'villa', label: 'فيلا' },
 		{ value: 'commercial', label: 'تجاري' },
 		{ value: 'building', label: 'مبنى' },
-		{ value: 'farm', label: 'مزرعة' },
 		{ value: 'industrial', label: 'صناعي' },
 		{ value: 'office', label: 'مكتب' },
 		{ value: 'retail', label: 'محل تجاري' },
@@ -40,8 +37,7 @@
 		{ value: 'active', label: 'نشط' },
 		{ value: 'under_contract', label: 'تحت التعاقد' },
 		{ value: 'sold', label: 'مباع' },
-		{ value: 'inactive', label: 'غير نشط' },
-		{ value: 'rejected', label: 'مرفوض' }
+		{ value: 'inactive', label: 'غير نشط' }
 	];
 
 	const PROPERTY_CONDITION = [
@@ -73,8 +69,7 @@
 		{ value: 'agricultural', label: 'زراعي' }
 	];
 
-	// State
-	let activeTab = 'basic'; // basic, details, location, features, rooms, images
+	// Form state with default values
 	let form = {
 		title: '',
 		description: '',
@@ -92,7 +87,7 @@
 		built_up_area: '',
 		bedrooms: 0,
 		bathrooms: 0,
-		rooms: [], // Will contain array of {type, name, description, size}
+		rooms: [],
 		floor_number: null,
 		total_floors: null,
 		year_built: null,
@@ -109,9 +104,7 @@
 		rental_details: '',
 		parking: '',
 		videos: [],
-		virtual_tours: [],
 		documents: [],
-		floor_plans: [],
 		building_services: [],
 		infrastructure: [],
 		current_usage: '',
@@ -120,90 +113,96 @@
 		reference_ids: []
 	};
 
-	// Feature management
+	// State
+	let activeTab = 'basic'; // basic, details, location, features, rooms, images
 	let featureInput = '';
 	let amenityInput = '';
-
-	// Image management
 	let imageFiles = [];
 	let imagePreviewUrls = [];
 	let uploadProgress = 0;
 	let uploadError = '';
-
-	// Tab indicators for form completion
+	let isMobileView = false;
+	let mapInstance = null;
+	let markerInstance = null;
 	let tabCompletion = {
 		basic: false,
 		details: false,
 		location: false,
-		features: false,
+		features: true, // Always considered complete
 		rooms: false,
 		images: false
 	};
 
-	// Mobile view status
-	let isMobileView = false;
-
-	// Map instance reference for direct control
-	let mapInstance = null;
-	let markerInstance = null;
-
 	// Event dispatcher
 	const dispatch = createEventDispatcher();
 
-	// Initialize from property if provided
+	// Initialize form from property data if in edit mode
 	$: {
 		if (property) {
-			try {
-				// Clone property to form
-				form = { ...form, ...property };
-
-				// Parse JSON fields if needed
-				if (property.location) {
-					form.location = parseLocationData(property.location);
-				}
-
-				if (property.features && typeof property.features === 'string') {
-					form.features = JSON.parse(property.features);
-				}
-
-				if (property.amenities && typeof property.amenities === 'string') {
-					form.amenities = JSON.parse(property.amenities);
-				}
-
-				if (property.rooms && typeof property.rooms === 'string') {
-					form.rooms = JSON.parse(property.rooms);
-				} else if (!property.rooms) {
-					form.rooms = [];
-				}
-
-				if (property.outdoor_spaces && typeof property.outdoor_spaces === 'string') {
-					form.outdoor_spaces = JSON.parse(property.outdoor_spaces);
-				}
-
-				if (property.building_services && typeof property.building_services === 'string') {
-					form.building_services = JSON.parse(property.building_services);
-				}
-
-				if (property.infrastructure && typeof property.infrastructure === 'string') {
-					form.infrastructure = JSON.parse(property.infrastructure);
-				}
-
-				if (property.images && typeof property.images === 'string') {
-					form.images = JSON.parse(property.images);
-
-					// Set image previews
-					imagePreviewUrls = form.images.map((img) => img.path);
-				}
-
-				// Update tab completion indicators
-				updateTabCompletion();
-			} catch (error) {
-				console.error('Error initializing form from property:', error);
-			}
+			initializeFormFromProperty(property);
 		}
 	}
 
-	// Check screen size
+	/**
+	 * Initialize form data from property object
+	 * @param {Object} propertyData - Property data from API
+	 */
+	function initializeFormFromProperty(propertyData) {
+		try {
+			// Start with a fresh form
+			form = { ...form };
+
+			// Basic fields
+			Object.keys(form).forEach((key) => {
+				if (propertyData[key] !== undefined) {
+					form[key] = propertyData[key];
+				}
+			});
+
+			// Handle JSON fields
+			if (propertyData.location) {
+				form.location = parseLocationData(propertyData.location);
+			}
+
+			// Parse JSON fields if they're strings
+			[
+				'features',
+				'amenities',
+				'rooms',
+				'outdoor_spaces',
+				'building_services',
+				'infrastructure',
+				'images',
+				'videos',
+				'documents'
+			].forEach((field) => {
+				if (propertyData[field]) {
+					if (typeof propertyData[field] === 'string') {
+						try {
+							form[field] = JSON.parse(propertyData[field]);
+						} catch (e) {
+							console.error(`Error parsing ${field}:`, e);
+							form[field] = [];
+						}
+					} else if (Array.isArray(propertyData[field])) {
+						form[field] = [...propertyData[field]];
+					}
+				}
+			});
+
+			// Set image previews
+			if (form.images && form.images.length) {
+				imagePreviewUrls = form.images.map((img) => img.path || img.url);
+			}
+
+			// Update tab completion indicators
+			updateTabCompletion();
+		} catch (error) {
+			console.error('Error initializing form from property:', error);
+			uiStore.addToast('حدث خطأ أثناء تحميل بيانات العقار', 'error');
+		}
+	}
+
 	onMount(() => {
 		checkScreenSize();
 		window.addEventListener('resize', checkScreenSize);
@@ -222,129 +221,88 @@
 		isMobileView = window.innerWidth < 768;
 	}
 
-	// Handle tab change
+	// Tab navigation functions
 	function setTab(tab) {
 		activeTab = tab;
 	}
 
-	// Handle rooms update from RoomsManager component
 	function handleRoomsUpdate(event) {
 		form.rooms = event.detail;
-	}
-
-	// Update tab completion status
-	function updateTabCompletion() {
-		// Basic tab
-		tabCompletion.basic = !!form.title && !!form.property_type;
-
-		// Details tab
-		tabCompletion.details = !!form.area && !!form.estimated_value;
-
-		// Location tab
-		tabCompletion.location = !!form.city && !!form.district && !!form.address;
-
-		// Features tab - always considered complete
-		tabCompletion.features = true;
-
-		// Rooms tab - consider complete if at least one room defined or property doesn't need rooms
-		tabCompletion.rooms = form.property_type === 'land' || form.rooms.length > 0;
-
-		// Images tab - consider complete if at least one image
-		tabCompletion.images = form.images.length > 0 || imageFiles.length > 0;
-	}
-
-	// Handle form changes
-	$: {
-		// Update tab completion whenever form changes
 		updateTabCompletion();
 	}
 
-	// Function to update map from coordinates in the form
+	// Update tab completion status based on form state
+	function updateTabCompletion() {
+		// Basic tab
+		tabCompletion.basic = Boolean(form.title && form.property_type);
+
+		// Details tab
+		tabCompletion.details = Boolean(form.area && form.estimated_value);
+
+		// Location tab
+		tabCompletion.location = Boolean(form.city && form.district && form.address);
+
+		// Rooms tab - complete if property doesn't need rooms or has rooms
+		tabCompletion.rooms = form.property_type === 'land' || form.rooms.length > 0;
+
+		// Images tab - consider complete if any images exist
+		tabCompletion.images = form.images.length > 0 || imageFiles.length > 0;
+	}
+
+	// Update map from coordinates in the form
 	function updateMapFromCoordinates() {
-		// Validate coordinates using utility function
 		if (form.location && validateCoordinates(form.location.latitude, form.location.longitude)) {
-			// If we have direct map references, we could update it directly
 			if (mapInstance && markerInstance) {
 				mapInstance.setView([form.location.latitude, form.location.longitude], 15);
 				markerInstance.setLatLng([form.location.latitude, form.location.longitude]);
 			}
-			// Otherwise PropertyMap will reactively update based on form.location
 		}
 	}
 
 	// Handle location update from map
 	function handleLocationChange(event) {
-		// Format coordinates using utility
 		form.location = formatCoordinates(event.detail);
+		updateTabCompletion();
 	}
 
 	// Map ready event handler
 	function handleMapReady(event) {
-		// Store references to map and marker for direct control if needed
 		mapInstance = event.detail.map;
 		markerInstance = event.detail.marker;
 	}
 
-	// Handle form submission
+	// Form submission
 	function handleSubmit() {
-		try {
-			const formData = { ...form };
-
-			// Convert string numeric values to actual numbers
-			formData.area = formData.area ? Number(formData.area) : null;
-			formData.built_up_area = formData.built_up_area ? Number(formData.built_up_area) : null;
-			formData.estimated_value = formData.estimated_value ? Number(formData.estimated_value) : null;
-			formData.asking_price = formData.asking_price ? Number(formData.asking_price) : null;
-			formData.bedrooms = formData.bedrooms ? Number(formData.bedrooms) : null;
-			formData.bathrooms = formData.bathrooms ? Number(formData.bathrooms) : null;
-			formData.floor_number = formData.floor_number ? Number(formData.floor_number) : null;
-			formData.total_floors = formData.total_floors ? Number(formData.total_floors) : null;
-			formData.year_built = formData.year_built ? Number(formData.year_built) : null;
-
-			// Store image files for later upload (after property creation)
-			if (imageFiles.length > 0) {
-				formData.imageFiles = imageFiles;
-			}
-
-			// Ensure rooms is an array
-			if (!Array.isArray(formData.rooms)) {
-				formData.rooms = [];
-			}
-
-			// Make sure all JSON fields are properly handled
-			// We'll let the parent component handle stringification to keep this component pure
-
-			// Dispatch the data to the parent component
-			dispatch('submit', formData);
-		} catch (error) {
-			console.error('Error preparing form data:', error);
-		}
+		// The form data is already properly structured
+		dispatch('submit', form);
 	}
 
-	// Add feature
+	// Feature management
 	function addFeature() {
 		if (featureInput.trim()) {
 			form.features = [...form.features, featureInput.trim()];
 			featureInput = '';
+			updateTabCompletion();
 		}
 	}
 
-	// Remove feature
 	function removeFeature(index) {
 		form.features = form.features.filter((_, i) => i !== index);
+		updateTabCompletion();
 	}
 
-	// Add amenity
+	// Amenities management
 	function addAmenity() {
 		if (amenityInput.trim()) {
 			form.amenities = [...form.amenities, amenityInput.trim()];
 			amenityInput = '';
+			updateTabCompletion();
 		}
 	}
 
-	// Remove amenity
 	function removeAmenity(index) {
 		form.amenities = form.amenities.filter((_, i) => i !== index);
+		updateTabCompletion();
 	}
 
 	// Handle image selection
@@ -362,6 +320,8 @@
 			};
 			reader.readAsDataURL(file);
 		});
+
+		updateTabCompletion();
 	}
 
 	// Remove image preview
@@ -377,6 +337,8 @@
 			imageFiles = imageFiles.filter((_, i) => i !== fileIndex);
 			imagePreviewUrls = imagePreviewUrls.filter((_, i) => i !== index);
 		}
+
+		updateTabCompletion();
 	}
 
 	// Upload images
@@ -389,91 +351,65 @@
 
 			// For existing properties, upload directly
 			if (property && property.id) {
-				const formData = new FormData();
-
-				// Use 'files' instead of 'images' to match backend expectations
-				imageFiles.forEach((file) => {
-					formData.append('files', file);
-				});
-
-				// Use XHR for progress tracking
-				const xhr = new XMLHttpRequest();
-
-				xhr.upload.addEventListener('progress', (e) => {
-					if (e.lengthComputable) {
-						uploadProgress = Math.round((e.loaded / e.total) * 100);
-					}
-				});
-
-				xhr.addEventListener('load', () => {
-					if (xhr.status === 200 || xhr.status === 201) {
-						try {
-							const response = JSON.parse(xhr.responseText);
-							console.log('Upload response:', response);
-
-							// Add uploaded images to form.images
-							if (response.files && Array.isArray(response.files)) {
-								form.images = [...form.images, ...response.files];
-							} else if (response.images && Array.isArray(response.images)) {
-								form.images = [...form.images, ...response.images];
-							}
-
-							// Clear uploaded files
-							imageFiles = [];
-							uploadProgress = 0;
-
-							dispatch('imagesUploaded', { success: true, images: form.images });
-						} catch (error) {
-							console.error('Error processing upload response:', error);
-							uploadError = 'Error processing server response';
-							uploadProgress = 0;
-						}
-					} else {
-						console.error('Upload failed with status:', xhr.status, xhr.responseText);
-						uploadError = `Failed to upload images: ${xhr.status} ${xhr.statusText}`;
-						uploadProgress = 0;
-					}
-				});
-
-				xhr.addEventListener('error', () => {
-					console.error('XHR error occurred during upload');
-					uploadError = 'Network error occurred during upload.';
-					uploadProgress = 0;
-				});
-
-				// Construct URL with property ID
-				// Important: Make sure there are no double slashes in the URL
-				const url = `${imageUploadUrl.replace(/\/$/, '')}/${property.id}/`;
-				console.log('Upload URL:', url);
-
-				xhr.open('POST', url);
-
-				// Add authorization header
-				const token = localStorage.getItem('access_token');
-				if (token) {
-					xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-				}
-
-				xhr.send(formData);
+				dispatch('imagesUpload', { propertyId: property.id, files: imageFiles });
 			} else {
-				// For new properties, we need to store the files and upload after property creation
-				console.log('New property - storing files for later upload');
+				// For new properties, store the files for later upload
 				dispatch('pendingUploads', { files: imageFiles });
 			}
 		} catch (error) {
 			console.error('Error preparing upload:', error);
-			uploadError = 'An error occurred preparing the upload.';
+			uploadError = 'حدث خطأ أثناء تحضير الملفات للرفع.';
 			uploadProgress = 0;
 		}
 	}
 
-	// Handle form fields that should be numeric
-	function ensureNumber(value) {
-		if (value === '' || value === null || isNaN(Number(value))) return null;
-		return Number(value);
+	// Format deed date
+	function formatDeedDate(event) {
+		form.deed_date = event.target.value; // It will be in YYYY-MM-DD format
 	}
 
-	// Navigate to next tab
+	// Search for location using geocoding API
+	async function searchAddressLocation() {
+		if (isSearchingCoordinates) return;
+
+		try {
+			isSearchingCoordinates = true;
+
+			if (form.address && form.city) {
+				const fullAddress = `${form.address}, ${form.district || ''}, ${form.city}, ${
+					form.country || 'المملكة العربية السعودية'
+				}`;
+
+				// Show loading indicator
+				uiStore.startLoading('جاري البحث عن الإحداثيات...');
+
+				// Import and use the geocoding utility
+				const { getLocationFromAddress } = await import('$lib/utils/geocoding');
+				const coordinates = await getLocationFromAddress(fullAddress);
+
+				// Update form with coordinates from geocoding result
+				form.location = {
+					latitude: coordinates.latitude,
+					longitude: coordinates.longitude
+				};
+
+				// Update map
+				updateMapFromCoordinates();
+
+				uiStore.stopLoading();
+				uiStore.addToast('تم العثور على الإحداثيات بنجاح', 'success');
+			} else {
+				uiStore.addToast('يرجى إدخال العنوان والمدينة أولاً للبحث عن الإحداثيات', 'warning');
+			}
+		} catch (error) {
+			uiStore.stopLoading();
+			uiStore.addToast(error.message || 'حدث خطأ في البحث عن الإحداثيات', 'error');
+		} finally {
+			isSearchingCoordinates = false;
+		}
+	}
+
+	// Tab navigation
 	function nextTab() {
 		const tabs = ['basic', 'details', 'location', 'features', 'rooms', 'images'];
 		const currentIndex = tabs.indexOf(activeTab);
@@ -482,7 +418,6 @@
 		}
 	}
 
-	// Navigate to previous tab
 	function prevTab() {
 		const tabs = ['basic', 'details', 'location', 'features', 'rooms', 'images'];
 		const currentIndex = tabs.indexOf(activeTab);
@@ -491,10 +426,9 @@
 		}
 	}
 
-	// Handle deed date change
-	function formatDeedDate(event) {
-		const value = event.target.value;
-		form.deed_date = value; // It will be in YYYY-MM-DD format
+	// Watch form changes to update completion status
+	$: {
+		updateTabCompletion();
 	}
 </script>
 
@@ -505,270 +439,163 @@
 	>
 		<div class="no-scrollbar overflow-x-auto">
 			<div class="flex w-full min-w-full md:w-auto">
-				<button
-					class="relative flex-1 px-3 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 md:flex-initial md:px-6 {activeTab ===
-					'basic'
-						? 'text-blue-600 dark:text-blue-400'
-						: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
-					on:click={() => setTab('basic')}
-					aria-selected={activeTab === 'basic'}
-					role="tab"
-				>
-					<div class="flex items-center justify-center gap-2">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-							/>
-						</svg>
-						<span class="hidden md:inline">المعلومات الأساسية</span>
-						<span class="md:hidden">أساسي</span>
-					</div>
+				<!-- Tab buttons -->
+				{#each ['basic', 'details', 'location', 'features', 'rooms', 'images'] as tab}
+					<button
+						class="relative flex-1 px-3 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 md:flex-initial md:px-6 {activeTab ===
+						tab
+							? 'text-blue-600 dark:text-blue-400'
+							: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
+						on:click={() => setTab(tab)}
+						aria-selected={activeTab === tab}
+						role="tab"
+					>
+						<div class="flex items-center justify-center gap-2">
+							<!-- Icon based on tab -->
+							{#if tab === 'basic'}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+									/>
+								</svg>
+							{:else if tab === 'details'}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+									/>
+								</svg>
+							{:else if tab === 'location'}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+									/>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+									/>
+								</svg>
+							{:else if tab === 'features'}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
+									/>
+								</svg>
+							{:else if tab === 'rooms'}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+									/>
+								</svg>
+							{:else if tab === 'images'}
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+									/>
+								</svg>
+							{/if}
+							<span class="hidden md:inline"
+								>{tab === 'basic'
+									? 'المعلومات الأساسية'
+									: tab === 'details'
+										? 'تفاصيل العقار'
+										: tab === 'location'
+											? 'الموقع'
+											: tab === 'features'
+												? 'المميزات والمرافق'
+												: tab === 'rooms'
+													? 'الغرف'
+													: tab === 'images'
+														? 'الصور'
+														: tab}</span
+							>
+							<span class="md:hidden"
+								>{tab === 'basic'
+									? 'أساسي'
+									: tab === 'details'
+										? 'تفاصيل'
+										: tab === 'location'
+											? 'الموقع'
+											: tab === 'features'
+												? 'المميزات'
+												: tab === 'rooms'
+													? 'الغرف'
+													: tab === 'images'
+														? 'الصور'
+														: tab}</span
+							>
+						</div>
 
-					<!-- Completion Indicator -->
-					{#if tabCompletion.basic}
-						<span
-							class="absolute top-2 right-2 h-2 w-2 rounded-full bg-green-500 md:top-3 md:right-3"
-						></span>
-					{/if}
+						<!-- Completion Indicator -->
+						{#if tabCompletion[tab]}
+							<span
+								class="absolute top-2 right-2 h-2 w-2 rounded-full bg-green-500 md:top-3 md:right-3"
+							></span>
+						{/if}
 
-					<!-- Active Indicator -->
-					<div
-						class={activeTab === 'basic'
-							? 'absolute inset-x-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400'
-							: ''}
-					></div>
-				</button>
-
-				<button
-					class="relative flex-1 px-3 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 md:flex-initial md:px-6 {activeTab ===
-					'details'
-						? 'text-blue-600 dark:text-blue-400'
-						: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
-					on:click={() => setTab('details')}
-					aria-selected={activeTab === 'details'}
-					role="tab"
-				>
-					<div class="flex items-center justify-center gap-2">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-							/>
-						</svg>
-						<span class="hidden md:inline">تفاصيل العقار</span>
-						<span class="md:hidden">تفاصيل</span>
-					</div>
-
-					<!-- Completion Indicator -->
-					{#if tabCompletion.details}
-						<span
-							class="absolute top-2 right-2 h-2 w-2 rounded-full bg-green-500 md:top-3 md:right-3"
-						></span>
-					{/if}
-
-					<!-- Active Indicator -->
-					<div
-						class={activeTab === 'details'
-							? 'absolute inset-x-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400'
-							: ''}
-					></div>
-				</button>
-
-				<button
-					class="relative flex-1 px-3 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 md:flex-initial md:px-6 {activeTab ===
-					'location'
-						? 'text-blue-600 dark:text-blue-400'
-						: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
-					on:click={() => setTab('location')}
-					aria-selected={activeTab === 'location'}
-					role="tab"
-				>
-					<div class="flex items-center justify-center gap-2">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-							/>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-							/>
-						</svg>
-						<span class="hidden md:inline">الموقع</span>
-						<span class="md:hidden">الموقع</span>
-					</div>
-
-					<!-- Completion Indicator -->
-					{#if tabCompletion.location}
-						<span
-							class="absolute top-2 right-2 h-2 w-2 rounded-full bg-green-500 md:top-3 md:right-3"
-						></span>
-					{/if}
-
-					<!-- Active Indicator -->
-					<div
-						class={activeTab === 'location'
-							? 'absolute inset-x-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400'
-							: ''}
-					></div>
-				</button>
-
-				<button
-					class="relative flex-1 px-3 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 md:flex-initial md:px-6 {activeTab ===
-					'features'
-						? 'text-blue-600 dark:text-blue-400'
-						: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
-					on:click={() => setTab('features')}
-					aria-selected={activeTab === 'features'}
-					role="tab"
-				>
-					<div class="flex items-center justify-center gap-2">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-							/>
-						</svg>
-						<span class="hidden md:inline">المميزات والمرافق</span>
-						<span class="md:hidden">المميزات</span>
-					</div>
-
-					<!-- Completion Indicator -->
-					{#if tabCompletion.features}
-						<span
-							class="absolute top-2 right-2 h-2 w-2 rounded-full bg-green-500 md:top-3 md:right-3"
-						></span>
-					{/if}
-
-					<!-- Active Indicator -->
-					<div
-						class={activeTab === 'features'
-							? 'absolute inset-x-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400'
-							: ''}
-					></div>
-				</button>
-
-				<!-- New Rooms Tab -->
-				<button
-					class="relative flex-1 px-3 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 md:flex-initial md:px-6 {activeTab ===
-					'rooms'
-						? 'text-blue-600 dark:text-blue-400'
-						: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
-					on:click={() => setTab('rooms')}
-					aria-selected={activeTab === 'rooms'}
-					role="tab"
-				>
-					<div class="flex items-center justify-center gap-2">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-							/>
-						</svg>
-						<span class="hidden md:inline">الغرف</span>
-						<span class="md:hidden">الغرف</span>
-					</div>
-
-					<!-- Completion Indicator -->
-					{#if tabCompletion.rooms}
-						<span
-							class="absolute top-2 right-2 h-2 w-2 rounded-full bg-green-500 md:top-3 md:right-3"
-						></span>
-					{/if}
-
-					<!-- Active Indicator -->
-					<div
-						class={activeTab === 'rooms'
-							? 'absolute inset-x-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400'
-							: ''}
-					></div>
-				</button>
-
-				<button
-					class="relative flex-1 px-3 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 md:flex-initial md:px-6 {activeTab ===
-					'images'
-						? 'text-blue-600 dark:text-blue-400'
-						: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
-					on:click={() => setTab('images')}
-					aria-selected={activeTab === 'images'}
-					role="tab"
-				>
-					<div class="flex items-center justify-center gap-2">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="h-5 w-5"
-							fill="none"
-							viewBox="0 0 24 24"
-							stroke="currentColor"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-							/>
-						</svg>
-						<span class="hidden md:inline">الصور</span>
-						<span class="md:hidden">الصور</span>
-					</div>
-
-					<!-- Completion Indicator -->
-					{#if tabCompletion.images}
-						<span
-							class="absolute top-2 right-2 h-2 w-2 rounded-full bg-green-500 md:top-3 md:right-3"
-						></span>
-					{/if}
-
-					<!-- Active Indicator -->
-					<div
-						class={activeTab === 'images'
-							? 'absolute inset-x-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400'
-							: ''}
-					></div>
-				</button>
+						<!-- Active Indicator -->
+						<div
+							class={activeTab === tab
+								? 'absolute inset-x-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400'
+								: ''}
+						></div>
+					</button>
+				{/each}
 			</div>
 		</div>
 	</div>
@@ -1043,7 +870,6 @@
 								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
 								bind:value={form.floor_number}
 								min="0"
-								on:input={() => (form.floor_number = ensureNumber(form.floor_number))}
 							/>
 						</div>
 
@@ -1060,7 +886,6 @@
 								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
 								bind:value={form.total_floors}
 								min="0"
-								on:input={() => (form.total_floors = ensureNumber(form.total_floors))}
 							/>
 						</div>
 
@@ -1079,7 +904,6 @@
 								bind:value={form.year_built}
 								min="1900"
 								max={new Date().getFullYear()}
-								on:input={() => (form.year_built = ensureNumber(form.year_built))}
 							/>
 						</div>
 
@@ -1258,7 +1082,7 @@
 							>
 								<option value="">اختر المدينة</option>
 								{#each cities as city}
-									<option value={city.value || city}>{city.label || city}</option>
+									<option value={city}>{city}</option>
 								{/each}
 							</select>
 						</div>
@@ -1348,7 +1172,6 @@
 									required
 									on:input={() => {
 										if (!isNaN(parseFloat(form.location.latitude))) {
-											// Format to 6 decimal places
 											form.location.latitude = parseFloat(
 												parseFloat(form.location.latitude).toFixed(6)
 											);
@@ -1381,7 +1204,6 @@
 									required
 									on:input={() => {
 										if (!isNaN(parseFloat(form.location.longitude))) {
-											// Format to 6 decimal places
 											form.location.longitude = parseFloat(
 												parseFloat(form.location.longitude).toFixed(6)
 											);
@@ -1400,48 +1222,7 @@
 							<button
 								type="button"
 								class="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-white transition hover:bg-blue-700"
-								on:click={async () => {
-									if (isSearchingCoordinates) return;
-
-									try {
-										isSearchingCoordinates = true;
-
-										if (form.address && form.city) {
-											const fullAddress = `${form.address}, ${form.district || ''}, ${form.city}, ${
-												form.country || 'المملكة العربية السعودية'
-											}`;
-
-											// Show loading indicator
-											uiStore.startLoading('جاري البحث عن الإحداثيات...');
-
-											// Import and use the geocoding utility
-											const { getLocationFromAddress } = await import('$lib/utils/geocoding');
-											const coordinates = await getLocationFromAddress(fullAddress);
-
-											// Update form with coordinates from geocoding result
-											form.location = {
-												latitude: coordinates.latitude,
-												longitude: coordinates.longitude
-											};
-
-											// Update map
-											updateMapFromCoordinates();
-
-											uiStore.stopLoading();
-											uiStore.addToast('تم العثور على الإحداثيات بنجاح', 'success');
-										} else {
-											uiStore.addToast(
-												'يرجى إدخال العنوان والمدينة أولاً للبحث عن الإحداثيات',
-												'warning'
-											);
-										}
-									} catch (error) {
-										uiStore.stopLoading();
-										uiStore.addToast(error.message || 'حدث خطأ في البحث عن الإحداثيات', 'error');
-									} finally {
-										isSearchingCoordinates = false;
-									}
-								}}
+								on:click={searchAddressLocation}
 								disabled={isSearchingCoordinates}
 							>
 								{#if isSearchingCoordinates}
@@ -1473,8 +1254,7 @@
 								type="button"
 								class="flex items-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-gray-700 transition hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
 								on:click={() => {
-									// Use the Saudi Arabia center utility function
-									form.location = getSaudiArabiaCenter(); // Riyadh center
+									form.location = getSaudiArabiaCenter();
 									updateMapFromCoordinates();
 								}}
 							>
@@ -1784,8 +1564,8 @@
 							</div>
 						{/if}
 
-						<!-- Upload Action -->
-						{#if imageFiles.length > 0}
+						<!-- Upload Action for existing properties -->
+						{#if property && property.id && imageFiles.length > 0}
 							<div class="mt-4 flex justify-end">
 								<button
 									type="button"
@@ -1799,7 +1579,7 @@
 					</div>
 
 					<!-- Image Preview Section -->
-					{#if imagePreviewUrls.length > 0 || form.images.length > 0}
+					{#if imagePreviewUrls.length > 0}
 						<div
 							class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
 						>

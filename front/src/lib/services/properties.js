@@ -1,184 +1,278 @@
-// front/src/lib/services/properties.js
-import api, { handleApiError } from './api';
+// front/src/lib/services/PropertyService.js
+import api from './api';
+import uploadService from './upload';
 
 /**
- * Property management services
+ * Comprehensive property management service
+ * Handles all property-related API interactions with consistent error handling
  */
-export default {
+class PropertyService {
 	/**
-	 * Get list of properties with optional filters
+	 * Get list of properties with filters
 	 * @param {Object} filters - Filter parameters
 	 */
-	getProperties: async (filters = {}) => {
+	async getProperties(filters = {}) {
 		try {
 			const queryParams = new URLSearchParams(filters).toString();
-			return await api.get(`properties/${queryParams ? '?' + queryParams : ''}`);
+			const endpoint = `properties/${queryParams ? '?' + queryParams : ''}`;
+			return await api.get(endpoint);
 		} catch (error) {
-			throw handleApiError(error);
+			this.handleError(error, 'Failed to load properties');
 		}
-	},
+	}
+
+	/**
+	 * Get property details by ID
+	 * @param {number} id - Property ID
+	 */
+	async getProperty(id) {
+		try {
+			return await api.get(`properties/${id}/`);
+		} catch (error) {
+			this.handleError(error, `Failed to load property ${id}`);
+		}
+	}
 
 	/**
 	 * Get property details by slug
 	 * @param {string} slug - Property slug
 	 */
-	getPropertyBySlug: async (slug) => {
+	async getPropertyBySlug(slug) {
 		try {
-			return await api.get(`properties/by-slug/${slug}/`);
+			return await api.get(`properties/slug/${slug}/`);
 		} catch (error) {
-			throw handleApiError(error);
+			this.handleError(error, `Failed to load property with slug ${slug}`);
 		}
-	},
+	}
 
 	/**
-	 * Get property details by ID
-	 * @param {string} id - Property ID
+	 * Create a new property with comprehensive data handling
+	 * @param {Object} formData - Raw form data
 	 */
-	getProperty: async (id) => {
+	async createProperty(formData) {
 		try {
-			return await api.get(`properties/${id}/`);
-		} catch (error) {
-			throw handleApiError(error);
-		}
-	},
+			// Convert form data to API-friendly structure
+			const propertyData = this.preparePropertyData(formData);
 
-	/**
-	 * Create a new property
-	 * @param {Object} propertyData - Property data
-	 */
-	createProperty: async (propertyData) => {
-		try {
-			// We assume the property data is already correctly formatted
-			console.log('Sending property data to API:', propertyData);
+			// Create the property
+			const result = await api.post('properties/', propertyData);
+			console.log('Property created successfully:', result);
 
-			return await api.post('properties/', propertyData);
+			return result;
 		} catch (error) {
-			console.error('Error creating property:', error);
-			throw handleApiError(error);
+			this.handleError(error, 'Failed to create property');
 		}
-	},
+	}
 
 	/**
 	 * Update an existing property
-	 * @param {string} id - Property ID
-	 * @param {Object} propertyData - Updated property data
+	 * @param {number} id - Property ID
+	 * @param {Object} formData - Updated property data
 	 */
-	updateProperty: async (id, propertyData) => {
+	async updateProperty(id, formData) {
 		try {
-			return await api.patch(`properties/${id}/`, propertyData);
+			// Convert form data to API-friendly structure
+			const propertyData = this.preparePropertyData(formData);
+
+			// Update the property
+			const result = await api.patch(`properties/${id}/`, propertyData);
+			console.log('Property updated successfully:', result);
+
+			return result;
 		} catch (error) {
-			throw handleApiError(error);
+			this.handleError(error, `Failed to update property ${id}`);
 		}
-	},
+	}
 
 	/**
 	 * Delete a property
-	 * @param {string} id - Property ID
+	 * @param {number} id - Property ID
 	 */
-	deleteProperty: async (id) => {
+	async deleteProperty(id) {
 		try {
 			return await api.delete(`properties/${id}/`);
 		} catch (error) {
-			throw handleApiError(error);
-		}
-	},
-
-	/**
-	 * Get list of user's own properties
-	 */
-	getMyProperties: async () => {
-		try {
-			return await api.get('properties/my-properties/');
-		} catch (error) {
-			throw handleApiError(error);
-		}
-	},
-
-	/**
-	 * Verify a property (for inspectors)
-	 * @param {string} id - Property ID
-	 */
-	verifyProperty: async (id) => {
-		try {
-			return await api.post(`properties/${id}/verify/`);
-		} catch (error) {
-			throw handleApiError(error);
-		}
-	},
-
-	/**
-	 * Upload property images
-	 * @param {string} id - Property ID (optional, only if property exists)
-	 * @param {FileList|File[]} images - Property images
-	 */
-	uploadPropertyImages: async (id, images) => {
-		try {
-			const formData = new FormData();
-
-			// Add multiple files
-			if (images && images.length) {
-				for (let i = 0; i < images.length; i++) {
-					formData.append('files', images[i]);
-				}
-			}
-
-			// If we have an ID, use it (for existing property)
-			if (id) {
-				console.log(`Uploading ${images.length} images to property ${id}`);
-				return await api.upload(`properties/${id}/upload-images/`, formData);
-			} else {
-				// For new properties or standalone uploads
-				return await api.upload('properties/upload-images/', formData);
-			}
-		} catch (error) {
-			throw handleApiError(error);
-		}
-	},
-
-	/**
-	 * Search properties by keyword
-	 * @param {string} query - Search query
-	 */
-	searchProperties: async (query) => {
-		try {
-			return await api.get(`properties/?search=${encodeURIComponent(query)}`);
-		} catch (error) {
-			throw handleApiError(error);
-		}
-	},
-
-	/**
-	 * Get property statistics (for admins and agents)
-	 */
-	getPropertyStats: async () => {
-		try {
-			return await api.get('properties/stats/');
-		} catch (error) {
-			throw handleApiError(error);
-		}
-	},
-
-	/**
-	 * Get featured properties
-	 */
-	getFeaturedProperties: async (limit = 5) => {
-		try {
-			return await api.get(`properties/?is_featured=true&limit=${limit}`);
-		} catch (error) {
-			throw handleApiError(error);
-		}
-	},
-
-	/**
-	 * Get recommended properties similar to a given property
-	 * @param {string} propertyId - Property ID
-	 * @param {number} limit - Number of recommendations to get
-	 */
-	getRecommendedProperties: async (propertyId, limit = 5) => {
-		try {
-			return await api.get(`properties/${propertyId}/recommended/?limit=${limit}`);
-		} catch (error) {
-			throw handleApiError(error);
+			this.handleError(error, `Failed to delete property ${id}`);
 		}
 	}
-};
+
+	/**
+	 * Upload images for a property
+	 * @param {number} propertyId - Property ID
+	 * @param {File[]} images - Array of image files
+	 */
+	async uploadImages(propertyId, images) {
+		try {
+			if (!images || images.length === 0) {
+				console.warn('No images provided for upload');
+				return { success: false, message: 'No images provided' };
+			}
+
+			const formData = new FormData();
+
+			// Append each image as 'files' to match backend expectation
+			images.forEach((image) => formData.append('files', image));
+
+			// Upload images via API
+			const result = await api.upload(`properties/${propertyId}/uploads/`, formData);
+			console.log('Images uploaded successfully:', result);
+
+			return result;
+		} catch (error) {
+			this.handleError(error, 'Failed to upload images');
+		}
+	}
+
+	/**
+	 * Set a property image as primary
+	 * @param {number} propertyId - Property ID
+	 * @param {number} imageIndex - Index of image to set as primary
+	 */
+	async setPrimaryImage(propertyId, imageIndex) {
+		try {
+			return await api.post(`properties/${propertyId}/actions/set-primary-image/`, {
+				image_index: imageIndex
+			});
+		} catch (error) {
+			this.handleError(error, 'Failed to set primary image');
+		}
+	}
+
+	/**
+	 * Delete a property image
+	 * @param {number} propertyId - Property ID
+	 * @param {number} imageIndex - Index of image to delete
+	 */
+	async deleteImage(propertyId, imageIndex) {
+		try {
+			return await api.delete(`properties/${propertyId}/actions/delete-image/${imageIndex}/`);
+		} catch (error) {
+			this.handleError(error, 'Failed to delete image');
+		}
+	}
+
+	/**
+	 * Get user's own properties
+	 */
+	async getMyProperties() {
+		try {
+			return await api.get('properties/my/');
+		} catch (error) {
+			this.handleError(error, 'Failed to load your properties');
+		}
+	}
+
+	/**
+	 * Create a comprehensive property data object from form data
+	 * @param {Object} formData - Raw form data from the frontend
+	 * @returns {Object} - API-ready property data
+	 */
+	preparePropertyData(formData) {
+		// Basic fields pass directly
+		const propertyData = {
+			title: formData.title || '',
+			description: formData.description || '',
+			property_type: formData.property_type || 'apartment',
+			condition: formData.condition || 'good',
+			status: formData.status || 'draft',
+			city: formData.city || '',
+			district: formData.district || '',
+			address: formData.address || '',
+			postal_code: formData.postal_code || '',
+			country: formData.country || 'Saudi Arabia',
+			deed_number: formData.deed_number || '',
+			deed_date: formData.deed_date || null,
+
+			// Boolean fields
+			is_published: Boolean(formData.is_published),
+			is_featured: Boolean(formData.is_featured)
+		};
+
+		// Handle numeric fields with proper type conversion
+		const numericFields = [
+			'area',
+			'built_up_area',
+			'estimated_value',
+			'asking_price',
+			'bedrooms',
+			'bathrooms',
+			'floor_number',
+			'total_floors',
+			'year_built'
+		];
+
+		numericFields.forEach((field) => {
+			if (formData[field] !== undefined && formData[field] !== '') {
+				const value = parseFloat(formData[field]);
+				propertyData[field] = isNaN(value) ? null : value;
+			} else {
+				propertyData[field] = null;
+			}
+		});
+
+		// Handle JSON fields with proper serialization
+		const jsonFields = [
+			'location',
+			'features',
+			'amenities',
+			'rooms',
+			'images',
+			'videos',
+			'documents',
+			'outdoor_spaces',
+			'street_details',
+			'building_services',
+			'infrastructure',
+			'surroundings',
+			'reference_ids'
+		];
+
+		jsonFields.forEach((field) => {
+			if (formData[field] !== undefined) {
+				const value = formData[field];
+
+				// If value is already a string, assume it's proper JSON
+				if (typeof value === 'string') {
+					propertyData[field] = value;
+				}
+				// Otherwise, stringify the object/array
+				else {
+					propertyData[field] = JSON.stringify(value || (field === 'location' ? {} : []));
+				}
+			}
+		});
+
+		// Special handling for location
+		if (formData.location && typeof formData.location === 'object') {
+			propertyData.location = JSON.stringify(formData.location);
+		}
+
+		// Log the prepared data for debugging
+		console.log('Prepared property data:', propertyData);
+
+		return propertyData;
+	}
+
+	/**
+	 * Standardized error handling
+	 * @param {Error} error - Error object
+	 * @param {string} defaultMessage - Default error message
+	 */
+	handleError(error, defaultMessage = 'An error occurred') {
+		console.error(`PropertyService error: ${defaultMessage}`, error);
+
+		// Extract useful error information
+		const errorMessage = error.data?.error || error.message || defaultMessage;
+		const errorCode = error.data?.error_code || 'unknown_error';
+
+		// Throw standardized error for consistent handling
+		throw {
+			message: errorMessage,
+			code: errorCode,
+			data: error.data || {},
+			originalError: error
+		};
+	}
+}
+
+export default new PropertyService();

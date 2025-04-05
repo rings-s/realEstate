@@ -25,6 +25,7 @@ from .decorators import (
     with_cache
 )
 from .serializers import *
+from rest_framework.exceptions import PermissionDenied
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -155,7 +156,6 @@ class BaseUploadView(BaseAPIView):
         if self.object_permission_class:
             permission = self.object_permission_class()
             if not permission.has_object_permission(self.request, self, obj):
-                from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("You don't have permission to upload files to this object")
 
         return obj
@@ -818,7 +818,6 @@ class UploadAuctionImagesView(BaseUploadView):
 
 
 
-# BID VIEWS
 
 class PlaceBidView(BaseAPIView):
     """

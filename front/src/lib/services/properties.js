@@ -1,40 +1,5 @@
+// front/src/lib/services/properties.js
 import api, { handleApiError } from './api';
-
-/**
- * Format property data for API submission
- * @param {Object} data - Property data to format
- * @returns {Object} - Formatted property data
- */
-function formatPropertyData(data) {
-	// Create a copy to avoid modifying the original
-	const formattedData = { ...data };
-
-	// Ensure JSON fields are properly stringified
-	const jsonFields = [
-		'location',
-		'features',
-		'amenities',
-		'images',
-		'videos',
-		'street_details',
-		'rooms',
-		'outdoor_spaces',
-		'rental_details',
-		'parking',
-		'building_services',
-		'infrastructure',
-		'surroundings',
-		'reference_ids'
-	];
-
-	for (const field of jsonFields) {
-		if (formattedData[field] && typeof formattedData[field] === 'object') {
-			formattedData[field] = JSON.stringify(formattedData[field]);
-		}
-	}
-
-	return formattedData;
-}
 
 /**
  * Property management services
@@ -83,9 +48,12 @@ export default {
 	 */
 	createProperty: async (propertyData) => {
 		try {
-			const formattedData = formatPropertyData(propertyData);
-			return await api.post('properties/', formattedData);
+			// We assume the property data is already correctly formatted
+			console.log('Sending property data to API:', propertyData);
+
+			return await api.post('properties/', propertyData);
 		} catch (error) {
+			console.error('Error creating property:', error);
 			throw handleApiError(error);
 		}
 	},
@@ -97,8 +65,7 @@ export default {
 	 */
 	updateProperty: async (id, propertyData) => {
 		try {
-			const formattedData = formatPropertyData(propertyData);
-			return await api.patch(`properties/${id}/`, formattedData);
+			return await api.patch(`properties/${id}/`, propertyData);
 		} catch (error) {
 			throw handleApiError(error);
 		}
@@ -149,14 +116,15 @@ export default {
 			const formData = new FormData();
 
 			// Add multiple files
-			if (images.length) {
+			if (images && images.length) {
 				for (let i = 0; i < images.length; i++) {
-					formData.append('images', images[i]);
+					formData.append('files', images[i]);
 				}
 			}
 
 			// If we have an ID, use it (for existing property)
 			if (id) {
+				console.log(`Uploading ${images.length} images to property ${id}`);
 				return await api.upload(`properties/${id}/upload-images/`, formData);
 			} else {
 				// For new properties or standalone uploads

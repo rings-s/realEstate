@@ -8,6 +8,8 @@
 		validateCoordinates
 	} from '$lib/utils/geocoding';
 	import PropertyMap from './PropertyMap.svelte';
+	import RoomsManager from './RoomsManager.svelte';
+	import AmenitiesSelector from './AmenitiesSelector.svelte';
 	import { uiStore } from '$lib/stores/ui';
 
 	// Props
@@ -72,7 +74,7 @@
 	];
 
 	// State
-	let activeTab = 'basic'; // basic, details, location, features, images
+	let activeTab = 'basic'; // basic, details, location, features, rooms, images
 	let form = {
 		title: '',
 		description: '',
@@ -90,6 +92,7 @@
 		built_up_area: '',
 		bedrooms: 0,
 		bathrooms: 0,
+		rooms: [], // Will contain array of {type, name, description, size}
 		floor_number: null,
 		total_floors: null,
 		year_built: null,
@@ -98,7 +101,23 @@
 		is_published: false,
 		features: [],
 		amenities: [],
-		images: []
+		images: [],
+		deed_number: '',
+		deed_date: '',
+		street_details: '',
+		outdoor_spaces: [],
+		rental_details: '',
+		parking: '',
+		videos: [],
+		virtual_tours: [],
+		documents: [],
+		floor_plans: [],
+		building_services: [],
+		infrastructure: [],
+		current_usage: '',
+		optimal_usage: '',
+		surroundings: '',
+		reference_ids: []
 	};
 
 	// Feature management
@@ -117,6 +136,7 @@
 		details: false,
 		location: false,
 		features: false,
+		rooms: false,
 		images: false
 	};
 
@@ -148,6 +168,24 @@
 
 				if (property.amenities && typeof property.amenities === 'string') {
 					form.amenities = JSON.parse(property.amenities);
+				}
+
+				if (property.rooms && typeof property.rooms === 'string') {
+					form.rooms = JSON.parse(property.rooms);
+				} else if (!property.rooms) {
+					form.rooms = [];
+				}
+
+				if (property.outdoor_spaces && typeof property.outdoor_spaces === 'string') {
+					form.outdoor_spaces = JSON.parse(property.outdoor_spaces);
+				}
+
+				if (property.building_services && typeof property.building_services === 'string') {
+					form.building_services = JSON.parse(property.building_services);
+				}
+
+				if (property.infrastructure && typeof property.infrastructure === 'string') {
+					form.infrastructure = JSON.parse(property.infrastructure);
 				}
 
 				if (property.images && typeof property.images === 'string') {
@@ -189,6 +227,11 @@
 		activeTab = tab;
 	}
 
+	// Handle rooms update from RoomsManager component
+	function handleRoomsUpdate(event) {
+		form.rooms = event.detail;
+	}
+
 	// Update tab completion status
 	function updateTabCompletion() {
 		// Basic tab
@@ -202,6 +245,9 @@
 
 		// Features tab - always considered complete
 		tabCompletion.features = true;
+
+		// Rooms tab - consider complete if at least one room defined or property doesn't need rooms
+		tabCompletion.rooms = form.property_type === 'land' || form.rooms.length > 0;
 
 		// Images tab - consider complete if at least one image
 		tabCompletion.images = form.images.length > 0 || imageFiles.length > 0;
@@ -244,9 +290,6 @@
 		try {
 			const formData = { ...form };
 
-			// IMPORTANT: DON'T stringify JSON fields - send objects/arrays directly to the backend
-			// Instead, ensure numeric fields are proper numbers
-
 			// Convert string numeric values to actual numbers
 			formData.area = formData.area ? Number(formData.area) : null;
 			formData.built_up_area = formData.built_up_area ? Number(formData.built_up_area) : null;
@@ -258,65 +301,18 @@
 			formData.total_floors = formData.total_floors ? Number(formData.total_floors) : null;
 			formData.year_built = formData.year_built ? Number(formData.year_built) : null;
 
-			// If any JSON fields are already strings, parse them (don't double-encode)
-			if (formData.location && typeof formData.location === 'string') {
-				try {
-					formData.location = JSON.parse(formData.location);
-				} catch (e) {
-					console.warn('Could not parse location string:', e);
-				}
+			// Store image files for later upload (after property creation)
+			if (imageFiles.length > 0) {
+				formData.imageFiles = imageFiles;
 			}
 
-			if (formData.features && typeof formData.features === 'string') {
-				try {
-					formData.features = JSON.parse(formData.features);
-				} catch (e) {
-					console.warn('Could not parse features string:', e);
-				}
+			// Ensure rooms is an array
+			if (!Array.isArray(formData.rooms)) {
+				formData.rooms = [];
 			}
 
-			if (formData.amenities && typeof formData.amenities === 'string') {
-				try {
-					formData.amenities = JSON.parse(formData.amenities);
-				} catch (e) {
-					console.warn('Could not parse amenities string:', e);
-				}
-			}
-
-			if (formData.images && typeof formData.images === 'string') {
-				try {
-					formData.images = JSON.parse(formData.images);
-				} catch (e) {
-					console.warn('Could not parse images string:', e);
-				}
-			}
-
-			// Handle other possible JSON fields the same way
-			const jsonFields = [
-				'videos',
-				'street_details',
-				'rooms',
-				'outdoor_spaces',
-				'rental_details',
-				'parking',
-				'building_services',
-				'infrastructure',
-				'surroundings',
-				'reference_ids'
-			];
-
-			jsonFields.forEach((field) => {
-				if (formData[field] && typeof formData[field] === 'string') {
-					try {
-						formData[field] = JSON.parse(formData[field]);
-					} catch (e) {
-						console.warn(`Could not parse ${field} string:`, e);
-					}
-				}
-			});
-
-			// Log what we're sending to the parent
-			console.log('Submitting property data:', formData);
+			// Make sure all JSON fields are properly handled
+			// We'll let the parent component handle stringification to keep this component pure
 
 			// Dispatch the data to the parent component
 			dispatch('submit', formData);
@@ -384,8 +380,6 @@
 	}
 
 	// Upload images
-	// This should replace the uploadImages function in PropertyForm.svelte
-
 	async function uploadImages() {
 		if (!imageFiles.length) return;
 
@@ -481,7 +475,7 @@
 
 	// Navigate to next tab
 	function nextTab() {
-		const tabs = ['basic', 'details', 'location', 'features', 'images'];
+		const tabs = ['basic', 'details', 'location', 'features', 'rooms', 'images'];
 		const currentIndex = tabs.indexOf(activeTab);
 		if (currentIndex < tabs.length - 1) {
 			setTab(tabs[currentIndex + 1]);
@@ -490,11 +484,17 @@
 
 	// Navigate to previous tab
 	function prevTab() {
-		const tabs = ['basic', 'details', 'location', 'features', 'images'];
+		const tabs = ['basic', 'details', 'location', 'features', 'rooms', 'images'];
 		const currentIndex = tabs.indexOf(activeTab);
 		if (currentIndex > 0) {
 			setTab(tabs[currentIndex - 1]);
 		}
+	}
+
+	// Handle deed date change
+	function formatDeedDate(event) {
+		const value = event.target.value;
+		form.deed_date = value; // It will be in YYYY-MM-DD format
 	}
 </script>
 
@@ -683,6 +683,50 @@
 					></div>
 				</button>
 
+				<!-- New Rooms Tab -->
+				<button
+					class="relative flex-1 px-3 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 md:flex-initial md:px-6 {activeTab ===
+					'rooms'
+						? 'text-blue-600 dark:text-blue-400'
+						: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
+					on:click={() => setTab('rooms')}
+					aria-selected={activeTab === 'rooms'}
+					role="tab"
+				>
+					<div class="flex items-center justify-center gap-2">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-5 w-5"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+							/>
+						</svg>
+						<span class="hidden md:inline">الغرف</span>
+						<span class="md:hidden">الغرف</span>
+					</div>
+
+					<!-- Completion Indicator -->
+					{#if tabCompletion.rooms}
+						<span
+							class="absolute top-2 right-2 h-2 w-2 rounded-full bg-green-500 md:top-3 md:right-3"
+						></span>
+					{/if}
+
+					<!-- Active Indicator -->
+					<div
+						class={activeTab === 'rooms'
+							? 'absolute inset-x-0 bottom-0 h-0.5 bg-blue-600 dark:bg-blue-400'
+							: ''}
+					></div>
+				</button>
+
 				<button
 					class="relative flex-1 px-3 py-3 text-sm font-medium whitespace-nowrap transition-all duration-200 md:flex-initial md:px-6 {activeTab ===
 					'images'
@@ -742,6 +786,8 @@
 						موقع العقار
 					{:else if activeTab === 'features'}
 						المميزات والمرافق
+					{:else if activeTab === 'rooms'}
+						الغرف
 					{:else if activeTab === 'images'}
 						صور العقار
 					{/if}
@@ -755,6 +801,8 @@
 						حدد موقع العقار على الخريطة.
 					{:else if activeTab === 'features'}
 						أضف ميزات العقار ومرافقه.
+					{:else if activeTab === 'rooms'}
+						أضف معلومات الغرف في العقار.
 					{:else if activeTab === 'images'}
 						أرفع صور العقار.
 					{/if}
@@ -823,7 +871,7 @@
 						</div>
 
 						<!-- Status -->
-						<div class="sm:col-span-4">
+						<div class="sm:col-span-3">
 							<label
 								for="status"
 								class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -843,7 +891,7 @@
 						</div>
 
 						<!-- Published -->
-						<div class="flex items-center sm:col-span-2">
+						<div class="flex items-center sm:col-span-3">
 							<label for="is_published" class="flex cursor-pointer items-center">
 								<input
 									type="checkbox"
@@ -853,6 +901,39 @@
 								/>
 								<span class="mr-2 text-sm text-gray-700 dark:text-gray-300">نشر العقار</span>
 							</label>
+						</div>
+
+						<!-- Deed Number -->
+						<div class="sm:col-span-3">
+							<label
+								for="deed_number"
+								class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								رقم الصك
+							</label>
+							<input
+								type="text"
+								id="deed_number"
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								bind:value={form.deed_number}
+							/>
+						</div>
+
+						<!-- Deed Date -->
+						<div class="sm:col-span-3">
+							<label
+								for="deed_date"
+								class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								تاريخ الصك
+							</label>
+							<input
+								type="date"
+								id="deed_date"
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								bind:value={form.deed_date}
+								on:change={formatDeedDate}
+							/>
 						</div>
 
 						<!-- Description -->
@@ -1041,6 +1122,25 @@
 							</select>
 						</div>
 
+						<div class="sm:col-span-3">
+							<label
+								for="optimal_usage"
+								class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								الاستخدام الأمثل
+							</label>
+							<select
+								id="optimal_usage"
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								bind:value={form.optimal_usage}
+							>
+								<option value="">اختر الاستخدام</option>
+								{#each USAGE_TYPES as usage}
+									<option value={usage.value}>{usage.label}</option>
+								{/each}
+							</select>
+						</div>
+
 						<!-- Pricing -->
 						<div class="sm:col-span-3">
 							<label
@@ -1085,6 +1185,54 @@
 									<span class="text-gray-500 dark:text-gray-400">ريال</span>
 								</div>
 							</div>
+						</div>
+
+						<!-- Additional Details - Street Details -->
+						<div class="sm:col-span-6">
+							<label
+								for="street_details"
+								class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								تفاصيل الشوارع
+							</label>
+							<textarea
+								id="street_details"
+								rows="3"
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								bind:value={form.street_details}
+							></textarea>
+						</div>
+
+						<!-- Rental Details -->
+						<div class="sm:col-span-6">
+							<label
+								for="rental_details"
+								class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								تفاصيل الإيجار
+							</label>
+							<textarea
+								id="rental_details"
+								rows="3"
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								bind:value={form.rental_details}
+							></textarea>
+						</div>
+
+						<!-- Parking -->
+						<div class="sm:col-span-6">
+							<label
+								for="parking"
+								class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								تفاصيل مواقف السيارات
+							</label>
+							<textarea
+								id="parking"
+								rows="3"
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								bind:value={form.parking}
+							></textarea>
 						</div>
 					</div>
 				</div>
@@ -1321,81 +1469,37 @@
 							</button>
 
 							<!-- Quick preset locations -->
-							<div class="dropdown dropdown-end">
-								<button
-									type="button"
-									class="flex items-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-gray-700 transition hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+							<button
+								type="button"
+								class="flex items-center gap-2 rounded-md bg-gray-100 px-4 py-2 text-gray-700 transition hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+								on:click={() => {
+									// Use the Saudi Arabia center utility function
+									form.location = getSaudiArabiaCenter(); // Riyadh center
+									updateMapFromCoordinates();
+								}}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									class="h-5 w-5"
+									fill="none"
+									viewBox="0 0 24 24"
+									stroke="currentColor"
 								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="h-5 w-5"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-										/>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-										/>
-									</svg>
-									مواقع سريعة
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										class="h-4 w-4"
-										fill="none"
-										viewBox="0 0 24 24"
-										stroke="currentColor"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M19 9l-7 7-7-7"
-										/>
-									</svg>
-								</button>
-								<div class="dropdown-content menu bg-base-100 rounded-box w-52 p-2 shadow">
-									<button
-										type="button"
-										class="dropdown-item rounded-md px-4 py-2 text-right text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-										on:click={() => {
-											// Use the Saudi Arabia center utility function
-											form.location = getSaudiArabiaCenter(); // Riyadh center
-											updateMapFromCoordinates();
-										}}
-									>
-										الرياض (وسط المدينة)
-									</button>
-									<button
-										type="button"
-										class="dropdown-item rounded-md px-4 py-2 text-right text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-										on:click={() => {
-											form.location = { latitude: 21.4858, longitude: 39.1925 }; // Jeddah
-											updateMapFromCoordinates();
-										}}
-									>
-										جدة (وسط المدينة)
-									</button>
-									<button
-										type="button"
-										class="dropdown-item rounded-md px-4 py-2 text-right text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
-										on:click={() => {
-											form.location = { latitude: 26.4206, longitude: 50.0887 }; // Dammam
-											updateMapFromCoordinates();
-										}}
-									>
-										الدمام (وسط المدينة)
-									</button>
-								</div>
-							</div>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+									/>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+									/>
+								</svg>
+								وسط الرياض
+							</button>
 						</div>
 
 						<p class="text-xs text-gray-500 sm:col-span-6 dark:text-gray-400">
@@ -1505,58 +1609,10 @@
 						class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
 					>
 						<h3 class="mb-4 text-lg font-medium text-gray-900 dark:text-white">المرافق</h3>
-						<div class="mb-3 flex gap-2">
-							<input
-								type="text"
-								class="flex-1 rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-								placeholder="أضف مرفق..."
-								bind:value={amenityInput}
-								on:keyup={(e) => e.key === 'Enter' && addAmenity()}
-							/>
-							<button
-								type="button"
-								class="rounded-md bg-green-600 px-4 py-2 text-white transition hover:bg-green-700"
-								on:click={addAmenity}
-							>
-								إضافة
-							</button>
-						</div>
-
-						<!-- Amenity Tags -->
-						{#if form.amenities.length > 0}
-							<div class="mt-4 flex flex-wrap gap-2">
-								{#each form.amenities as amenity, index}
-									<div
-										class="flex items-center rounded-full bg-green-100 px-3 py-1 text-sm text-green-800 dark:bg-green-900 dark:text-green-200"
-									>
-										<span>{amenity}</span>
-										<button
-											type="button"
-											class="mr-2 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
-											on:click={() => removeAmenity(index)}
-											aria-label="حذف المرفق"
-										>
-											<svg
-												xmlns="http://www.w3.org/2000/svg"
-												class="h-4 w-4"
-												viewBox="0 0 20 20"
-												fill="currentColor"
-											>
-												<path
-													fill-rule="evenodd"
-													d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-													clip-rule="evenodd"
-												/>
-											</svg>
-										</button>
-									</div>
-								{/each}
-							</div>
-						{:else}
-							<div class="mt-3 rounded-md bg-gray-50 p-4 text-center dark:bg-gray-700">
-								<p class="text-sm text-gray-500 dark:text-gray-400">لم تتم إضافة أي مرافق بعد.</p>
-							</div>
-						{/if}
+						<AmenitiesSelector
+							selected={form.amenities}
+							on:change={(e) => (form.amenities = e.detail)}
+						/>
 					</div>
 
 					<!-- Feature Suggestions -->
@@ -1579,7 +1635,77 @@
 							{/each}
 						</div>
 					</div>
+
+					<!-- Building Services & Infrastructure -->
+					<div
+						class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
+					>
+						<h3 class="mb-4 text-lg font-medium text-gray-900 dark:text-white">
+							خدمات المبنى والبنية التحتية
+						</h3>
+
+						<!-- Building Services -->
+						<div class="mb-4">
+							<label
+								for="building_services"
+								class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								خدمات المبنى
+							</label>
+							<textarea
+								id="building_services"
+								rows="3"
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								placeholder="وصف خدمات المبنى مثل: الصيانة، الأمن، النظافة، إلخ..."
+								bind:value={form.building_services}
+							></textarea>
+						</div>
+
+						<!-- Infrastructure -->
+						<div>
+							<label
+								for="infrastructure"
+								class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								البنية التحتية
+							</label>
+							<textarea
+								id="infrastructure"
+								rows="3"
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								placeholder="وصف البنية التحتية المتوفرة مثل: شبكات المياه، الكهرباء، الاتصالات، إلخ..."
+								bind:value={form.infrastructure}
+							></textarea>
+						</div>
+					</div>
+
+					<!-- Surroundings Section -->
+					<div
+						class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800"
+					>
+						<h3 class="mb-4 text-lg font-medium text-gray-900 dark:text-white">المحيط</h3>
+						<div>
+							<label
+								for="surroundings"
+								class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+							>
+								وصف المحيط والخدمات القريبة
+							</label>
+							<textarea
+								id="surroundings"
+								rows="3"
+								class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+								placeholder="وصف المنطقة المحيطة بالعقار والخدمات القريبة مثل: المدارس، المستشفيات، المراكز التجارية، إلخ..."
+								bind:value={form.surroundings}
+							></textarea>
+						</div>
+					</div>
 				</div>
+			{/if}
+
+			<!-- Rooms Tab -->
+			{#if activeTab === 'rooms'}
+				<RoomsManager rooms={form.rooms} on:update={handleRoomsUpdate} />
 			{/if}
 
 			<!-- Images Tab -->

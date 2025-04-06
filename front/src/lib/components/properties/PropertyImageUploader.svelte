@@ -1,7 +1,7 @@
 <!-- src/lib/components/properties/PropertyImageUploader.svelte -->
 <script>
 	import { createEventDispatcher, onDestroy } from 'svelte';
-	import { uploadPropertyImages, validateImageFiles } from '$lib/services/imageUpload';
+	import { validateImageFiles } from '$lib/services/upload';
 	import Button from '$lib/components/common/Button.svelte';
 
 	// Props
@@ -16,7 +16,7 @@
 	let uploadProgress = 0;
 	let isUploading = false;
 	let error = null;
-	let currentUploadXHR = null; // To allow cancellation
+	let dropZoneActive = false;
 
 	// Combined images (existing + new ones)
 	$: previewImages = [
@@ -38,6 +38,11 @@
 		const files = event.target.files;
 		if (!files || !files.length) return;
 
+		processFiles(files);
+	}
+
+	// Process selected files
+	function processFiles(files) {
 		// Validate selected files
 		const validation = validateImageFiles(files, {
 			maxFiles: maxFiles - existingImages.length,
@@ -67,52 +72,44 @@
 		} else {
 			// This is a new image - adjust index and remove from selectedFiles
 			const newIndex = index - existingImages.length;
+
+			// Revoke object URL to prevent memory leaks
+			URL.revokeObjectURL(selectedFiles[newIndex].objectURL);
+
 			selectedFiles = selectedFiles.filter((_, i) => i !== newIndex);
 			dispatch('select', { files: selectedFiles });
 		}
 	}
 
-	// Upload selected files
-	async function uploadFiles() {
-		if (!propertyId || !selectedFiles.length || isUploading) return;
-
-		isUploading = true;
-		uploadProgress = 0;
-		error = null;
-
-		try {
-			dispatch('uploadStart');
-
-			const result = await uploadPropertyImages(propertyId, selectedFiles, {
-				onProgress: (percent) => {
-					uploadProgress = percent;
-					dispatch('progress', { progress: percent });
-				}
-			});
-
-			dispatch('uploadComplete', { result });
-
-			// Clear selected files after successful upload
-			selectedFiles = [];
-
-			return result;
-		} catch (err) {
-			error = err;
-			dispatch('error', { error: err });
-			return null;
-		} finally {
-			isUploading = false;
+	// Handle drag and drop
+	function handleDragOver(event) {
+		event.preventDefault();
+		if (!disabled && !isUploading) {
+			dropZoneActive = true;
 		}
 	}
 
-	// Cancel ongoing upload
-	function cancelUpload() {
-		if (currentUploadXHR && isUploading) {
-			currentUploadXHR.abort();
-			isUploading = false;
-			uploadProgress = 0;
-			dispatch('uploadCancel');
+	function handleDragLeave() {
+		dropZoneActive = false;
+	}
+
+	function handleDrop(event) {
+		event.preventDefault();
+		dropZoneActive = false;
+
+		if (disabled || isUploading) return;
+
+		const files = event.dataTransfer?.files;
+		if (files && files.length > 0) {
+			processFiles(files);
 		}
+	}
+
+	// Notify parent to proceed with upload
+	function uploadFiles() {
+		if (selectedFiles.length === 0) return;
+
+		dispatch('upload', { files: selectedFiles });
 	}
 
 	// Clean up object URLs on destroy
@@ -129,7 +126,9 @@
 <div class="property-image-uploader">
 	<!-- File Input Area -->
 	<div
-		class="relative mb-4 flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-6 transition-colors hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500
+		class="relative mb-4 flex flex-col items-center justify-center rounded-lg border-2 {dropZoneActive
+			? 'border-blue-500'
+			: 'border-dashed border-gray-300'} p-6 transition-colors hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500
                {disabled || isUploading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}"
 		on:click={() => !disabled && !isUploading && document.getElementById('file-input').click()}
 		on:keydown={(e) =>
@@ -137,6 +136,9 @@
 			!disabled &&
 			!isUploading &&
 			document.getElementById('file-input').click()}
+		on:dragover={handleDragOver}
+		on:dragleave={handleDragLeave}
+		on:drop={handleDrop}
 		tabindex={disabled || isUploading ? -1 : 0}
 		role="button"
 		aria-label="اختيار صور للرفع"
@@ -183,7 +185,7 @@
 				<button
 					type="button"
 					class="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-					on:click={cancelUpload}
+					on:click={() => dispatch('cancel')}
 				>
 					إلغاء
 				</button>
@@ -277,12 +279,12 @@
 		</div>
 
 		<!-- Upload Button -->
-		{#if selectedFiles.length > 0 && propertyId}
+		{#if selectedFiles.length > 0}
 			<div class="flex justify-end">
 				<Button
 					variant="primary"
 					on:click={uploadFiles}
-					disabled={isUploading || disabled}
+					disabled={isUploading || disabled || selectedFiles.length === 0}
 					loading={isUploading}
 				>
 					رفع {selectedFiles.length} صور

@@ -7,12 +7,11 @@
 	import { ROLES, PERMISSIONS, hasRole, hasPermission } from '$lib/utils/permissions';
 	import { uiStore } from '$lib/stores/ui';
 	import { formatValidationErrors } from '$lib/utils/formatting';
+	import { prepareEntityData, PROPERTY_JSON_FIELDS } from '$lib/utils/jsonFields';
+	import { uploadPropertyImages, validateImageFiles } from '$lib/services/upload';
 	import PropertyForm from '$lib/components/properties/PropertyForm.svelte';
 	import Loader from '$lib/components/common/Loader.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
-
-	// Import our direct upload function
-	import { uploadPropertyImages } from '$lib/services/directUpload';
 
 	// Page state
 	let isLoading = true;
@@ -44,58 +43,97 @@
 	];
 
 	/**
-	 * Create a simple clean object with just the required fields
+	 * Process form data and create a clean property object for submission
 	 */
-	function createCleanPropertyData(data) {
-		// Create a fresh object with only the fields we need
-		const cleanData = {
-			title: data.title || '',
-			description: data.description || '',
-			property_type: data.property_type || 'apartment',
-			condition: data.condition || 'good',
-			status: data.status || 'draft',
-			city: data.city || '',
-			district: data.district || '',
-			address: data.address || '',
-			postal_code: data.postal_code || '',
-			country: data.country || 'Saudi Arabia',
+	function preparePropertyData(formData) {
+		// Create a base object with direct field mappings
+		const baseData = {
+			title: formData.title || '',
+			description: formData.description || '',
+			property_type: formData.property_type || 'apartment',
+			condition: formData.condition || 'good',
+			status: formData.status || 'draft',
+			city: formData.city || '',
+			district: formData.district || '',
+			address: formData.address || '',
+			postal_code: formData.postal_code || '',
+			country: formData.country || 'Saudi Arabia',
+			area: formData.area ? Number(formData.area) : 0,
+			built_up_area: formData.built_up_area ? Number(formData.built_up_area) : null,
+			estimated_value: formData.estimated_value ? Number(formData.estimated_value) : 0,
+			asking_price: formData.asking_price ? Number(formData.asking_price) : null,
+			bedrooms: formData.bedrooms !== undefined ? Number(formData.bedrooms) : 0,
+			bathrooms: formData.bathrooms !== undefined ? Number(formData.bathrooms) : 0,
+			floor_number: formData.floor_number !== undefined ? Number(formData.floor_number) : null,
+			total_floors: formData.total_floors !== undefined ? Number(formData.total_floors) : null,
+			year_built: formData.year_built ? Number(formData.year_built) : null,
+			is_published: Boolean(formData.is_published),
+			deed_date: formData.deed_date || null,
+			deed_number: formData.deed_number || '',
+			facing_direction: formData.facing_direction || '',
+			current_usage: formData.current_usage || '',
+			optimal_usage: formData.optimal_usage || '',
 
-			// Handle JSON fields - ensure they're all strings not objects
-			location:
-				typeof data.location === 'object' ? JSON.stringify(data.location) : data.location || '',
-			rooms: typeof data.rooms === 'object' ? JSON.stringify(data.rooms) : data.rooms || '[]',
-			features:
-				typeof data.features === 'object' ? JSON.stringify(data.features) : data.features || '[]',
-			amenities:
-				typeof data.amenities === 'object'
-					? JSON.stringify(data.amenities)
-					: data.amenities || '[]',
+			// Ensure all these fields are initialized as empty arrays to prevent null/undefined issues
+			location: formData.location || {},
+			rooms: formData.rooms || [],
+			features: formData.features || [],
+			amenities: formData.amenities || [],
+			outdoor_spaces: formData.outdoor_spaces || [],
+			videos: formData.videos || [],
+			documents: formData.documents || [], // Ensure this is an empty array if not provided
 
-			// Numeric fields
-			area: data.area ? Number(data.area) : 0,
-			built_up_area: data.built_up_area ? Number(data.built_up_area) : null,
-			estimated_value: data.estimated_value ? Number(data.estimated_value) : 0,
-			asking_price: data.asking_price ? Number(data.asking_price) : null,
-			bedrooms: data.bedrooms !== undefined ? Number(data.bedrooms) : 0,
-			bathrooms: data.bathrooms !== undefined ? Number(data.bathrooms) : 0,
-			floor_number: data.floor_number !== undefined ? Number(data.floor_number) : null,
-			total_floors: data.total_floors !== undefined ? Number(data.total_floors) : null,
-			year_built: data.year_built ? Number(data.year_built) : null,
-
-			// Boolean fields
-			is_published: Boolean(data.is_published),
-
-			// Date fields
-			deed_date: data.deed_date || null,
-			deed_number: data.deed_number || ''
+			// These can be strings
+			street_details: formData.street_details || '',
+			rental_details: formData.rental_details || '',
+			parking: formData.parking || '',
+			building_services: formData.building_services || '',
+			infrastructure: formData.infrastructure || '',
+			surroundings: formData.surroundings || ''
 		};
 
-		// Log the prepared data for debugging
-		console.log('Clean property data created for submission:', cleanData);
+		// Process the data to ensure JSON fields are properly stringified
+		// PROPERTY_JSON_FIELDS should include 'documents'
+		const cleanData = prepareEntityData(baseData, PROPERTY_JSON_FIELDS);
+
+		// Double-check JSON strings (especially for documents)
+		PROPERTY_JSON_FIELDS.forEach((field) => {
+			if (field in cleanData && cleanData[field] !== null) {
+				// Verify it's a valid JSON string
+				try {
+					JSON.parse(cleanData[field]);
+				} catch (e) {
+					// If it's not a valid JSON string, make it one
+					console.warn(`Field ${field} was not properly JSON-stringified. Fixing.`);
+					cleanData[field] = JSON.stringify(Array.isArray(baseData[field]) ? baseData[field] : []);
+				}
+			} else if (!(field in cleanData) || cleanData[field] === null) {
+				// Provide empty array as default for missing fields
+				if (
+					[
+						'images',
+						'videos',
+						'features',
+						'amenities',
+						'rooms',
+						'documents',
+						'outdoor_spaces'
+					].includes(field)
+				) {
+					cleanData[field] = '[]';
+				} else if (field === 'location') {
+					cleanData[field] = '{}';
+				}
+			}
+		});
+
+		console.log('Prepared property data for submission:', cleanData);
 		return cleanData;
 	}
 
-	// Handle form submission
+	/**
+	 * Handle form submission with improved validation and error handling
+	 */
 	async function handleSubmit(event) {
 		const formData = event.detail;
 		isSubmitting = true;
@@ -114,8 +152,8 @@
 				);
 			}
 
-			// Create clean data object for API
-			const cleanData = createCleanPropertyData(formData);
+			// Prepare data for API submission with proper JSON handling
+			const cleanData = preparePropertyData(formData);
 
 			// Save the property first
 			console.log('Saving property data to API...');
@@ -135,14 +173,12 @@
 					);
 					uiStore.addToast('جاري رفع الصور...', 'info');
 
-					// Use our direct upload function
-					const uploadResult = await uploadPropertyImages(
-						result.id,
-						pendingImageFiles,
-						(progress) => {
+					// Use our unified upload function with progress tracking
+					const uploadResult = await uploadPropertyImages(result.id, pendingImageFiles, {
+						onProgress: (progress) => {
 							uploadProgress = progress;
 						}
-					);
+					});
 
 					console.log('Image upload complete:', uploadResult);
 					uiStore.addToast('تم رفع الصور بنجاح', 'success');
@@ -184,33 +220,27 @@
 
 		// Validate files early
 		if (pendingImageFiles.length > 0) {
-			let hasInvalidFiles = false;
-
-			// Check file types
-			pendingImageFiles.forEach((file) => {
-				const isValidType = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(
-					file.type
-				);
-				const isValidSize = file.size <= 5 * 1024 * 1024; // 5MB limit
-
-				if (!isValidType) {
-					console.warn(`Invalid file type: ${file.type} for file ${file.name}`);
-					hasInvalidFiles = true;
-				}
-
-				if (!isValidSize) {
-					console.warn(`File too large: ${file.size} bytes for file ${file.name}`);
-					hasInvalidFiles = true;
-				}
+			const validation = validateImageFiles(pendingImageFiles, {
+				maxFiles: 10,
+				maxSize: 5 * 1024 * 1024 // 5MB limit
 			});
 
-			if (hasInvalidFiles) {
-				uiStore.addToast(
-					'بعض الملفات غير صالحة. تأكد من استخدام ملفات صور بحجم أقل من 5 ميجابايت',
-					'warning'
-				);
-			}
+			// Show any warnings
+			validation.warnings.forEach((warning) => {
+				uiStore.addToast(warning, 'warning');
+			});
+
+			// Update pending files to only include valid ones
+			pendingImageFiles = validation.validFiles;
 		}
+	}
+
+	// Handle direct image upload (when property already exists)
+	function handleImagesUpload(event) {
+		const { propertyId, files } = event.detail;
+		console.log(`Uploading ${files.length} images to property ID: ${propertyId}`);
+
+		// Implement direct upload if needed (for editing existing properties)
 	}
 
 	// Handle cancel action
@@ -333,10 +363,10 @@
 			{isSubmitting}
 			{isSearchingCoordinates}
 			editMode={false}
-			imageUploadUrl="/api/properties/upload-images/"
 			on:submit={handleSubmit}
 			on:cancel={handleCancel}
 			on:pendingUploads={handlePendingUploads}
+			on:imagesUpload={handleImagesUpload}
 		/>
 
 		<!-- Validation errors -->

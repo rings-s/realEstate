@@ -71,6 +71,7 @@
 	</div>
 
 	<div class="mt-4">
+		<!-- Fixed approach: Use component rendering only -->
 		{#each tabs as tab, i}
 			<div
 				class={activeTab === i ? 'block' : 'hidden'}
@@ -83,7 +84,8 @@
 					{#if tab.component}
 						<svelte:component this={tab.component} {...tab.props || {}} />
 					{:else}
-						<slot name={`panel-${i}`} />
+						<!-- Pass content with slot props instead of dynamic named slots -->
+						<slot {activeTab} index={i} />
 					{/if}
 				{/if}
 			</div>

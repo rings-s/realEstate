@@ -15,6 +15,7 @@ from .models import (
     Property, Auction, Bid, Document, Contract, Payment, Transaction,
     PropertyView, MessageThread, Message, ThreadParticipant, Notification
 )
+
 from .serializers import (
     PropertySerializer, AuctionSerializer, BidSerializer, DocumentSerializer,
     ContractSerializer, PaymentSerializer, TransactionSerializer,
@@ -34,7 +35,9 @@ from accounts.models import Role
 
 logger = logging.getLogger(__name__)
 
-# Base API View
+
+
+# BaseAPIView with fixed permission_denied method
 class BaseAPIView(APIView):
     """Base API view with common functionality and error handling"""
     permission_classes = [permissions.IsAuthenticated]
@@ -81,8 +84,17 @@ class BaseAPIView(APIView):
     def not_found(self, message="Resource not found"):
         return self.error_response(error=message, error_code="not_found", status_code=status.HTTP_404_NOT_FOUND)
 
-    def permission_denied(self, message="Permission denied"):
-        return self.error_response(error=message, error_code="permission_denied", status_code=status.HTTP_403_FORBIDDEN)
+    # FIXED METHOD - Added request parameter and code parameter to match DRF's signature
+    def permission_denied(self, request=None, message="Permission denied", code=None):
+        """
+        Override DRF's permission_denied method to use our response format.
+        Matches Django REST Framework's method signature to avoid conflicts.
+        """
+        error_code = code or "permission_denied"
+        return self.error_response(error=message, error_code=error_code, status_code=status.HTTP_403_FORBIDDEN)
+
+
+
 
 # Base class for file uploads
 class BaseUploadView(BaseAPIView):
@@ -397,7 +409,8 @@ class PropertyImageDeleteView(BaseAPIView):
             return self.success_response(
                 data={'deleted_image': deleted_image},
                 message=_('Image deleted successfully')
-            )
+
+)
 
         except Http404:
             return self.not_found(_('Property not found'))
@@ -422,6 +435,8 @@ class DocumentFileUploadView(MediaUploadView):
     entity_type = 'document'
     media_type = 'document'
     max_files = 5
+
+
 
 class PropertyListCreateView(BaseAPIView):
     """List and create properties"""

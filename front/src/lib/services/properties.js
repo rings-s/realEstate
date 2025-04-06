@@ -1,10 +1,10 @@
-// front/src/lib/services/PropertyService.js
+// src/lib/services/propertyService.js
 import api from './api';
-import uploadService from './upload';
+import { prepareEntityData, processEntityData, PROPERTY_JSON_FIELDS } from '$lib/utils/jsonFields';
 
 /**
  * Comprehensive property management service
- * Handles all property-related API interactions with consistent error handling
+ * Handles all property-related API interactions with consistent error handling and JSON field processing
  */
 class PropertyService {
 	/**
@@ -15,7 +15,18 @@ class PropertyService {
 		try {
 			const queryParams = new URLSearchParams(filters).toString();
 			const endpoint = `properties/${queryParams ? '?' + queryParams : ''}`;
-			return await api.get(endpoint);
+			const response = await api.get(endpoint);
+
+			// Process JSON fields in response data
+			if (Array.isArray(response.results)) {
+				response.results = response.results.map((property) =>
+					processEntityData(property, PROPERTY_JSON_FIELDS)
+				);
+			} else if (Array.isArray(response)) {
+				return response.map((property) => processEntityData(property, PROPERTY_JSON_FIELDS));
+			}
+
+			return response;
 		} catch (error) {
 			this.handleError(error, 'Failed to load properties');
 		}
@@ -27,7 +38,8 @@ class PropertyService {
 	 */
 	async getProperty(id) {
 		try {
-			return await api.get(`properties/${id}/`);
+			const response = await api.get(`properties/${id}/`);
+			return processEntityData(response, PROPERTY_JSON_FIELDS);
 		} catch (error) {
 			this.handleError(error, `Failed to load property ${id}`);
 		}
@@ -39,26 +51,29 @@ class PropertyService {
 	 */
 	async getPropertyBySlug(slug) {
 		try {
-			return await api.get(`properties/slug/${slug}/`);
+			const response = await api.get(`properties/slug/${slug}/`);
+			return processEntityData(response, PROPERTY_JSON_FIELDS);
 		} catch (error) {
 			this.handleError(error, `Failed to load property with slug ${slug}`);
 		}
 	}
 
 	/**
-	 * Create a new property with comprehensive data handling
-	 * @param {Object} formData - Raw form data
+	 * Create a new property with proper JSON field handling
+	 * @param {Object} propertyData - Property data to submit
 	 */
-	async createProperty(formData) {
+	async createProperty(propertyData) {
 		try {
-			// Convert form data to API-friendly structure
-			const propertyData = this.preparePropertyData(formData);
+			// Ensure JSON fields are properly stringified
+			const preparedData = prepareEntityData(propertyData, PROPERTY_JSON_FIELDS);
+			console.log('Prepared property data:', preparedData);
 
 			// Create the property
-			const result = await api.post('properties/', propertyData);
+			const result = await api.post('properties/', preparedData);
 			console.log('Property created successfully:', result);
 
-			return result;
+			// Process the response data to parse JSON fields
+			return processEntityData(result, PROPERTY_JSON_FIELDS);
 		} catch (error) {
 			this.handleError(error, 'Failed to create property');
 		}
@@ -67,18 +82,19 @@ class PropertyService {
 	/**
 	 * Update an existing property
 	 * @param {number} id - Property ID
-	 * @param {Object} formData - Updated property data
+	 * @param {Object} propertyData - Updated property data
 	 */
-	async updateProperty(id, formData) {
+	async updateProperty(id, propertyData) {
 		try {
-			// Convert form data to API-friendly structure
-			const propertyData = this.preparePropertyData(formData);
+			// Ensure JSON fields are properly stringified
+			const preparedData = prepareEntityData(propertyData, PROPERTY_JSON_FIELDS);
 
 			// Update the property
-			const result = await api.patch(`properties/${id}/`, propertyData);
+			const result = await api.patch(`properties/${id}/`, preparedData);
 			console.log('Property updated successfully:', result);
 
-			return result;
+			// Process the response data to parse JSON fields
+			return processEntityData(result, PROPERTY_JSON_FIELDS);
 		} catch (error) {
 			this.handleError(error, `Failed to update property ${id}`);
 		}
@@ -97,42 +113,17 @@ class PropertyService {
 	}
 
 	/**
-	 * Upload images for a property
-	 * @param {number} propertyId - Property ID
-	 * @param {File[]} images - Array of image files
-	 */
-	async uploadImages(propertyId, images) {
-		try {
-			if (!images || images.length === 0) {
-				console.warn('No images provided for upload');
-				return { success: false, message: 'No images provided' };
-			}
-
-			const formData = new FormData();
-
-			// Append each image as 'files' to match backend expectation
-			images.forEach((image) => formData.append('files', image));
-
-			// Upload images via API
-			const result = await api.upload(`properties/${propertyId}/uploads/`, formData);
-			console.log('Images uploaded successfully:', result);
-
-			return result;
-		} catch (error) {
-			this.handleError(error, 'Failed to upload images');
-		}
-	}
-
-	/**
 	 * Set a property image as primary
 	 * @param {number} propertyId - Property ID
 	 * @param {number} imageIndex - Index of image to set as primary
 	 */
 	async setPrimaryImage(propertyId, imageIndex) {
 		try {
-			return await api.post(`properties/${propertyId}/actions/set-primary-image/`, {
+			const response = await api.post(`properties/${propertyId}/actions/set-primary-image/`, {
 				image_index: imageIndex
 			});
+
+			return response;
 		} catch (error) {
 			this.handleError(error, 'Failed to set primary image');
 		}
@@ -156,101 +147,29 @@ class PropertyService {
 	 */
 	async getMyProperties() {
 		try {
-			return await api.get('properties/my/');
+			const response = await api.get('properties/my/');
+
+			// Process JSON fields in response data
+			if (Array.isArray(response)) {
+				return response.map((property) => processEntityData(property, PROPERTY_JSON_FIELDS));
+			}
+
+			return response;
 		} catch (error) {
 			this.handleError(error, 'Failed to load your properties');
 		}
 	}
 
 	/**
-	 * Create a comprehensive property data object from form data
-	 * @param {Object} formData - Raw form data from the frontend
-	 * @returns {Object} - API-ready property data
+	 * Verify a property (for inspectors)
+	 * @param {string} id - Property ID
 	 */
-	preparePropertyData(formData) {
-		// Basic fields pass directly
-		const propertyData = {
-			title: formData.title || '',
-			description: formData.description || '',
-			property_type: formData.property_type || 'apartment',
-			condition: formData.condition || 'good',
-			status: formData.status || 'draft',
-			city: formData.city || '',
-			district: formData.district || '',
-			address: formData.address || '',
-			postal_code: formData.postal_code || '',
-			country: formData.country || 'Saudi Arabia',
-			deed_number: formData.deed_number || '',
-			deed_date: formData.deed_date || null,
-
-			// Boolean fields
-			is_published: Boolean(formData.is_published),
-			is_featured: Boolean(formData.is_featured)
-		};
-
-		// Handle numeric fields with proper type conversion
-		const numericFields = [
-			'area',
-			'built_up_area',
-			'estimated_value',
-			'asking_price',
-			'bedrooms',
-			'bathrooms',
-			'floor_number',
-			'total_floors',
-			'year_built'
-		];
-
-		numericFields.forEach((field) => {
-			if (formData[field] !== undefined && formData[field] !== '') {
-				const value = parseFloat(formData[field]);
-				propertyData[field] = isNaN(value) ? null : value;
-			} else {
-				propertyData[field] = null;
-			}
-		});
-
-		// Handle JSON fields with proper serialization
-		const jsonFields = [
-			'location',
-			'features',
-			'amenities',
-			'rooms',
-			'images',
-			'videos',
-			'documents',
-			'outdoor_spaces',
-			'street_details',
-			'building_services',
-			'infrastructure',
-			'surroundings',
-			'reference_ids'
-		];
-
-		jsonFields.forEach((field) => {
-			if (formData[field] !== undefined) {
-				const value = formData[field];
-
-				// If value is already a string, assume it's proper JSON
-				if (typeof value === 'string') {
-					propertyData[field] = value;
-				}
-				// Otherwise, stringify the object/array
-				else {
-					propertyData[field] = JSON.stringify(value || (field === 'location' ? {} : []));
-				}
-			}
-		});
-
-		// Special handling for location
-		if (formData.location && typeof formData.location === 'object') {
-			propertyData.location = JSON.stringify(formData.location);
+	async verifyProperty(id) {
+		try {
+			return await api.post(`properties/${id}/actions/verify/`);
+		} catch (error) {
+			this.handleError(error, `Failed to verify property ${id}`);
 		}
-
-		// Log the prepared data for debugging
-		console.log('Prepared property data:', propertyData);
-
-		return propertyData;
 	}
 
 	/**

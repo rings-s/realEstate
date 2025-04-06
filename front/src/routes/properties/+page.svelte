@@ -23,6 +23,7 @@
 	import Card from '$lib/components/common/Card.svelte';
 	import Icon from '$lib/components/common/Icon.svelte';
 	import Tabs from '$lib/components/common/Tabs.svelte';
+	import Loader from '$lib/components/common/Loader.svelte';
 
 	// ========== STATE MANAGEMENT ==========
 	// Page state
@@ -820,12 +821,10 @@
 		</div>
 	{/if}
 
-	<!-- Loading Indicator -->
+	<!-- Loading Indicator - UPDATED with Loader component -->
 	{#if isLoading}
 		<div class="py-12 text-center">
-			<div
-				class="inline-block h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"
-			></div>
+			<Loader size="lg" center={true} />
 			<p class="mt-4 text-lg font-medium text-gray-700 dark:text-gray-300">
 				جاري تحميل العقارات...
 			</p>

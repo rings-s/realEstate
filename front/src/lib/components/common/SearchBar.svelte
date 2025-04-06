@@ -58,6 +58,7 @@
 			<button
 				type="button"
 				on:click={clearSearch}
+				aria-label="مسح البحث"
 				class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
 			>
 				<svg

@@ -238,6 +238,49 @@ const createPropertiesStore = () => {
 		},
 
 		/**
+		 * Update a property in the store without making an API call
+		 * Useful for updating after image uploads
+		 * @param {string} id - Property ID
+		 * @param {Object} updatedData - Updated property data
+		 */
+		updatePropertyInStore: (id, updatedData) => {
+			if (!id || !updatedData) return;
+
+			update((state) => {
+				// Update in properties list
+				const updatedProperties = state.properties.map((p) =>
+					p.id === id ? { ...p, ...updatedData } : p
+				);
+
+				// Update in myProperties list
+				const updatedMyProperties = state.myProperties.map((p) =>
+					p.id === id ? { ...p, ...updatedData } : p
+				);
+
+				// Update in featuredProperties list if present
+				const updatedFeaturedProperties = state.featuredProperties.map((p) =>
+					p.id === id ? { ...p, ...updatedData } : p
+				);
+
+				// Update in current property if it's the same one
+				const updatedCurrentProperty =
+					state.currentProperty?.id === id
+						? { ...state.currentProperty, ...updatedData }
+						: state.currentProperty;
+
+				return {
+					...state,
+					properties: updatedProperties,
+					myProperties: updatedMyProperties,
+					featuredProperties: updatedFeaturedProperties,
+					currentProperty: updatedCurrentProperty
+				};
+			});
+
+			return updatedData;
+		},
+
+		/**
 		 * Update an existing property
 		 * @param {string} id - Property ID
 		 * @param {Object} propertyData - Updated property data

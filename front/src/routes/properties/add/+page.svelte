@@ -8,7 +8,7 @@
 	import { uiStore } from '$lib/stores/ui';
 	import { formatValidationErrors } from '$lib/utils/formatting';
 	import { prepareEntityData, PROPERTY_JSON_FIELDS } from '$lib/utils/jsonFields';
-	import { uploadPropertyImages, validateImageFiles } from '$lib/services/upload';
+	import { validateImageFiles } from '$lib/services/upload';
 	import PropertyForm from '$lib/components/properties/PropertyForm.svelte';
 	import Loader from '$lib/components/common/Loader.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
@@ -44,6 +44,7 @@
 
 	/**
 	 * Process form data and create a clean property object for submission
+	 * with proper JSON field handling for Django v5 compatibility
 	 */
 	function preparePropertyData(formData) {
 		// Create a base object with direct field mappings
@@ -72,31 +73,114 @@
 			deed_number: formData.deed_number || '',
 			facing_direction: formData.facing_direction || '',
 			current_usage: formData.current_usage || '',
-			optimal_usage: formData.optimal_usage || '',
-
-			// Ensure all these fields are initialized as objects/arrays to prevent null/undefined issues
-			location: formData.location || {},
-			rooms: formData.rooms || [],
-			features: formData.features || [],
-			amenities: formData.amenities || [],
-			outdoor_spaces: formData.outdoor_spaces || [],
-			videos: formData.videos || [],
-			documents: formData.documents || [],
-
-			// These can be strings
-			street_details: formData.street_details || '',
-			rental_details: formData.rental_details || '',
-			parking: formData.parking || '',
-			building_services: formData.building_services || '',
-			infrastructure: formData.infrastructure || '',
-			surroundings: formData.surroundings || ''
+			optimal_usage: formData.optimal_usage || ''
 		};
+
+		// Handle JSON fields properly for Django v5
+		// These fields need to be initialized correctly for the backend
+		baseData.location = formData.location || {};
+		baseData.rooms = Array.isArray(formData.rooms) ? formData.rooms : [];
+		baseData.features = Array.isArray(formData.features) ? formData.features : [];
+		baseData.amenities = Array.isArray(formData.amenities) ? formData.amenities : [];
+		baseData.outdoor_spaces = Array.isArray(formData.outdoor_spaces) ? formData.outdoor_spaces : [];
+		baseData.videos = Array.isArray(formData.videos) ? formData.videos : [];
+		baseData.documents = Array.isArray(formData.documents) ? formData.documents : [];
+
+		// Initialize images as empty array - we'll upload separately
+		baseData.images = [];
+
+		// Handle text fields that might contain JSON or plain text
+		baseData.street_details = formData.street_details || '';
+		baseData.rental_details = formData.rental_details || '';
+		baseData.parking = formData.parking || '';
+		baseData.building_services = formData.building_services || '';
+		baseData.infrastructure = formData.infrastructure || '';
+		baseData.surroundings = formData.surroundings || '';
 
 		return baseData;
 	}
 
 	/**
-	 * Handle form submission with improved validation and error handling
+	 * Upload images to a property with direct Django integration
+	 * @param {string} propertyId - The property ID
+	 * @param {FileList|File[]} files - The files to upload
+	 * @returns {Promise} - Promise resolving to the upload result
+	 */
+	async function uploadImagesToProperty(propertyId, files) {
+		if (!propertyId || !files || files.length === 0) {
+			throw new Error('Property ID and files are required for upload');
+		}
+
+		console.log(`Uploading ${files.length} images to property ID: ${propertyId}`);
+
+		// Create form data for Django's handling
+		const formData = new FormData();
+
+		// Add each file individually with the same field name
+		// This matches Django's request.FILES['images'] expectation
+		Array.from(files).forEach((file) => {
+			formData.append('images', file);
+		});
+
+		// Django also needs to know which property to attach these to
+		formData.append('property_id', propertyId);
+
+		try {
+			// Set the progress indicator
+			uploadProgress = 10; // Start progress
+
+			// Get the API URL - directly use the upload endpoint for properties
+			const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+			const uploadUrl = `${API_BASE_URL}/properties/${propertyId}/uploads/`;
+
+			// Get authentication token
+			const token = localStorage.getItem('access_token');
+			if (!token) {
+				throw new Error('Authentication token required');
+			}
+
+			// Update progress
+			uploadProgress = 30;
+
+			// Send the request
+			const response = await fetch(uploadUrl, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${token}`
+					// Let browser set Content-Type with boundary
+				},
+				body: formData
+			});
+
+			uploadProgress = 70;
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				console.error('Upload failed:', response.status, errorText);
+				throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+			}
+
+			uploadProgress = 90;
+
+			// Parse the response
+			const result = await response.json();
+
+			uploadProgress = 100;
+
+			console.log('Upload successful. Server response:', result);
+			return result;
+		} catch (error) {
+			console.error('Error during image upload:', error);
+			uploadProgress = 0;
+			throw error;
+		}
+	}
+
+	/**
+	 * Handle form submission with improved media handling for Django integration
+	 */
+	/**
+	 * Handle form submission with explicit image handling to ensure it's saved in DB
 	 */
 	async function handleSubmit(event) {
 		const formData = event.detail;
@@ -116,14 +200,17 @@
 				);
 			}
 
-			// Prepare data without applying JSON serialization here
+			// Prepare data
 			const propertyData = preparePropertyData(formData);
 
-			// Save the property first
-			console.log('Saving property data to API...');
+			// Properly prepare JSON fields for Django
+			// This uses the prepareEntityData utility to stringify JSON fields
+			const preparedData = prepareEntityData(propertyData, PROPERTY_JSON_FIELDS);
+
+			console.log('Saving property data to API...', preparedData);
 			uiStore.startLoading('جاري حفظ بيانات العقار...');
 
-			const result = await propertiesStore.createProperty(propertyData);
+			const result = await propertiesStore.createProperty(preparedData);
 			console.log('Property created successfully:', result);
 
 			uiStore.stopLoading();
@@ -137,15 +224,70 @@
 					);
 					uiStore.addToast('جاري رفع الصور...', 'info');
 
-					// Use our unified upload function with progress tracking
+					// Upload the images
 					const uploadResult = await uploadPropertyImages(result.id, pendingImageFiles, {
 						onProgress: (progress) => {
 							uploadProgress = progress;
 						}
 					});
 
-					console.log('Image upload complete:', uploadResult);
-					uiStore.addToast('تم رفع الصور بنجاح', 'success');
+					console.log('Image upload response:', uploadResult);
+
+					// Parse and format the image data
+					let imageData = [];
+					if (uploadResult && uploadResult.images) {
+						imageData =
+							typeof uploadResult.images === 'string'
+								? JSON.parse(uploadResult.images)
+								: uploadResult.images;
+					} else if (uploadResult && uploadResult.image_urls) {
+						imageData =
+							typeof uploadResult.image_urls === 'string'
+								? JSON.parse(uploadResult.image_urls)
+								: uploadResult.image_urls;
+					}
+
+					// If we got images back, explicitly update the property record
+					if (imageData && imageData.length > 0) {
+						// Format images properly
+						const formattedImages = imageData.map((img) => {
+							if (typeof img === 'string') {
+								return {
+									url: img,
+									path: img,
+									is_primary: false,
+									uploaded_at: new Date().toISOString()
+								};
+							} else {
+								return {
+									id: img.id || undefined,
+									url: img.url || img.path || '',
+									path: img.path || img.url || '',
+									is_primary: img.is_primary || false,
+									uploaded_at: img.uploaded_at || new Date().toISOString()
+								};
+							}
+						});
+
+						console.log('Formatted images to save:', formattedImages);
+
+						// Explicitly update the property with the new images
+						try {
+							const updateResult = await propertiesStore.updateProperty(result.id, {
+								images: formattedImages
+							});
+
+							console.log('Property updated with images:', updateResult);
+							uiStore.addToast('تم رفع وحفظ الصور بنجاح', 'success');
+
+							// Navigate to property detail page after successful creation and image upload
+							goto(`/properties/${updateResult.slug || result.slug}`);
+							return;
+						} catch (updateError) {
+							console.error('Error updating property with images:', updateError);
+							uiStore.addToast('تم رفع الصور ولكن حدث خطأ في تحديث بيانات العقار', 'warning');
+						}
+					}
 				} catch (uploadError) {
 					console.error('Error uploading images:', uploadError);
 					uiStore.addToast(`خطأ في رفع الصور: ${uploadError.message}`, 'error');
@@ -177,34 +319,156 @@
 		}
 	}
 
-	// Handle pending uploads - store files for later upload
+	/**
+	 * Handle pending uploads with validation and improved error handling
+	 * @param {Object} event - The event object containing files
+	 */
 	function handlePendingUploads(event) {
-		pendingImageFiles = event.detail.files;
-		console.log(`${pendingImageFiles.length} images pending for upload after property creation`);
+		const files = event.detail.files;
+
+		if (!files || files.length === 0) {
+			console.log('No files received for pending uploads');
+			pendingImageFiles = [];
+			return;
+		}
+
+		console.log(`Received ${files.length} files for pending upload`);
 
 		// Validate files early
-		if (pendingImageFiles.length > 0) {
-			const validation = validateImageFiles(pendingImageFiles, {
-				maxFiles: 10,
-				maxSize: 5 * 1024 * 1024 // 5MB limit
-			});
+		const validation = validateImageFiles(files, {
+			maxFiles: 10,
+			maxSize: 5 * 1024 * 1024 // 5MB limit
+		});
 
-			// Show any warnings
-			validation.warnings.forEach((warning) => {
-				uiStore.addToast(warning, 'warning');
-			});
+		// Show any warnings
+		validation.warnings.forEach((warning) => {
+			uiStore.addToast(warning, 'warning');
+		});
 
-			// Update pending files to only include valid ones
-			pendingImageFiles = validation.validFiles;
+		// Update pending files to only include valid ones
+		pendingImageFiles = validation.validFiles;
+
+		console.log(
+			`${pendingImageFiles.length} valid images ready for upload after property creation`
+		);
+
+		// If we had invalid files, show a summary
+		if (validation.invalidFiles.length > 0) {
+			uiStore.addToast(`تم استبعاد ${validation.invalidFiles.length} ملفات غير صالحة`, 'warning');
 		}
 	}
 
-	// Handle direct image upload (when property already exists)
-	function handleImagesUpload(event) {
+	/**
+	 * Handle image uploads with explicit property update to ensure images are saved in DB
+	 * @param {Object} event - The upload event with propertyId and files
+	 */
+	async function handleImagesUpload(event) {
 		const { propertyId, files } = event.detail;
+
+		if (!propertyId || !files || files.length === 0) {
+			uiStore.addToast('معلومات غير كافية لرفع الصور', 'error');
+			return;
+		}
+
 		console.log(`Uploading ${files.length} images to property ID: ${propertyId}`);
 
-		// Implement direct upload if needed (for editing existing properties)
+		try {
+			uiStore.startLoading('جاري رفع الصور...');
+			uploadProgress = 0;
+
+			// Step 1: Upload the images to the server's file storage
+			const uploadResult = await uploadPropertyImages(propertyId, files, {
+				onProgress: (progress) => {
+					uploadProgress = progress;
+				}
+			});
+
+			console.log('Upload response:', uploadResult);
+
+			// Step 2: Explicitly update the property with the new image data
+			if (uploadResult && (uploadResult.images || uploadResult.image_urls)) {
+				// Parse the image data from the response
+				let imageData = [];
+
+				if (uploadResult.images) {
+					// If the server returned images array
+					imageData =
+						typeof uploadResult.images === 'string'
+							? JSON.parse(uploadResult.images)
+							: uploadResult.images;
+				} else if (uploadResult.image_urls) {
+					// If the server returned image_urls array
+					imageData =
+						typeof uploadResult.image_urls === 'string'
+							? JSON.parse(uploadResult.image_urls)
+							: uploadResult.image_urls;
+				}
+
+				console.log('Parsed image data:', imageData);
+
+				if (imageData.length > 0) {
+					// Create a formatted image array with required properties
+					const formattedImages = imageData.map((img) => {
+						// Handle different response formats
+						if (typeof img === 'string') {
+							// If just a URL was returned
+							return {
+								url: img,
+								path: img,
+								is_primary: false,
+								uploaded_at: new Date().toISOString()
+							};
+						} else {
+							// If an object was returned
+							return {
+								id: img.id || undefined,
+								url: img.url || img.path || '',
+								path: img.path || img.url || '',
+								is_primary: img.is_primary || false,
+								uploaded_at: img.uploaded_at || new Date().toISOString()
+							};
+						}
+					});
+
+					console.log('Formatted images to save:', formattedImages);
+
+					// Step 3: Explicitly update the property record with the new images
+					// This ensures the images array is saved in the JSON field
+					try {
+						const propertyUpdateData = {
+							images: formattedImages
+						};
+
+						// First try to update via API
+						const updateResult = await propertiesStore.updateProperty(
+							propertyId,
+							propertyUpdateData
+						);
+						console.log('Property updated with new images:', updateResult);
+
+						// Also update in the store
+						if (propertiesStore.updatePropertyInStore) {
+							propertiesStore.updatePropertyInStore(propertyId, { images: formattedImages });
+						}
+
+						uiStore.addToast(`تم رفع وحفظ ${files.length} صور بنجاح`, 'success');
+					} catch (updateError) {
+						console.error('Error updating property with new images:', updateError);
+						uiStore.addToast('تم رفع الصور ولكن حدث خطأ في تحديث بيانات العقار', 'warning');
+					}
+				} else {
+					uiStore.addToast('تم رفع الصور ولكن لم يتم استلام معلومات الصور من الخادم', 'warning');
+				}
+			} else {
+				uiStore.addToast('تم رفع الصور ولكن لم ترجع أي بيانات من الخادم', 'warning');
+			}
+
+			uiStore.stopLoading();
+		} catch (error) {
+			uiStore.stopLoading();
+			console.error('Error uploading images:', error);
+			uiStore.addToast(`خطأ في رفع الصور: ${error.message}`, 'error');
+		}
 	}
 
 	// Handle cancel action

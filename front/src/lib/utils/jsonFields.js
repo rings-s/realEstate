@@ -96,6 +96,84 @@ export function processEntityData(data, jsonFields = []) {
 	return processedData;
 }
 
+/**
+ * Formats image data to be compatible with Django JSON field expectations
+ * @param {Array|String} imageData - Image data from API response
+ * @returns {Array} - Formatted image array
+ */
+export function formatImageDataForDjango(imageData) {
+	if (!imageData) {
+		return [];
+	}
+
+	// If it's a string (JSON), parse it
+	if (typeof imageData === 'string') {
+		try {
+			imageData = JSON.parse(imageData);
+		} catch (e) {
+			console.error('Error parsing image data string:', e);
+			return [];
+		}
+	}
+
+	// Ensure it's an array
+	if (!Array.isArray(imageData)) {
+		return [];
+	}
+
+	// Format each image object with required fields
+	return imageData.map((img) => {
+		if (typeof img === 'string') {
+			// If it's just a URL string
+			return {
+				path: img,
+				url: img,
+				is_primary: false,
+				uploaded_at: new Date().toISOString()
+			};
+		} else {
+			// If it's an object, ensure it has all required fields
+			return {
+				id: img.id || undefined,
+				path: img.path || img.url || '',
+				url: img.url || img.path || '',
+				is_primary: !!img.is_primary,
+				uploaded_at: img.uploaded_at || new Date().toISOString(),
+				size: img.size || 0,
+				name: img.name || 'image',
+				type: img.type || 'image/jpeg'
+			};
+		}
+	});
+}
+
+/**
+ * Process response from image upload to ensure compatibility with Django
+ * @param {Object} uploadResponse - Response from the upload API
+ * @returns {Object} - Processed response with formatted images
+ */
+export function processImageUploadResponse(uploadResponse) {
+	if (!uploadResponse) {
+		return { images: [] };
+	}
+
+	// Extract images from response (handle different API formats)
+	let images = [];
+
+	if (uploadResponse.images) {
+		images = formatImageDataForDjango(uploadResponse.images);
+	} else if (uploadResponse.image_urls) {
+		images = formatImageDataForDjango(uploadResponse.image_urls);
+	} else if (uploadResponse.files) {
+		images = formatImageDataForDjango(uploadResponse.files);
+	}
+
+	return {
+		...uploadResponse,
+		images: images
+	};
+}
+
 // List of known JSON fields in the property model
 export const PROPERTY_JSON_FIELDS = [
 	'location',

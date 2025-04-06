@@ -80,12 +80,34 @@ class PropertyService {
 	}
 
 	/**
-	 * Update an existing property
+	 * Update an existing property with special handling for image fields
 	 * @param {number} id - Property ID
 	 * @param {Object} propertyData - Updated property data
 	 */
 	async updateProperty(id, propertyData) {
 		try {
+			// Special handling for images to ensure they're properly formatted
+			if (propertyData.images) {
+				// Make sure images is an array of objects with required fields
+				const formattedImages = Array.isArray(propertyData.images)
+					? propertyData.images.map((img) => {
+							if (typeof img === 'string') {
+								return { path: img, url: img, is_primary: false };
+							} else {
+								return {
+									path: img.path || img.url || '',
+									url: img.url || img.path || '',
+									is_primary: !!img.is_primary,
+									...img // Keep any other properties
+								};
+							}
+						})
+					: [];
+
+				// Replace the images array with the formatted one
+				propertyData.images = formattedImages;
+			}
+
 			// Ensure JSON fields are properly stringified
 			const preparedData = prepareEntityData(propertyData, PROPERTY_JSON_FIELDS);
 

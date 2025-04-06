@@ -22,41 +22,33 @@ logger = logging.getLogger(__name__)
 
 class JsonFieldMixin:
     """
-    Enhanced mixin to handle JSON fields stored as TextField
-    Provides convenient methods for accessing and manipulating
-    JSON data, especially for media files
+    Enhanced mixin to handle JSON fields.
+    Provides backward compatibility and convenient methods for manipulating
+    JSON data, especially for media files.
     """
     def get_json_field(self, field_name, default=None):
         """
-        Get a JSON field as a dictionary or list
-        Uses smart defaults based on field name
+        Get a JSON field as a dictionary or list.
+        This method provides backward compatibility and handles nulls/defaults.
         """
         value = getattr(self, field_name, None)
-        if not value:
+        if value is None:
             return default if default is not None else (
                 [] if field_name in ['images', 'videos', 'features', 'amenities', 'files', 'attachments'] else {}
             )
-        try:
-            return json.loads(value)
-        except (json.JSONDecodeError, TypeError):
-            return default if default is not None else (
-                [] if field_name in ['images', 'videos', 'features', 'amenities', 'files', 'attachments'] else {}
-            )
+        return value  # JSONField already returns the parsed value
 
     def set_json_field(self, field_name, value):
         """
-        Set a JSON field from a dictionary or list
-        Handles None values properly
+        Set a JSON field from a dictionary or list.
+        With JSONField, we can directly assign the value.
         """
-        if value is not None:
-            setattr(self, field_name, json.dumps(value))
-        else:
-            setattr(self, field_name, None)
+        setattr(self, field_name, value)
 
     def append_to_json_field(self, field_name, item):
         """
-        Append an item to a JSON array field
-        Creates the array if it doesn't exist
+        Append an item to a JSON array field.
+        Creates the array if it doesn't exist.
         """
         current = self.get_json_field(field_name, [])
         if not isinstance(current, list):
@@ -66,8 +58,8 @@ class JsonFieldMixin:
 
     def update_json_item(self, field_name, item_id, updates):
         """
-        Update a specific item in a JSON array by id
-        For updating properties of media items
+        Update a specific item in a JSON array by id.
+        For updating properties of media items.
         """
         items = self.get_json_field(field_name, [])
         updated = False
@@ -85,8 +77,8 @@ class JsonFieldMixin:
 
     def remove_from_json_field(self, field_name, item_id):
         """
-        Remove an item from a JSON array by id
-        Returns the removed item or None
+        Remove an item from a JSON array by id.
+        Returns the removed item or None.
         """
         items = self.get_json_field(field_name, [])
         removed_item = None
@@ -211,7 +203,7 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
     city = models.CharField(max_length=100, verbose_name=_('المدينة'))
     district = models.CharField(max_length=100, verbose_name=_('الحي'))
     country = models.CharField(max_length=100, default='Saudi Arabia', verbose_name=_('الدولة'))
-    location = models.TextField(blank=True, null=True, verbose_name=_('الموقع الجغرافي'))
+    location = models.JSONField(blank=True, null=True, verbose_name=_('الموقع الجغرافي'))
 
     # Property specifications - essential only
     area = models.DecimalField(
@@ -240,13 +232,13 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
         verbose_name=_('السعر المطلوب')
     )
 
-    # Media files - using JSON fields for flexibility
-    images = models.TextField(blank=True, null=True, verbose_name=_('صور العقار'))
-    videos = models.TextField(blank=True, null=True, verbose_name=_('فيديوهات العقار'))
-    documents = models.TextField(blank=True, null=True, verbose_name=_('مستندات العقار'))
+    # Media files - using JSONField for flexibility
+    images = models.JSONField(blank=True, null=True, default=list, verbose_name=_('صور العقار'))
+    videos = models.JSONField(blank=True, null=True, default=list, verbose_name=_('فيديوهات العقار'))
+    documents = models.JSONField(blank=True, null=True, default=list, verbose_name=_('مستندات العقار'))
 
     # Features and amenities - simplified to a single JSON field
-    features = models.TextField(blank=True, null=True, verbose_name=_('المميزات والمرافق'))
+    features = models.JSONField(blank=True, null=True, default=list, verbose_name=_('المميزات والمرافق'))
 
     # Verification and approvals
     is_verified = models.BooleanField(default=False, verbose_name=_('تم التحقق'))
@@ -336,15 +328,15 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
 
     @property
     def location_dict(self):
-        return self.get_json_field('location')
+        return self.location or {}
 
     @location_dict.setter
     def location_dict(self, value):
-        self.set_json_field('location', value)
+        self.location = value
 
     @property
     def main_image_url(self):
-        images = self.get_json_field('images')
+        images = self.images or []
         if not images:
             return None
         for img in images:
@@ -358,8 +350,7 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
 
     @property
     def features_list(self):
-        return self.get_json_field('features', [])
-
+        return self.features or []
 
 
 # AUCTION MODEL
@@ -506,15 +497,15 @@ class Auction(BaseModel, StatusTransitionMixin, JsonFieldMixin):
     end_reason = models.CharField(max_length=100, blank=True, null=True, verbose_name=_('سبب الإنهاء'))
 
     location_address = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('عنوان الموقع'))
-    location = models.TextField(blank=True, null=True, verbose_name=_('الموقع الجغرافي'))
+    location = models.JSONField(blank=True, null=True, default=dict, verbose_name=_('الموقع الجغرافي'))
     location_details = models.TextField(blank=True, null=True, verbose_name=_('تفاصيل الموقع'))
 
     terms_conditions = models.TextField(blank=True, null=True, verbose_name=_('الشروط والأحكام'))
     participation_requirements = models.TextField(blank=True, null=True, verbose_name=_('متطلبات المشاركة'))
 
-    images = models.TextField(blank=True, null=True, verbose_name=_('صور المزاد'))
-    videos = models.TextField(blank=True, null=True, verbose_name=_('فيديوهات المزاد'))
-    documents = models.TextField(blank=True, null=True, verbose_name=_('مستندات المزاد'))
+    images = models.JSONField(blank=True, null=True, default=list, verbose_name=_('صور المزاد'))
+    videos = models.JSONField(blank=True, null=True, default=list, verbose_name=_('فيديوهات المزاد'))
+    documents = models.JSONField(blank=True, null=True, default=list, verbose_name=_('مستندات المزاد'))
 
     is_private = models.BooleanField(default=False, verbose_name=_('مزاد خاص'))
     invited_bidders = models.ManyToManyField(
@@ -612,11 +603,11 @@ class Auction(BaseModel, StatusTransitionMixin, JsonFieldMixin):
 
     @property
     def location_dict(self):
-        return self.get_json_field('location')
+        return self.location or {}
 
     @location_dict.setter
     def location_dict(self, value):
-        self.set_json_field('location', value)
+        self.location = value
 
     @property
     def highest_bid(self):
@@ -649,7 +640,7 @@ class Auction(BaseModel, StatusTransitionMixin, JsonFieldMixin):
 
     @property
     def featured_image_url(self):
-        images = self.get_json_field('images')
+        images = self.images or []
         if not images:
             return self.related_property.main_image_url
         for img in images:
@@ -659,7 +650,7 @@ class Auction(BaseModel, StatusTransitionMixin, JsonFieldMixin):
 
     @property
     def location_coordinates(self):
-        location_data = self.get_json_field('location')
+        location_data = self.location or {}
         if location_data and 'latitude' in location_data and 'longitude' in location_data:
             return {
                 'latitude': location_data.get('latitude'),
@@ -725,7 +716,7 @@ class Bid(BaseModel, JsonFieldMixin):
 
     ip_address = models.GenericIPAddressField(blank=True, null=True, verbose_name=_('عنوان IP'))
     user_agent = models.TextField(blank=True, null=True, verbose_name=_('معلومات المتصفح'))
-    device_info = models.TextField(default='{}', blank=True, null=True, verbose_name=_('معلومات الجهاز'))
+    device_info = models.JSONField(default=dict, blank=True, null=True, verbose_name=_('معلومات الجهاز'))
 
     notes = models.TextField(blank=True, null=True, verbose_name=_('ملاحظات'))
 
@@ -781,9 +772,6 @@ class Bid(BaseModel, JsonFieldMixin):
             min_bid = highest_bid + auction.min_bid_increment
             if self.bid_amount < min_bid:
                 raise ValidationError(f"يجب أن يكون مبلغ المزايدة {min_bid} على الأقل")
-
-        if isinstance(self.device_info, dict):
-            self.device_info = json.dumps(self.device_info)
 
         super().save(*args, **kwargs)
 
@@ -871,7 +859,7 @@ class Document(BaseModel, StatusTransitionMixin, JsonFieldMixin):
         verbose_name=_('العقد المرتبط')
     )
 
-    files = models.TextField(default='[]', blank=True, null=True, verbose_name=_('ملفات المستند'))
+    files = models.JSONField(default=list, blank=True, null=True, verbose_name=_('ملفات المستند'))
 
     uploaded_by = models.ForeignKey(
         CustomUser,
@@ -898,7 +886,7 @@ class Document(BaseModel, StatusTransitionMixin, JsonFieldMixin):
     verification_date = models.DateTimeField(blank=True, null=True, verbose_name=_('تاريخ التحقق'))
     verification_notes = models.TextField(blank=True, null=True, verbose_name=_('ملاحظات التحقق'))
 
-    metadata = models.TextField(default='{}', blank=True, null=True, verbose_name=_('بيانات وصفية'))
+    metadata = models.JSONField(default=dict, blank=True, null=True, verbose_name=_('بيانات وصفية'))
 
     issue_date = models.DateField(blank=True, null=True, verbose_name=_('تاريخ الإصدار'))
     expiry_date = models.DateField(blank=True, null=True, verbose_name=_('تاريخ الانتهاء'))
@@ -950,10 +938,6 @@ class Document(BaseModel, StatusTransitionMixin, JsonFieldMixin):
                     self.verification_date = None
             except Document.DoesNotExist:
                 pass
-        if isinstance(self.metadata, dict):
-            self.metadata = json.dumps(self.metadata)
-        if isinstance(self.files, list):
-            self.files = json.dumps(self.files)
         super().save(*args, **kwargs)
 
     @property
@@ -964,7 +948,7 @@ class Document(BaseModel, StatusTransitionMixin, JsonFieldMixin):
 
     @property
     def main_file_url(self):
-        files = self.get_json_field('files')
+        files = self.files or []
         if not files:
             return None
         return files[0].get('path') if files else None
@@ -1103,7 +1087,7 @@ class Contract(BaseModel, StatusTransitionMixin, JsonFieldMixin):
     payment_method = models.CharField(max_length=50, choices=PAYMENT_METHODS, verbose_name=_('طريقة الدفع'))
     payment_terms = models.TextField(verbose_name=_('شروط الدفع'))
 
-    files = models.TextField(default='[]', blank=True, null=True, verbose_name=_('ملفات العقد'))
+    files = models.JSONField(default=list, blank=True, null=True, verbose_name=_('ملفات العقد'))
 
     terms_conditions = models.TextField(blank=True, null=True, verbose_name=_('الشروط والأحكام'))
     special_conditions = models.TextField(blank=True, null=True, verbose_name=_('شروط خاصة'))
@@ -1170,8 +1154,6 @@ class Contract(BaseModel, StatusTransitionMixin, JsonFieldMixin):
             )
 
         is_new = not self.pk
-        if isinstance(self.files, list):
-            self.files = json.dumps(self.files)
 
         if not is_new:
             if self.buyer_signed and self.seller_signed:
@@ -1191,7 +1173,7 @@ class Contract(BaseModel, StatusTransitionMixin, JsonFieldMixin):
 
     @property
     def main_file_url(self):
-        files = self.get_json_field('files')
+        files = self.files or []
         if not files:
             return None
         for file in files:
@@ -1327,7 +1309,7 @@ class Payment(BaseModel, StatusTransitionMixin, JsonFieldMixin):
     account_number = models.CharField(max_length=50, blank=True, null=True, verbose_name=_('رقم الحساب'))
     check_number = models.CharField(max_length=50, blank=True, null=True, verbose_name=_('رقم الشيك'))
 
-    files = models.TextField(default='[]', blank=True, null=True, verbose_name=_('ملفات الدفعة'))
+    files = models.JSONField(default=list, blank=True, null=True, verbose_name=_('ملفات الدفعة'))
     notes = models.TextField(blank=True, null=True, verbose_name=_('ملاحظات'))
 
     class Meta:
@@ -1378,7 +1360,7 @@ class Payment(BaseModel, StatusTransitionMixin, JsonFieldMixin):
 
     @property
     def receipt_url(self):
-        files = self.get_json_field('files')
+        files = self.files or []
         if not files:
             return None
         for file in files:
@@ -1670,13 +1652,13 @@ class PropertyView(BaseModel, JsonFieldMixin):
     condition = models.TextField(
         verbose_name=_('الحالة')
     )
-    historical_views = models.TextField(
-        default='{}',
+    historical_views = models.JSONField(
+        default=dict,
         blank=True,
         verbose_name=_('الإطلالات التاريخية')
     )
-    images = models.TextField(
-        default='[]',
+    images = models.JSONField(
+        default=list,
         blank=True,
         verbose_name=_('الصور')
     )
@@ -1704,16 +1686,9 @@ class PropertyView(BaseModel, JsonFieldMixin):
         if property_from_auction.address != self.address and property_from_auction.city not in self.location:
             logger.warning(f"Property view address '{self.address}' doesn't match property address '{property_from_auction.address}'")
 
-    def save(self, *args, **kwargs):
-        if isinstance(self.historical_views, dict):
-            self.historical_views = json.dumps(self.historical_views)
-        if isinstance(self.images, list):
-            self.images = json.dumps(self.images)
-        super().save(*args, **kwargs)
-
     @property
     def main_image_url(self):
-        images = self.get_json_field('images')
+        images = self.images or []
         if not images:
             return None
         return images[0].get('path') if images else None
@@ -2003,7 +1978,7 @@ class MessageThread(models.Model, JsonFieldMixin):
 
     def close_thread(self):
         """
-        Close the thread if it’s not already closed.
+        Close the thread if it's not already closed.
 
         Returns:
             bool: True if closed, False if already closed.
@@ -2018,7 +1993,7 @@ class MessageThread(models.Model, JsonFieldMixin):
 
     def reopen_thread(self):
         """
-        Reopen the thread if it’s not already active.
+        Reopen the thread if it's not already active.
 
         Returns:
             bool: True if reopened, False if already active.
@@ -2030,7 +2005,6 @@ class MessageThread(models.Model, JsonFieldMixin):
             return True
         logger.debug(f"Thread {self.id} is already active")
         return False
-
 
 class Message(BaseModel, JsonFieldMixin):
     """Model for communication between users"""
@@ -2117,7 +2091,7 @@ class Message(BaseModel, JsonFieldMixin):
         verbose_name=_('الرسالة الأصلية')
     )
 
-    attachments = models.TextField(default='[]', blank=True, null=True, verbose_name=_('المرفقات'))
+    attachments = models.JSONField(default=list, blank=True, null=True, verbose_name=_('المرفقات'))
 
     is_system_message = models.BooleanField(default=False, verbose_name=_('رسالة نظام'))
     is_important = models.BooleanField(default=False, verbose_name=_('هامة'))
@@ -2157,8 +2131,6 @@ class Message(BaseModel, JsonFieldMixin):
 
     def save(self, *args, **kwargs):
         is_new = not self.pk
-        if isinstance(self.attachments, list):
-            self.attachments = json.dumps(self.attachments)
         if is_new:
             if not self.related_property and self.thread.related_property:
                 self.related_property = self.thread.related_property
@@ -2178,7 +2150,7 @@ class Message(BaseModel, JsonFieldMixin):
 
     @property
     def has_attachments(self):
-        attachments = self.get_json_field('attachments')
+        attachments = self.attachments or []
         return bool(attachments)
 
     @property
@@ -2186,11 +2158,11 @@ class Message(BaseModel, JsonFieldMixin):
         return self.status in ['read', 'replied']
 
     def mark_as_delivered(self):
-        if not self.delivered_at:
-            self.status = 'delivered'
-            self.delivered_at = timezone.now()
-            self.save(update_fields=['status', 'delivered_at', 'updated_at'])
-        return True
+            if not self.delivered_at:
+                self.status = 'delivered'
+                self.delivered_at = timezone.now()
+                self.save(update_fields=['status', 'delivered_at', 'updated_at'])
+            return True
 
     def mark_as_read(self, reader=None):
         if self.status not in ['read', 'replied']:
@@ -2203,6 +2175,8 @@ class Message(BaseModel, JsonFieldMixin):
                     participant.last_read_at = timezone.now()
                     participant.save(update_fields=['last_read_at', 'updated_at'])
         return True
+
+
 
 class ThreadParticipant(BaseModel):
     """Model for tracking user participation in message threads"""
@@ -2316,9 +2290,9 @@ class ThreadParticipant(BaseModel):
             return False
 
     def set_custom_permission(self, permission_name, value=True):
-        if not self.custom_permissions:
-            self.custom_permissions = {}
-        self.custom_permissions[permission_name] = value
+        permissions = self.custom_permissions or {}
+        permissions[permission_name] = value
+        self.custom_permissions = permissions
         self.save(update_fields=['custom_permissions', 'updated_at'])
         return self.custom_permissions
 
@@ -2424,6 +2398,9 @@ class Notification(BaseModel):
     color = models.CharField(max_length=20, blank=True, null=True, verbose_name=_('اللون'))
     action_url = models.CharField(max_length=255, blank=True, null=True, verbose_name=_('رابط العمل'))
 
+    # Additional data as JSON
+    metadata = models.JSONField(default=dict, blank=True, null=True, verbose_name=_('بيانات إضافية'))
+
     class Meta:
         db_table = 'notifications'
         verbose_name = _('إشعار')
@@ -2504,6 +2481,13 @@ class Notification(BaseModel):
             related_bid=bid,
             icon='money',
             color='primary',
-            action_url=f'/auctions/{auction.id}'
+            action_url=f'/auctions/{auction.id}',
+            metadata={
+                'bid_amount': str(bid.bid_amount),
+                'bidder_id': str(bid.bidder.id),
+                'bidder_name': bid.bidder.get_full_name() or bid.bidder.email,
+                'auction_title': auction.title,
+                'property_title': property.title
+            }
         )
         return notification

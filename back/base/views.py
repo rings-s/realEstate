@@ -36,7 +36,6 @@ from accounts.models import Role
 logger = logging.getLogger(__name__)
 
 
-
 # BaseAPIView with fixed permission_denied method
 class BaseAPIView(APIView):
     """Base API view with common functionality and error handling"""
@@ -92,8 +91,6 @@ class BaseAPIView(APIView):
         """
         error_code = code or "permission_denied"
         return self.error_response(error=message, error_code=error_code, status_code=status.HTTP_403_FORBIDDEN)
-
-
 
 
 # Base class for file uploads
@@ -186,9 +183,9 @@ class BaseUploadView(BaseAPIView):
                 new_files = MediaHandler.process_auction_images(obj, files)
             elif self.model_class.__name__ == 'Document' and self.file_field_name == 'files':
                 new_files = MediaHandler.process_document_files(obj, files)
-            elif hasattr(obj, 'get_json_field') and hasattr(obj, 'set_json_field'):
-                # Generic handling for models with JsonFieldMixin
-                current_files = obj.get_json_field(self.file_field_name, [])
+            else:
+                # Generic handling for models with JSONFields
+                current_files = getattr(obj, self.file_field_name, None) or []
                 new_files = []
 
                 for file in files:
@@ -201,14 +198,8 @@ class BaseUploadView(BaseAPIView):
                     new_files.append(file_info)
 
                 updated_files = current_files + new_files
-                obj.set_json_field(self.file_field_name, updated_files)
+                setattr(obj, self.file_field_name, updated_files)
                 obj.save(update_fields=[self.file_field_name, 'updated_at'])
-            else:
-                return self.error_response(
-                    _('Unsupported model or file field'),
-                    'configuration_error',
-                    status.HTTP_400_BAD_REQUEST
-                )
 
             # Return success response
             return self.success_response(
@@ -409,8 +400,7 @@ class PropertyImageDeleteView(BaseAPIView):
             return self.success_response(
                 data={'deleted_image': deleted_image},
                 message=_('Image deleted successfully')
-
-)
+            )
 
         except Http404:
             return self.not_found(_('Property not found'))
@@ -435,7 +425,6 @@ class DocumentFileUploadView(MediaUploadView):
     entity_type = 'document'
     media_type = 'document'
     max_files = 5
-
 
 
 class PropertyListCreateView(BaseAPIView):
@@ -628,7 +617,6 @@ class VerifyPropertyView(BaseAPIView):
         return Response({'status': 'Property verified'})
 
 
-
 ##### ======> Auction Views
 
 class AuctionListCreateView(BaseAPIView):
@@ -707,6 +695,7 @@ class AuctionListCreateView(BaseAPIView):
             )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 class AuctionDetailView(BaseAPIView):
     """Retrieve, update and delete an auction"""
     action_permission_map = {
@@ -878,19 +867,13 @@ class CloseAuctionView(BaseAPIView):
             return self.error_response('An error occurred', 'closure_error',
                                      status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-# Fix for UploadAuctionImagesView - replace BaseUploadView with our new class
-class UploadAuctionImagesView(BaseUploadView):
+# Use MediaUploadView instead of BaseUploadView
+class UploadAuctionImagesView(MediaUploadView):
     """Upload images for an auction"""
-    model_class = Auction
-    file_field_name = 'images'
-    allow_multiple = True
-    allowed_extensions = ['jpg', 'jpeg', 'png', 'gif', 'webp']
-    max_file_size = 5 * 1024 * 1024  # 5MB
-
-
-
-
-
+    entity_model = Auction
+    entity_type = 'auction'
+    media_type = 'image'
+    max_files = 10
 
 
 # Bid Views
@@ -1356,14 +1339,13 @@ class MyDocumentsView(BaseAPIView):
         serializer = DocumentSerializer(documents, many=True)
         return Response(serializer.data)
 
-# Replace BaseUploadView with our implementation
-class UploadDocumentFilesView(BaseUploadView):
+# Use MediaUploadView instead of BaseUploadView
+class UploadDocumentFilesView(MediaUploadView):
     """Upload files to a document"""
-    model_class = Document
-    file_field_name = 'files'
-    allow_multiple = True
-    allowed_extensions = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt']
-    max_file_size = 10 * 1024 * 1024  # 10MB
+    entity_model = Document
+    entity_type = 'document'
+    media_type = 'document'
+    max_files = 5
 
 
 # Contract Views
@@ -1482,14 +1464,13 @@ class ContractDetailView(BaseAPIView):
         contract.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-# Replace BaseUploadView with our implementation
-class UploadContractFilesView(BaseUploadView):
+# Use MediaUploadView instead of BaseUploadView
+class UploadContractFilesView(MediaUploadView):
     """Upload files to a contract"""
-    model_class = Contract
-    file_field_name = 'files'
-    allow_multiple = True
-    allowed_extensions = ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt']
-    max_file_size = 10 * 1024 * 1024  # 10MB
+    entity_model = Contract
+    entity_type = 'contract'
+    media_type = 'document'
+    max_files = 10
 
 class SignContractAsBuyerView(BaseAPIView):
     """Sign a contract as buyer"""
@@ -1638,7 +1619,7 @@ class PaymentListCreateView(BaseAPIView):
         user = self.request.user
         params = self.request.query_params
 
-        # Filter for non-staff users
+        # Filter for non-staff/non-agent users
         if not user.is_staff and not user.has_role(Role.AGENT):
             queryset = queryset.filter(
                 Q(payer=user) |
@@ -1820,14 +1801,13 @@ class MyPaymentsView(BaseAPIView):
         serializer = PaymentSerializer(payments, many=True)
         return Response(serializer.data)
 
-# Replace BaseUploadView with our implementation
-class UploadPaymentReceiptView(BaseUploadView):
+# Use MediaUploadView instead of BaseUploadView
+class UploadPaymentReceiptView(MediaUploadView):
     """Upload receipt for a payment"""
-    model_class = Payment
-    file_field_name = 'receipt'
-    allow_multiple = False
-    allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png']
-    max_file_size = 5 * 1024 * 1024  # 5MB
+    entity_model = Payment
+    entity_type = 'payment'
+    media_type = 'document'
+    max_files = 1
 
     def get_object(self, pk):
         """Get payment with permission check"""
@@ -2487,28 +2467,85 @@ class MyMessagesView(BaseAPIView):
 
 
 
-class UploadMessageAttachmentView(BaseUploadView):
+class UploadMessageAttachmentView(BaseAPIView):
     """Upload attachment to a message"""
-    model_class = Message
-    file_field_name = 'attachments'
-    allow_multiple = True
-    allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'txt']
-    max_file_size = 10 * 1024 * 1024  # 10MB
+    permission_classes = [permissions.IsAuthenticated]
 
-    def get_object(self, pk):
-        """Get message with permission check"""
-        message = get_object_or_404(Message, pk=pk)
+    @transaction.atomic
+    def post(self, request, pk, format=None):
+        """Upload attachment to message"""
+        try:
+            message = get_object_or_404(Message, pk=pk)
 
-        # Only sender can upload attachments
-        user = self.request.user
-        if user != message.sender and not user.is_staff:
-            raise PermissionDenied("You can only upload attachments to your own messages")
+            # Only sender can upload attachments
+            user = request.user
+            if user != message.sender and not user.is_staff:
+                return self.permission_denied("You can only upload attachments to your own messages")
 
-        # Check if thread is active
-        if message.thread.status != 'active':
-            raise PermissionDenied("Cannot upload attachments to messages in closed threads")
+            # Check if thread is active
+            if message.thread.status != 'active':
+                return self.permission_denied("Cannot upload attachments to messages in closed threads")
 
-        return message
+            # Check if files were provided
+            if 'file' not in request.FILES:
+                return self.error_response(
+                    'No file was provided',
+                    'no_file',
+                    status.HTTP_400_BAD_REQUEST
+                )
+
+            file = request.FILES['file']
+
+            # Validate file size
+            max_size = 10 * 1024 * 1024  # 10MB
+            if file.size > max_size:
+                return self.error_response(
+                    f'File too large. Maximum size is 10 MB',
+                    'file_too_large',
+                    status.HTTP_400_BAD_REQUEST
+                )
+
+            # Validate file type
+            allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'txt']
+            ext = file.name.split('.')[-1].lower()
+            if ext not in allowed_extensions:
+                return self.error_response(
+                    f'Invalid file type. Allowed types: {", ".join(allowed_extensions)}',
+                    'invalid_file_type',
+                    status.HTTP_400_BAD_REQUEST
+                )
+
+            # Save attachment
+            file_info = MediaHandler.save_file(
+                file,
+                'message',
+                message.pk,
+                'attachment'
+            )
+
+            # Add to message attachments
+            attachments = message.attachments or []
+            attachments.append(file_info)
+            message.attachments = attachments
+            message.save(update_fields=['attachments', 'updated_at'])
+
+            return self.success_response(
+                data={'attachment': file_info},
+                message='Attachment uploaded successfully',
+                status_code=status.HTTP_201_CREATED
+            )
+
+        except Http404:
+            return self.not_found('Message not found')
+        except PermissionDenied as e:
+            return self.permission_denied(str(e))
+        except ValueError as e:
+            return self.error_response(str(e), 'validation_error', status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.error(f"Error uploading attachment: {str(e)}")
+            return self.error_response('Failed to upload attachment', 'upload_error',
+                                      status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 # Transaction Views
 class TransactionListCreateView(BaseAPIView):
@@ -2570,15 +2607,26 @@ class TransactionListCreateView(BaseAPIView):
             return self.get_paginated_response(serializer.data)
 
         serializer = TransactionSerializer(queryset, many=True)
-        return Response(serializer.data)
+        return self.success_response(data=serializer.data)
 
+    @transaction.atomic
     def post(self, request, format=None):
         """Create a transaction"""
         serializer = TransactionSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if not serializer.is_valid():
+            return self.error_response(serializer.errors, 'validation_error')
+
+        try:
+            transaction = serializer.save()
+            return self.success_response(
+                data=serializer.data,
+                message='Transaction created successfully',
+                status_code=status.HTTP_201_CREATED
+            )
+        except Exception as e:
+            logger.error(f"Error creating transaction: {str(e)}")
+            return self.error_response('Failed to create transaction', 'creation_error',
+                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class TransactionDetailView(BaseAPIView):
     """Retrieve, update and delete a transaction"""
@@ -2599,7 +2647,7 @@ class TransactionDetailView(BaseAPIView):
         """Retrieve a transaction"""
         transaction = self.get_object(pk)
         serializer = TransactionSerializer(transaction)
-        return Response(serializer.data)
+        return self.success_response(data=serializer.data)
 
     def put(self, request, pk, format=None):
         """Update a transaction"""
@@ -2607,8 +2655,8 @@ class TransactionDetailView(BaseAPIView):
         serializer = TransactionSerializer(transaction, data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return self.success_response(data=serializer.data, message='Transaction updated successfully')
+        return self.error_response(serializer.errors, 'validation_error')
 
     def patch(self, request, pk, format=None):
         """Partially update a transaction"""
@@ -2616,54 +2664,92 @@ class TransactionDetailView(BaseAPIView):
         serializer = TransactionSerializer(transaction, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return self.success_response(data=serializer.data, message='Transaction updated successfully')
+        return self.error_response(serializer.errors, 'validation_error')
 
     def delete(self, request, pk, format=None):
         """Delete a transaction"""
         transaction = self.get_object(pk)
         transaction.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        return self.success_response(message='Transaction deleted successfully')
 
 class MarkTransactionAsCompletedView(BaseAPIView):
     """Mark a transaction as completed"""
     permission_classes = [IsAgentPermission | permissions.IsAdminUser]
 
+    @transaction.atomic
     def post(self, request, pk, format=None):
         """Mark transaction as completed"""
-        transaction = get_object_or_404(Transaction, pk=pk)
+        try:
+            transaction = get_object_or_404(Transaction, pk=pk)
 
-        # Mark as completed
-        success = transaction.mark_as_completed(processor=request.user)
+            # Check if already completed
+            if transaction.status == 'completed':
+                return self.success_response(message='Transaction already marked as completed')
 
-        if success:
-            return Response({'status': 'Transaction marked as completed'})
-        return Response(
-            {'error': 'Failed to mark transaction as completed'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+            # Verify transaction status allows completion
+            if transaction.status not in ['pending', 'processing']:
+                return self.error_response(
+                    f'Cannot complete transaction with status {transaction.status}',
+                    'invalid_status',
+                    status.HTTP_400_BAD_REQUEST
+                )
 
+            # Mark as completed
+            success = transaction.mark_as_completed(processor=request.user)
 
+            if success:
+                return self.success_response(message='Transaction marked as completed successfully')
+
+            return self.error_response('Failed to mark transaction as completed', 'completion_failed')
+        except Http404:
+            return self.not_found('Transaction not found')
+        except Exception as e:
+            logger.error(f"Error marking transaction as completed: {str(e)}")
+            return self.error_response('An error occurred', 'completion_error',
+                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class MarkTransactionAsFailedView(BaseAPIView):
     """Mark a transaction as failed"""
     permission_classes = [IsAgentPermission | permissions.IsAdminUser]
 
+    @transaction.atomic
     def post(self, request, pk, format=None):
         """Mark transaction as failed with reason"""
-        transaction = get_object_or_404(Transaction, pk=pk)
-        reason = request.data.get('reason')
+        try:
+            transaction = get_object_or_404(Transaction, pk=pk)
 
-        # Mark as failed
-        success = transaction.mark_as_failed(reason=reason)
+            # Check if already failed
+            if transaction.status == 'failed':
+                return self.success_response(message='Transaction already marked as failed')
 
-        if success:
-            return Response({'status': 'Transaction marked as failed'})
-        return Response(
-            {'error': 'Failed to mark transaction as failed'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+            # Verify transaction status allows marking as failed
+            if transaction.status not in ['pending', 'processing']:
+                return self.error_response(
+                    f'Cannot mark transaction with status {transaction.status} as failed',
+                    'invalid_status',
+                    status.HTTP_400_BAD_REQUEST
+                )
 
+            # Get failure reason
+            reason = request.data.get('reason')
+            if not reason:
+                return self.error_response('Failure reason is required', 'missing_reason',
+                                         status.HTTP_400_BAD_REQUEST)
+
+            # Mark as failed
+            success = transaction.mark_as_failed(reason=reason)
+
+            if success:
+                return self.success_response(message='Transaction marked as failed successfully')
+
+            return self.error_response('Failed to mark transaction as failed', 'marking_failed')
+        except Http404:
+            return self.not_found('Transaction not found')
+        except Exception as e:
+            logger.error(f"Error marking transaction as failed: {str(e)}")
+            return self.error_response('An error occurred', 'marking_error',
+                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class MyTransactionsView(BaseAPIView):
     """List transactions the user is involved with"""
@@ -2689,6 +2775,11 @@ class MyTransactionsView(BaseAPIView):
         elif direction == 'outgoing':
             transactions = transactions.filter(from_user=user)
 
+        # Filter by status
+        status_filter = request.query_params.get('status')
+        if status_filter:
+            transactions = transactions.filter(status=status_filter)
+
         # Handle pagination
         page = self.paginate_queryset(transactions)
         if page is not None:
@@ -2696,8 +2787,7 @@ class MyTransactionsView(BaseAPIView):
             return self.get_paginated_response(serializer.data)
 
         serializer = TransactionSerializer(transactions, many=True)
-        return Response(serializer.data)
-
+        return self.success_response(data=serializer.data)
 
 # Notification Views
 class NotificationListCreateView(BaseAPIView):
@@ -2727,6 +2817,11 @@ class NotificationListCreateView(BaseAPIView):
         notification_type = params.get('notification_type')
         if notification_type:
             queryset = queryset.filter(notification_type=notification_type)
+
+        # Filter by channel
+        channel = params.get('channel')
+        if channel:
+            queryset = queryset.filter(channel=channel)
 
         # Apply ordering
         ordering = params.get('ordering')
@@ -2759,6 +2854,12 @@ class NotificationListCreateView(BaseAPIView):
 
         try:
             notification = serializer.save()
+
+            # Set metadata if provided
+            if 'metadata' in request.data:
+                notification.metadata = request.data['metadata']
+                notification.save(update_fields=['metadata'])
+
             return self.success_response(
                 data=serializer.data,
                 message='Notification created successfully',
@@ -2767,8 +2868,7 @@ class NotificationListCreateView(BaseAPIView):
         except Exception as e:
             logger.error(f"Error creating notification: {str(e)}")
             return self.error_response('Failed to create notification', 'creation_error',
-                                      status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class NotificationDetailView(BaseAPIView):
     """Retrieve, update and delete a notification"""
@@ -2797,32 +2897,47 @@ class NotificationDetailView(BaseAPIView):
         """Retrieve a notification"""
         notification = self.get_object(pk)
         serializer = NotificationSerializer(notification)
-        return Response(serializer.data)
+        return self.success_response(data=serializer.data)
 
     def put(self, request, pk, format=None):
         """Update a notification"""
         notification = self.get_object(pk)
         serializer = NotificationSerializer(notification, data=request.data)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            notification = serializer.save()
+
+            # Update metadata if provided
+            if 'metadata' in request.data:
+                notification.metadata = request.data['metadata']
+                notification.save(update_fields=['metadata'])
+
+            return self.success_response(data=serializer.data, message='Notification updated successfully')
+        return self.error_response(serializer.errors, 'validation_error')
 
     def patch(self, request, pk, format=None):
         """Partially update a notification"""
         notification = self.get_object(pk)
         serializer = NotificationSerializer(notification, data=request.data, partial=True)
         if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            notification = serializer.save()
+
+            # Update metadata if provided
+            if 'metadata' in request.data:
+                # For partial updates, merge with existing metadata
+                current_metadata = notification.metadata or {}
+                if isinstance(request.data['metadata'], dict):
+                    current_metadata.update(request.data['metadata'])
+                    notification.metadata = current_metadata
+                    notification.save(update_fields=['metadata'])
+
+            return self.success_response(data=serializer.data, message='Notification updated successfully')
+        return self.error_response(serializer.errors, 'validation_error')
 
     def delete(self, request, pk, format=None):
         """Delete a notification"""
         notification = self.get_object(pk)
         notification.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
+        return self.success_response(message='Notification deleted successfully')
 
 class MarkNotificationAsReadView(BaseAPIView):
     """Mark a notification as read"""
@@ -2857,7 +2972,6 @@ class MarkNotificationAsReadView(BaseAPIView):
             return self.error_response('An error occurred', 'marking_error',
                                      status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class MarkAllNotificationsAsReadView(BaseAPIView):
     """Mark all notifications as read for the current user"""
     permission_classes = [permissions.IsAuthenticated]
@@ -2881,7 +2995,6 @@ class MarkAllNotificationsAsReadView(BaseAPIView):
             return self.error_response('Failed to mark notifications as read', 'bulk_marking_error',
                                      status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
 class MyNotificationsView(BaseAPIView):
     """List notifications for the current user"""
     permission_classes = [permissions.IsAuthenticated]
@@ -2902,6 +3015,16 @@ class MyNotificationsView(BaseAPIView):
         if notification_type:
             notifications = notifications.filter(notification_type=notification_type)
 
+        # Filter by channel
+        channel = request.query_params.get('channel')
+        if channel:
+            notifications = notifications.filter(channel=channel)
+
+        # Apply ordering
+        ordering = request.query_params.get('ordering', '-created_at')
+        if ordering and ordering.lstrip('-') in ['created_at', 'sent_at', 'read_at']:
+            notifications = notifications.order_by(ordering)
+
         # Handle pagination
         page = self.paginate_queryset(notifications)
         if page is not None:
@@ -2909,4 +3032,4 @@ class MyNotificationsView(BaseAPIView):
             return self.get_paginated_response(serializer.data)
 
         serializer = NotificationSerializer(notifications, many=True)
-        return Response(serializer.data)
+        return self.success_response(data=serializer.data)

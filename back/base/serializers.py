@@ -2,7 +2,6 @@ from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.db.models import Sum
-import json
 from datetime import timedelta
 
 from .models import (
@@ -10,32 +9,6 @@ from .models import (
     PropertyView, MessageThread, Message, ThreadParticipant, Notification
 )
 from accounts.models import CustomUser
-
-
-class JsonSerializerMixin:
-    """Mixin to handle JSON fields stored as text for SQLite compatibility"""
-    def get_json_field(self, obj, field_name, default=None):
-        """Parse JSON field or return default value"""
-        value = getattr(obj, field_name, None)
-        if not value:
-            return default if default is not None else (
-                [] if field_name in ['images', 'videos', 'features', 'amenities', 'files', 'attachments'] else {}
-            )
-
-        try:
-            return json.loads(value)
-        except (json.JSONDecodeError, TypeError):
-            return default if default is not None else (
-                [] if field_name in ['images', 'videos', 'features', 'amenities', 'files', 'attachments'] else {}
-            )
-
-    def to_json_field(self, data, field_name):
-        """Convert field to JSON string if it's a dict or list"""
-        if field_name in data and data[field_name]:
-            if isinstance(data[field_name], (dict, list)):
-                data = data.copy() if hasattr(data, '_mutable') else data
-                data[field_name] = json.dumps(data[field_name])
-        return data
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -50,19 +23,12 @@ class UserSerializer(serializers.ModelSerializer):
         return obj.get_full_name() or obj.email
 
 
-class PropertySerializer(JsonSerializerMixin, serializers.ModelSerializer):
+class PropertySerializer(serializers.ModelSerializer):
     """Property serializer"""
     # Display fields
     owner_name = serializers.SerializerMethodField(read_only=True)
     property_type_display = serializers.CharField(source='get_property_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-
-    # JSON fields
-    images = serializers.SerializerMethodField()
-    videos = serializers.SerializerMethodField()
-    features = serializers.SerializerMethodField()
-    amenities = serializers.SerializerMethodField()
-    location = serializers.SerializerMethodField()
 
     # Computed fields
     main_image_url = serializers.SerializerMethodField(read_only=True)
@@ -81,46 +47,12 @@ class PropertySerializer(JsonSerializerMixin, serializers.ModelSerializer):
     def get_owner_name(self, obj):
         return obj.owner.get_full_name() if obj.owner else None
 
-    def get_images(self, obj):
-        return self.get_json_field(obj, 'images', [])
-
-    def get_videos(self, obj):
-        return self.get_json_field(obj, 'videos', [])
-
-    def get_features(self, obj):
-        return self.get_json_field(obj, 'features', [])
-
-    def get_amenities(self, obj):
-        return self.get_json_field(obj, 'amenities', [])
-
-    def get_location(self, obj):
-        return self.get_json_field(obj, 'location', {})
-
     def get_main_image_url(self, obj):
         return obj.main_image_url
 
     def get_active_auction_id(self, obj):
         active_auction = obj.auctions.filter(status__in=['active', 'pending']).first()
         return active_auction.id if active_auction else None
-
-    def to_internal_value(self, data):
-        """Convert JSON fields to string for storage"""
-        json_fields = [
-            'images', 'videos', 'features', 'amenities', 'location',
-            'street_details', 'rooms', 'outdoor_spaces', 'rental_details',
-            'parking', 'building_services', 'infrastructure', 'surroundings',
-            'reference_ids'
-        ]
-
-        # Make data mutable if needed
-        if hasattr(data, '_mutable'):
-            data = data.copy()
-
-        # Convert JSON fields to strings
-        for field in json_fields:
-            data = self.to_json_field(data, field)
-
-        return super().to_internal_value(data)
 
     def validate(self, data):
         """Validate property data"""
@@ -143,18 +75,12 @@ class PropertySerializer(JsonSerializerMixin, serializers.ModelSerializer):
         return data
 
 
-class AuctionSerializer(JsonSerializerMixin, serializers.ModelSerializer):
+class AuctionSerializer(serializers.ModelSerializer):
     """Auction serializer"""
     # Display fields
     property_title = serializers.CharField(source='related_property.title', read_only=True)
     auction_type_display = serializers.CharField(source='get_auction_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-
-    # JSON fields
-    images = serializers.SerializerMethodField()
-    videos = serializers.SerializerMethodField()
-    documents = serializers.SerializerMethodField()
-    location = serializers.SerializerMethodField()
 
     # Computed fields
     bid_count = serializers.IntegerField(read_only=True)
@@ -171,34 +97,8 @@ class AuctionSerializer(JsonSerializerMixin, serializers.ModelSerializer):
             'winning_bidder', 'publish_date', 'created_at', 'updated_at'
         ]
 
-    def get_images(self, obj):
-        return self.get_json_field(obj, 'images', [])
-
-    def get_videos(self, obj):
-        return self.get_json_field(obj, 'videos', [])
-
-    def get_documents(self, obj):
-        return self.get_json_field(obj, 'documents', [])
-
-    def get_location(self, obj):
-        return self.get_json_field(obj, 'location', {})
-
     def get_featured_image_url(self, obj):
         return obj.featured_image_url
-
-    def to_internal_value(self, data):
-        """Convert JSON fields to string for storage"""
-        json_fields = ['images', 'videos', 'documents', 'location']
-
-        # Make data mutable if needed
-        if hasattr(data, '_mutable'):
-            data = data.copy()
-
-        # Convert JSON fields to strings
-        for field in json_fields:
-            data = self.to_json_field(data, field)
-
-        return super().to_internal_value(data)
 
     def validate(self, data):
         """Validate auction data"""
@@ -274,16 +174,12 @@ class BidSerializer(serializers.ModelSerializer):
         return data
 
 
-class DocumentSerializer(JsonSerializerMixin, serializers.ModelSerializer):
+class DocumentSerializer(serializers.ModelSerializer):
     """Document serializer"""
     # Display fields
     uploaded_by_name = serializers.SerializerMethodField(read_only=True)
     document_type_display = serializers.CharField(source='get_document_type_display', read_only=True)
     verification_status_display = serializers.CharField(source='get_verification_status_display', read_only=True)
-
-    # JSON fields
-    files = serializers.SerializerMethodField()
-    metadata = serializers.SerializerMethodField()
 
     # Computed fields
     is_expired = serializers.BooleanField(read_only=True)
@@ -300,28 +196,8 @@ class DocumentSerializer(JsonSerializerMixin, serializers.ModelSerializer):
     def get_uploaded_by_name(self, obj):
         return obj.uploaded_by.get_full_name() or obj.uploaded_by.email if obj.uploaded_by else None
 
-    def get_files(self, obj):
-        return self.get_json_field(obj, 'files', [])
-
-    def get_metadata(self, obj):
-        return self.get_json_field(obj, 'metadata', {})
-
     def get_main_file_url(self, obj):
         return obj.main_file_url
-
-    def to_internal_value(self, data):
-        """Convert JSON fields to string for storage"""
-        json_fields = ['files', 'metadata']
-
-        # Make data mutable if needed
-        if hasattr(data, '_mutable'):
-            data = data.copy()
-
-        # Convert JSON fields to strings
-        for field in json_fields:
-            data = self.to_json_field(data, field)
-
-        return super().to_internal_value(data)
 
     def validate(self, data):
         """Validate document data"""
@@ -347,16 +223,13 @@ class DocumentSerializer(JsonSerializerMixin, serializers.ModelSerializer):
         return data
 
 
-class ContractSerializer(JsonSerializerMixin, serializers.ModelSerializer):
+class ContractSerializer(serializers.ModelSerializer):
     """Contract serializer"""
     # Display fields
     buyer_name = serializers.SerializerMethodField(read_only=True)
     seller_name = serializers.SerializerMethodField(read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
-
-    # JSON fields
-    files = serializers.SerializerMethodField()
 
     # Computed fields
     is_fully_signed = serializers.BooleanField(read_only=True)
@@ -379,9 +252,6 @@ class ContractSerializer(JsonSerializerMixin, serializers.ModelSerializer):
     def get_seller_name(self, obj):
         return obj.seller.get_full_name() or obj.seller.email if obj.seller else None
 
-    def get_files(self, obj):
-        return self.get_json_field(obj, 'files', [])
-
     def get_signing_status(self, obj):
         """Get contract signing status"""
         if obj.buyer_signed and obj.seller_signed and (not obj.agent or obj.agent_signed):
@@ -394,13 +264,6 @@ class ContractSerializer(JsonSerializerMixin, serializers.ModelSerializer):
         completed_payments = obj.payments.filter(status='completed')
         total_paid = completed_payments.aggregate(Sum('amount'))['amount__sum'] or 0
         return obj.total_amount - total_paid
-
-    def to_internal_value(self, data):
-        """Convert JSON fields to string for storage"""
-        if 'files' in data and data['files']:
-            data = self.to_json_field(data, 'files')
-
-        return super().to_internal_value(data)
 
     def validate(self, data):
         """Validate contract data"""
@@ -434,7 +297,7 @@ class ContractSerializer(JsonSerializerMixin, serializers.ModelSerializer):
         return data
 
 
-class PaymentSerializer(JsonSerializerMixin, serializers.ModelSerializer):
+class PaymentSerializer(serializers.ModelSerializer):
     """Payment serializer"""
     # Display fields
     payer_name = serializers.SerializerMethodField(read_only=True)
@@ -442,9 +305,6 @@ class PaymentSerializer(JsonSerializerMixin, serializers.ModelSerializer):
     payment_type_display = serializers.CharField(source='get_payment_type_display', read_only=True)
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-
-    # JSON fields
-    files = serializers.SerializerMethodField()
 
     # Computed fields
     is_overdue = serializers.BooleanField(read_only=True)
@@ -464,18 +324,8 @@ class PaymentSerializer(JsonSerializerMixin, serializers.ModelSerializer):
     def get_payee_name(self, obj):
         return obj.payee.get_full_name() or obj.payee.email if obj.payee else None
 
-    def get_files(self, obj):
-        return self.get_json_field(obj, 'files', [])
-
     def get_receipt_url(self, obj):
         return obj.receipt_url
-
-    def to_internal_value(self, data):
-        """Convert JSON fields to string for storage"""
-        if 'files' in data and data['files']:
-            data = self.to_json_field(data, 'files')
-
-        return super().to_internal_value(data)
 
     def validate(self, data):
         """Validate payment data"""
@@ -568,14 +418,10 @@ class TransactionSerializer(serializers.ModelSerializer):
         return data
 
 
-class PropertyViewSerializer(JsonSerializerMixin, serializers.ModelSerializer):
+class PropertyViewSerializer(serializers.ModelSerializer):
     """PropertyView serializer"""
     # Display fields
     view_type_display = serializers.CharField(source='get_view_type_display', read_only=True)
-
-    # JSON fields
-    images = serializers.SerializerMethodField()
-    historical_views = serializers.SerializerMethodField()
 
     # Computed fields
     main_image_url = serializers.SerializerMethodField(read_only=True)
@@ -585,28 +431,8 @@ class PropertyViewSerializer(JsonSerializerMixin, serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
 
-    def get_images(self, obj):
-        return self.get_json_field(obj, 'images', [])
-
-    def get_historical_views(self, obj):
-        return self.get_json_field(obj, 'historical_views', {})
-
     def get_main_image_url(self, obj):
         return obj.main_image_url
-
-    def to_internal_value(self, data):
-        """Convert JSON fields to string for storage"""
-        json_fields = ['images', 'historical_views']
-
-        # Make data mutable if needed
-        if hasattr(data, '_mutable'):
-            data = data.copy()
-
-        # Convert JSON fields to strings
-        for field in json_fields:
-            data = self.to_json_field(data, field)
-
-        return super().to_internal_value(data)
 
     def validate(self, data):
         """Validate property view data"""
@@ -678,15 +504,12 @@ class MessageThreadSerializer(serializers.ModelSerializer):
         return data
 
 
-class MessageSerializer(JsonSerializerMixin, serializers.ModelSerializer):
+class MessageSerializer(serializers.ModelSerializer):
     """Message serializer"""
     # Display fields
     sender_name = serializers.SerializerMethodField(read_only=True)
     message_type_display = serializers.CharField(source='get_message_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
-
-    # JSON fields
-    attachments = serializers.SerializerMethodField()
 
     # Computed fields
     has_attachments = serializers.BooleanField(read_only=True)
@@ -700,16 +523,6 @@ class MessageSerializer(JsonSerializerMixin, serializers.ModelSerializer):
 
     def get_sender_name(self, obj):
         return obj.sender.get_full_name() or obj.sender.email if obj.sender else None
-
-    def get_attachments(self, obj):
-        return self.get_json_field(obj, 'attachments', [])
-
-    def to_internal_value(self, data):
-        """Convert JSON fields to string for storage"""
-        if 'attachments' in data and data['attachments']:
-            data = self.to_json_field(data, 'attachments')
-
-        return super().to_internal_value(data)
 
     def validate(self, data):
         """Validate message data"""

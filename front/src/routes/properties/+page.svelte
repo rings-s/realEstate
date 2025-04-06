@@ -15,7 +15,6 @@
 	// Import common components
 	import PropertyCard from '$lib/components/properties/PropertyCard.svelte';
 	import PropertyFilters from '$lib/components/properties/PropertyFilters.svelte';
-	import Loader from '$lib/components/common/Loader.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
 	import Button from '$lib/components/common/Button.svelte';
 	import Pagination from '$lib/components/common/Pagination.svelte';
@@ -27,7 +26,6 @@
 
 	// ========== STATE MANAGEMENT ==========
 	// Page state
-	let isLoading = true;
 	let error = null;
 	let showFilters = false;
 	let activeFilters = {};
@@ -112,7 +110,7 @@
 
 	// ========== API & DATA FUNCTIONS ==========
 	/**
-	 * Load properties with applied filters - simplified version
+	 * Load properties with applied filters - simplified without loading state
 	 * @param {number} page - Page number
 	 * @param {object} filters - Filter parameters
 	 */
@@ -121,13 +119,7 @@
 		const requestId = Date.now().toString();
 		loadingRequestId = requestId;
 
-		// If we're already loading, don't show another loading indicator
-		if (!isLoading) {
-			isLoading = true;
-		}
-
-		currentPage = page;
-		activeFilters = { ...filters };
+		// Reset error state
 		error = null;
 		errorInfo = {
 			title: '',
@@ -135,6 +127,10 @@
 			details: null,
 			suggestions: []
 		};
+
+		// Update state
+		currentPage = page;
+		activeFilters = { ...filters };
 
 		try {
 			// Build final filter params
@@ -151,20 +147,12 @@
 
 			console.log(`[Request ${requestId}] Loading properties with params:`, params);
 
-			// Only show loading UI if this is the first load or taking longer than expected
-			const loadingTimeout = setTimeout(() => {
-				if (loadingRequestId === requestId) {
-					uiStore.startLoading('جاري تحميل العقارات...');
-				}
-			}, 250);
-
 			// Fetch properties with applied filters
 			const result = await propertiesStore.loadProperties(params);
 
 			// If this is not the most recent request, ignore the results
 			if (loadingRequestId !== requestId) {
 				console.log(`[Request ${requestId}] Ignored stale response`);
-				clearTimeout(loadingTimeout);
 				return;
 			}
 
@@ -188,9 +176,6 @@
 				hasMorePages = false;
 			}
 
-			clearTimeout(loadingTimeout);
-			uiStore.stopLoading();
-
 			// Reset retry count on success
 			retryCount = 0;
 
@@ -208,16 +193,12 @@
 
 			console.error(`[Request ${requestId}] Error loading properties:`, err);
 			error = err;
+
 			// Format the error for better user guidance
 			errorInfo = formatApiError(err);
 
-			uiStore.stopLoading();
+			// Show error toast
 			uiStore.addToast(errorInfo.title || 'حدث خطأ أثناء تحميل العقارات', 'error');
-		} finally {
-			// Only update loading state for the most recent request
-			if (loadingRequestId === requestId) {
-				isLoading = false;
-			}
 		}
 	}
 
@@ -308,19 +289,24 @@
 	}
 
 	/**
-	 * Retry API request with exponential backoff
+	 * Retry API request with exponential backoff and improved error handling
 	 */
 	function retryWithBackoff() {
 		if (retryCount < MAX_RETRIES) {
 			retryCount++;
 			const delay = Math.pow(2, retryCount) * 1000; // 2s, 4s, 8s
 
+			// Show retry toast
 			uiStore.addToast(`جاري إعادة المحاولة (${retryCount}/${MAX_RETRIES})...`, 'info');
+
+			// Clear the current error to show loading state during retry
+			error = null;
 
 			setTimeout(() => {
 				loadProperties(currentPage, activeFilters);
 			}, delay);
 		} else {
+			// Max retries reached
 			uiStore.addToast(
 				'تعذر الاتصال بالخادم بعد عدة محاولات. يرجى التحقق من اتصالك بالإنترنت أو المحاولة لاحقًا.',
 				'error'
@@ -604,7 +590,7 @@
 	{/if}
 
 	<!-- Results summary -->
-	{#if !isLoading && !error && properties.length > 0}
+	{#if !error && properties.length > 0}
 		<div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
 			تم العثور على {totalItems} عقار
 			{#if Object.keys(activeFilters).length > 0 && Object.keys(activeFilters).some((key) => key !== 'page' && key !== 'page_size' && key !== 'ordering')}
@@ -615,12 +601,7 @@
 
 	<!-- Property Listings -->
 	<div>
-		{#if isLoading}
-			<!-- Loading state -->
-			<div class="flex min-h-[300px] items-center justify-center">
-				<Loader size="lg" text="جاري تحميل العقارات..." />
-			</div>
-		{:else if error}
+		{#if error}
 			<!-- Error state -->
 			<Card variant="default" padding="lg" class="mb-6">
 				<div class="mb-4">

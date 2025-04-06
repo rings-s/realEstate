@@ -1,10 +1,5 @@
-"""
-Optimized utilities for Real Estate Auction Platform.
-"""
-
 import logging
 import uuid
-import json
 import random
 import string
 from datetime import datetime, timedelta
@@ -24,7 +19,6 @@ from django.utils.translation import gettext_lazy as _
 
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -96,7 +90,6 @@ def validate_status_transition(
         )
 
     return True
-
 
 
 # ============================================================================
@@ -252,7 +245,8 @@ class MediaHandler:
         if not property_obj or not property_obj.pk:
             raise ValueError(_("Property must be saved before uploading images"))
 
-        current_images = property_obj.get_json_field('images', [])
+        # Get current images
+        current_images = property_obj.images or []
         new_images = []
 
         for file in files:
@@ -272,7 +266,7 @@ class MediaHandler:
         updated_images = current_images + new_images
 
         # Update the property
-        property_obj.set_json_field('images', updated_images)
+        property_obj.images = updated_images
         property_obj.save(update_fields=['images', 'updated_at'])
 
         return new_images
@@ -280,7 +274,7 @@ class MediaHandler:
     @classmethod
     def set_primary_image(cls, property_obj, image_index):
         """Set the primary image for a property by index."""
-        images = property_obj.get_json_field('images', [])
+        images = property_obj.images or []
 
         if not images or image_index >= len(images):
             raise ValueError(_("Invalid image index"))
@@ -293,7 +287,7 @@ class MediaHandler:
         images[image_index]['is_primary'] = True
 
         # Update the property
-        property_obj.set_json_field('images', images)
+        property_obj.images = images
         property_obj.save(update_fields=['images', 'updated_at'])
 
         return images[image_index]
@@ -301,7 +295,7 @@ class MediaHandler:
     @classmethod
     def delete_image(cls, property_obj, image_index):
         """Delete an image by index."""
-        images = property_obj.get_json_field('images', [])
+        images = property_obj.images or []
 
         if not images or image_index >= len(images):
             raise ValueError(_("Invalid image index"))
@@ -327,7 +321,7 @@ class MediaHandler:
             images[0]['is_primary'] = True
 
         # Update the property
-        property_obj.set_json_field('images', images)
+        property_obj.images = images
         property_obj.save(update_fields=['images', 'updated_at'])
 
         return deleted_image
@@ -338,7 +332,8 @@ class MediaHandler:
         if not document_obj or not document_obj.pk:
             raise ValueError(_("Document must be saved before uploading files"))
 
-        current_files = document_obj.get_json_field('files', [])
+        # Get current files
+        current_files = document_obj.files or []
         new_files = []
 
         for file in files:
@@ -353,7 +348,7 @@ class MediaHandler:
         updated_files = current_files + new_files
 
         # Update the document object
-        document_obj.set_json_field('files', updated_files)
+        document_obj.files = updated_files
         document_obj.save(update_fields=['files', 'updated_at'])
 
         return new_files
@@ -364,7 +359,8 @@ class MediaHandler:
         if not auction_obj or not auction_obj.pk:
             raise ValueError(_("Auction must be saved before uploading images"))
 
-        current_images = auction_obj.get_json_field('images', [])
+        # Get current images
+        current_images = auction_obj.images or []
         new_images = []
 
         for file in files:
@@ -380,7 +376,7 @@ class MediaHandler:
                 logger.error(f"Error processing auction image {file.name}: {str(e)}")
 
         updated_images = current_images + new_images
-        auction_obj.set_json_field('images', updated_images)
+        auction_obj.images = updated_images
         auction_obj.save(update_fields=['images', 'updated_at'])
 
         return new_images

@@ -41,7 +41,7 @@ class PropertySerializer(serializers.ModelSerializer):
         read_only_fields = [
             'property_number', 'slug', 'views_count', 'verified_by',
             'verification_date', 'is_verified', 'status_history',
-            'publish_date', 'created_at', 'updated_at'
+            'publish_date', 'created_at', 'updated_at',
         ]
 
     def get_owner_name(self, obj):

@@ -236,6 +236,7 @@ class Property(BaseModel, StatusTransitionMixin, JsonFieldMixin):
     images = models.JSONField(blank=True, null=True, default=list, verbose_name=_('صور العقار'))
     videos = models.JSONField(blank=True, null=True, default=list, verbose_name=_('فيديوهات العقار'))
     documents = models.JSONField(blank=True, null=True, default=list, verbose_name=_('مستندات العقار'))
+    rooms = models.JSONField(blank=True, null=True, default=list, verbose_name=_('غرف العقار'))
 
     # Features and amenities - simplified to a single JSON field
     features = models.JSONField(blank=True, null=True, default=list, verbose_name=_('المميزات والمرافق'))

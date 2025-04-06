@@ -74,14 +74,14 @@
 			current_usage: formData.current_usage || '',
 			optimal_usage: formData.optimal_usage || '',
 
-			// Ensure all these fields are initialized as empty arrays to prevent null/undefined issues
+			// Ensure all these fields are initialized as objects/arrays to prevent null/undefined issues
 			location: formData.location || {},
 			rooms: formData.rooms || [],
 			features: formData.features || [],
 			amenities: formData.amenities || [],
 			outdoor_spaces: formData.outdoor_spaces || [],
 			videos: formData.videos || [],
-			documents: formData.documents || [], // Ensure this is an empty array if not provided
+			documents: formData.documents || [],
 
 			// These can be strings
 			street_details: formData.street_details || '',
@@ -92,43 +92,7 @@
 			surroundings: formData.surroundings || ''
 		};
 
-		// Process the data to ensure JSON fields are properly stringified
-		// PROPERTY_JSON_FIELDS should include 'documents'
-		const cleanData = prepareEntityData(baseData, PROPERTY_JSON_FIELDS);
-
-		// Double-check JSON strings (especially for documents)
-		PROPERTY_JSON_FIELDS.forEach((field) => {
-			if (field in cleanData && cleanData[field] !== null) {
-				// Verify it's a valid JSON string
-				try {
-					JSON.parse(cleanData[field]);
-				} catch (e) {
-					// If it's not a valid JSON string, make it one
-					console.warn(`Field ${field} was not properly JSON-stringified. Fixing.`);
-					cleanData[field] = JSON.stringify(Array.isArray(baseData[field]) ? baseData[field] : []);
-				}
-			} else if (!(field in cleanData) || cleanData[field] === null) {
-				// Provide empty array as default for missing fields
-				if (
-					[
-						'images',
-						'videos',
-						'features',
-						'amenities',
-						'rooms',
-						'documents',
-						'outdoor_spaces'
-					].includes(field)
-				) {
-					cleanData[field] = '[]';
-				} else if (field === 'location') {
-					cleanData[field] = '{}';
-				}
-			}
-		});
-
-		console.log('Prepared property data for submission:', cleanData);
-		return cleanData;
+		return baseData;
 	}
 
 	/**
@@ -152,14 +116,14 @@
 				);
 			}
 
-			// Prepare data for API submission with proper JSON handling
-			const cleanData = preparePropertyData(formData);
+			// Prepare data without applying JSON serialization here
+			const propertyData = preparePropertyData(formData);
 
 			// Save the property first
 			console.log('Saving property data to API...');
 			uiStore.startLoading('جاري حفظ بيانات العقار...');
 
-			const result = await propertiesStore.createProperty(cleanData);
+			const result = await propertiesStore.createProperty(propertyData);
 			console.log('Property created successfully:', result);
 
 			uiStore.stopLoading();

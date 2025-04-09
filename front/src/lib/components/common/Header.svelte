@@ -1,10 +1,10 @@
 <script>
 	import { t } from '$lib/config/translations';
-	import { language, isRTL, darkMode, toggleSidebar } from '$lib/stores/ui';
+	import { language, isRTL, darkMode, toggleSidebar, uiStore } from '$lib/stores/ui';
 	import { page } from '$app/stores';
 	import { isAuthenticated, currentUser } from '$lib/stores/auth';
 	import { unreadCount as unreadNotifications } from '$lib/stores/notifications';
-	import { fade } from 'svelte/transition'; // Add missing transition import
+	import { fade } from 'svelte/transition';
 	import {
 		Menu,
 		X,
@@ -18,8 +18,9 @@
 		Menu as MenuIcon
 	} from 'lucide-svelte';
 	import Avatar from './Avatar.svelte';
-	import { onMount } from 'svelte';
+	import { onMount, afterUpdate } from 'svelte';
 	import notificationsStore from '$lib/stores/notifications';
+	import { browser } from '$app/environment';
 
 	/**
 	 * Props
@@ -29,7 +30,7 @@
 	// Additional classes
 	export let classes = '';
 	// Logo path
-	export let logoPath = '/images/logo.svg';
+	export let logoPath = '/placeholder.png';
 	// Mobile breakpoint
 	export let breakpoint = 'lg';
 
@@ -41,12 +42,31 @@
 
 	// Toggle dark mode
 	function toggleTheme() {
-		darkMode.update((value) => !value);
+		darkMode.update((value) => {
+			const newValue = !value;
+			if (browser) {
+				localStorage.setItem('darkMode', newValue ? 'true' : 'false');
+				document.documentElement.classList.toggle('dark', newValue);
+			}
+			return newValue;
+		});
 	}
 
 	// Toggle language between Arabic and English
 	function toggleLanguage() {
-		language.update((value) => (value === 'ar' ? 'en' : 'ar'));
+		language.update((value) => {
+			const newValue = value === 'ar' ? 'en' : 'ar';
+			if (browser) {
+				localStorage.setItem('language', newValue);
+				document.documentElement.setAttribute('lang', newValue);
+
+				// Set direction based on language
+				const newDirection = newValue === 'ar' ? 'rtl' : 'ltr';
+				document.documentElement.setAttribute('dir', newDirection);
+				localStorage.setItem('direction', newDirection);
+			}
+			return newValue;
+		});
 	}
 
 	// Toggle mobile menu
@@ -95,12 +115,46 @@
 		// Initial scroll check
 		handleScroll();
 
+		// Initialize dark mode from localStorage if available
+		if (browser) {
+			const savedDarkMode = localStorage.getItem('darkMode');
+			if (savedDarkMode) {
+				const isDark = savedDarkMode === 'true';
+				darkMode.set(isDark);
+				document.documentElement.classList.toggle('dark', isDark);
+			}
+
+			// Initialize language from localStorage if available
+			const savedLanguage = localStorage.getItem('language');
+			if (savedLanguage) {
+				language.set(savedLanguage);
+				document.documentElement.setAttribute('lang', savedLanguage);
+
+				// Set direction based on language
+				const direction = savedLanguage === 'ar' ? 'rtl' : 'ltr';
+				document.documentElement.setAttribute('dir', direction);
+			}
+		}
+
 		// Cleanup on unmount
 		return () => {
 			window.removeEventListener('scroll', handleScroll);
 			if (stopPolling) stopPolling();
 		};
 	});
+
+	// Update document when dark mode changes
+	$: if (browser && $darkMode !== undefined) {
+		document.documentElement.classList.toggle('dark', $darkMode);
+	}
+
+	// Update document when language changes
+	$: if (browser && $language) {
+		document.documentElement.setAttribute('lang', $language);
+		// Update direction based on language
+		const direction = $language === 'ar' ? 'rtl' : 'ltr';
+		document.documentElement.setAttribute('dir', direction);
+	}
 </script>
 
 <header
@@ -122,11 +176,18 @@
 				</button>
 
 				<!-- Logo -->
-				<a href="/" class="flex items-center gap-2" aria-label={t('app_name', $language)}>
+				<a
+					href="/"
+					class="flex items-center gap-2"
+					aria-label={t('app_name', $language, { default: 'منصة مزادات العقارات' })}
+				>
 					<img
 						src={logoPath}
 						alt={t('app_name', $language, { default: 'منصة مزادات العقارات' })}
 						class="h-8"
+						onError={(e) => {
+							e.target.style.display = 'none';
+						}}
 					/>
 					{#if !minimal}
 						<span class="font-bold text-lg hidden sm:block">
@@ -245,7 +306,9 @@
 										<li>
 											<a href="/dashboard" class="nav-item" on:click={closeMenus}>
 												<span class="badge badge-sm variant-soft-primary"
-													>{t($currentUser?.primary_role?.code || 'user', $language)}</span
+													>{t($currentUser?.primary_role?.code || 'user', $language, {
+														default: 'مستخدم'
+													})}</span
 												>
 												<span>{t('dashboard', $language, { default: 'لوحة التحكم' })}</span>
 											</a>

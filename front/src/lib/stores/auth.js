@@ -2,7 +2,7 @@ import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { t } from '$lib/config/translations';
-import { language, addToast } from '$lib/stores/ui';
+import { uiStore } from '$lib/stores/ui';
 import {
 	API_URL,
 	TOKEN_KEY,

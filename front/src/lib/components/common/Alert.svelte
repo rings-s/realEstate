@@ -89,7 +89,7 @@
 		role="alert"
 	>
 		<div class="flex items-center gap-4">
-			<IconComponent class="w-5 h-5" />
+			<svelte:component this={IconComponent} class="w-5 h-5" />
 			<div class="flex-1 {$isRTL ? 'text-right' : 'text-left'}">
 				{#if title}
 					<h3 class="h3">{title}</h3>

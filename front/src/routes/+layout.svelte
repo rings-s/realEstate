@@ -3,7 +3,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
-	import { fly, fade } from 'svelte/transition'; // Add missing transition imports
+	import { fly, fade } from 'svelte/transition';
 
 	// Import UI stores and components
 	import {
@@ -12,8 +12,8 @@
 		darkMode,
 		isSidebarOpen,
 		pageLoading,
-		toast, // Changed from 'toasts' to 'toast' to match your store
-		uiStore // Import uiStore to access the hideToast method
+		toast,
+		uiStore
 	} from '$lib/stores/ui';
 	import Header from '$lib/components/common/Header.svelte';
 	import Footer from '$lib/components/common/Footer.svelte';
@@ -105,9 +105,32 @@
 		});
 	}
 
+	// Initialize the UI settings
+	function initUI() {
+		if (browser) {
+			// Initialize language from localStorage
+			const savedLanguage = localStorage.getItem('language') || 'ar';
+			language.set(savedLanguage);
+			document.documentElement.setAttribute('lang', savedLanguage);
+
+			// Initialize direction based on language
+			const direction = savedLanguage === 'ar' ? 'rtl' : 'ltr';
+			isRTL.set(direction === 'rtl');
+			document.documentElement.setAttribute('dir', direction);
+
+			// Initialize dark mode from localStorage
+			const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+			darkMode.set(savedDarkMode);
+			document.documentElement.classList.toggle('dark', savedDarkMode);
+		}
+	}
+
 	// Handle auth validation on mount
 	onMount(async () => {
 		if (browser) {
+			// Initialize UI settings
+			initUI();
+
 			pageLoading.set(true);
 
 			// Check for token and validate
@@ -163,17 +186,11 @@
 		if (refreshTokenInterval) clearInterval(refreshTokenInterval);
 	});
 
-	// Apply theme changes
+	// Apply theme changes when darkMode or language changes
 	$: if (browser) {
-		if ($darkMode) {
-			document.documentElement.classList.add('dark');
-		} else {
-			document.documentElement.classList.remove('dark');
-		}
-
-		// Set RTL attribute
-		document.documentElement.dir = $isRTL ? 'rtl' : 'ltr';
-		document.documentElement.lang = $language;
+		document.documentElement.classList.toggle('dark', $darkMode);
+		document.documentElement.setAttribute('lang', $language);
+		document.documentElement.setAttribute('dir', $isRTL ? 'rtl' : 'ltr');
 	}
 </script>
 
@@ -238,7 +255,7 @@
 		</div>
 	</div>
 
-	<!-- Toast notification (Updated to match your store structure) -->
+	<!-- Toast notification -->
 	{#if $toast.isVisible}
 		<div class="toast" class:toast-end={!$isRTL} class:toast-start={$isRTL}>
 			<div

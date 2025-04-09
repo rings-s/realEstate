@@ -1,6 +1,6 @@
 import { writable, derived } from 'svelte/store';
 import { get } from 'svelte/store';
-import { addToast } from '$lib/stores/ui';
+import { uiStore } from '$lib/stores/ui';
 import { t } from '$lib/config/translations';
 import { language } from '$lib/stores/ui';
 import notificationsService from '$lib/services/notificationsService';

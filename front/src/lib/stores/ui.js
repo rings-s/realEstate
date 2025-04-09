@@ -25,7 +25,8 @@ const initialState = {
 		message: '',
 		type: 'info',
 		timeout: 3000
-	}
+	},
+	pageLoading: false
 };
 
 // Load saved settings from localStorage if in browser
@@ -107,6 +108,17 @@ function createUIStore() {
 				}
 				return { ...state, direction };
 			});
+		},
+
+		/**
+		 * Set page loading state
+		 * @param {boolean} loading - Loading state
+		 */
+		setPageLoading: (loading) => {
+			update((state) => ({
+				...state,
+				pageLoading: loading
+			}));
 		},
 
 		/**
@@ -275,6 +287,8 @@ export const theme = derived(uiStore, ($uiStore) => $uiStore.theme);
 export const language = derived(uiStore, ($uiStore) => $uiStore.language);
 export const direction = derived(uiStore, ($uiStore) => $uiStore.direction);
 export const isRTL = derived(direction, ($direction) => $direction === 'rtl');
+export const darkMode = derived(theme, ($theme) => $theme === 'dark');
+export const pageLoading = derived(uiStore, ($uiStore) => $uiStore.pageLoading);
 export const notifications = derived(uiStore, ($uiStore) => $uiStore.notifications);
 export const unreadNotifications = derived(notifications, ($notifications) =>
 	$notifications.filter((n) => !n.read)
@@ -282,6 +296,7 @@ export const unreadNotifications = derived(notifications, ($notifications) =>
 export const modal = derived(uiStore, ($uiStore) => $uiStore.modal);
 export const sidebar = derived(uiStore, ($uiStore) => $uiStore.sidebar);
 export const toast = derived(uiStore, ($uiStore) => $uiStore.toast);
+export const isSidebarOpen = derived(uiStore, ($uiStore) => $uiStore.sidebar.isOpen);
 
 // Arabic text direction utility
 export const textClass = derived(direction, ($direction) =>
@@ -292,3 +307,10 @@ export const textClass = derived(direction, ($direction) =>
 export const flexClass = derived(direction, ($direction) =>
 	$direction === 'rtl' ? 'justify-end' : 'justify-start'
 );
+
+// Export convenience functions
+export const addToast = (message, type = 'info', timeout = 3000) =>
+	uiStore.showToast(message, type, timeout);
+
+// Export toggleSidebar function
+export const toggleSidebar = (isOpen) => uiStore.toggleSidebar(isOpen);

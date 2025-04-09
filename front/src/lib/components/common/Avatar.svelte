@@ -93,34 +93,61 @@
 	$: badgePositionClass = `badge-${badgePosition}`;
 </script>
 
-<div
-	class="avatar {sizeClass} {shapeClass} {border
-		? 'border border-surface-300-600-token'
-		: ''} {shadow ? 'shadow-lg' : ''} {classes} {interactive
-		? 'cursor-pointer hover:opacity-80 transition-opacity'
-		: ''}"
-	on:click={handleClick}
-	on:keydown={(e) => e.key === 'Enter' && interactive && handleClick()}
-	tabindex={interactive ? 0 : -1}
-	role={interactive ? 'button' : 'presentation'}
->
-	{#if imageSrc}
-		<!-- Image avatar -->
-		<img src={imageSrc} alt={altText} />
-	{:else if initials}
-		<!-- Initials avatar -->
-		<span class="avatar-initials">{initials}</span>
-	{:else}
-		<!-- Default placeholder -->
-		<span
-			class="avatar-icon flex justify-center items-center h-full w-full bg-surface-300-600-token"
-		>
-			<User class="w-1/2 h-1/2 text-surface-900-50-token" />
-		</span>
-	{/if}
+{#if interactive}
+	<button
+		class="avatar {sizeClass} {shapeClass} {border
+			? 'border border-surface-300-600-token'
+			: ''} {shadow
+			? 'shadow-lg'
+			: ''} {classes} cursor-pointer hover:opacity-80 transition-opacity"
+		on:click={handleClick}
+		tabindex="0"
+	>
+		{#if imageSrc}
+			<!-- Image avatar -->
+			<img src={imageSrc} alt={altText} />
+		{:else if initials}
+			<!-- Initials avatar -->
+			<span class="avatar-initials">{initials}</span>
+		{:else}
+			<!-- Default placeholder -->
+			<span
+				class="avatar-icon flex justify-center items-center h-full w-full bg-surface-300-600-token"
+			>
+				<User class="w-1/2 h-1/2 text-surface-900-50-token" />
+			</span>
+		{/if}
 
-	{#if badge}
-		<!-- Badge -->
-		<span class="badge {badgeColor} {badgePositionClass}">{badge}</span>
-	{/if}
-</div>
+		{#if badge}
+			<!-- Badge -->
+			<span class="badge {badgeColor} {badgePositionClass}">{badge}</span>
+		{/if}
+	</button>
+{:else}
+	<div
+		class="avatar {sizeClass} {shapeClass} {border
+			? 'border border-surface-300-600-token'
+			: ''} {shadow ? 'shadow-lg' : ''} {classes}"
+		role="presentation"
+	>
+		{#if imageSrc}
+			<!-- Image avatar -->
+			<img src={imageSrc} alt={altText} />
+		{:else if initials}
+			<!-- Initials avatar -->
+			<span class="avatar-initials">{initials}</span>
+		{:else}
+			<!-- Default placeholder -->
+			<span
+				class="avatar-icon flex justify-center items-center h-full w-full bg-surface-300-600-token"
+			>
+				<User class="w-1/2 h-1/2 text-surface-900-50-token" />
+			</span>
+		{/if}
+
+		{#if badge}
+			<!-- Badge -->
+			<span class="badge {badgeColor} {badgePositionClass}">{badge}</span>
+		{/if}
+	</div>
+{/if}

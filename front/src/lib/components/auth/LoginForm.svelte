@@ -117,15 +117,27 @@
 				<div class="input-group-shim">
 					<Lock class="w-5 h-5" />
 				</div>
-				<input
-					type={showPassword ? 'text' : 'password'}
-					bind:value={password}
-					placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
-					class="input"
-					dir={$isRTL ? 'rtl' : 'ltr'}
-					autocomplete="current-password"
-					required
-				/>
+				{#if showPassword}
+					<input
+						type="text"
+						bind:value={password}
+						placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
+						class="input"
+						dir={$isRTL ? 'rtl' : 'ltr'}
+						autocomplete="current-password"
+						required
+					/>
+				{:else}
+					<input
+						type="password"
+						bind:value={password}
+						placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
+						class="input"
+						dir={$isRTL ? 'rtl' : 'ltr'}
+						autocomplete="current-password"
+						required
+					/>
+				{/if}
 				<button type="button" class="input-group-shim" on:click={togglePassword}>
 					{#if showPassword}
 						<EyeOff class="w-5 h-5" />

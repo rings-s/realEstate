@@ -1,273 +1,220 @@
+<!--
+  VerifyEmailForm Component
+  Handles email verification with verification code
+-->
 <script>
-	import { onMount, onDestroy } from 'svelte';
+	import { createEventDispatcher } from 'svelte';
+	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import { language, isRTL, textClass, uiStore } from '$lib/stores/ui';
 	import { auth } from '$lib/stores/auth';
-	import { uiStore, TOAST_TYPES } from '$lib/stores/ui';
-	import { rules } from '$lib/utils/validation';
-	import authService from '$lib/services/auth';
+	import { t } from '$lib/config/translations';
+	import { Mail, CheckCircle, RefreshCw } from 'lucide-svelte';
+	import * as authService from '$lib/services/authService';
 
-	// Form components
-	import Button from '../common/Button.svelte';
-	import Input from '../common/Input.svelte';
-	import Alert from '../common/Alert.svelte';
+	const dispatch = createEventDispatcher();
 
-	// Props
-	export let redirectTo = '/dashboard';
+	// Form data
+	let email = '';
+	let verification_code = '';
 
 	// Form state
-	let email = '';
-	let verificationCode = '';
 	let loading = false;
-	let error = null;
+	let resending = false;
+	let error = '';
 	let success = false;
-	let resendDisabled = false;
-	let resendTimer = 0;
-	let timerInterval = null;
 
-	// Validation errors
-	let emailError = '';
-	let codeError = '';
-
-	// Initialize component
+	// Get email from URL query params
 	onMount(() => {
-		// Check if email was provided in URL query
-		const urlParams = new URLSearchParams(window.location.search);
-		const urlEmail = urlParams.get('email');
-
-		if (urlEmail) {
-			email = urlEmail;
+		if ($page.url.searchParams.has('email')) {
+			email = $page.url.searchParams.get('email');
 		}
-
-		// Focus first empty input
-		setTimeout(() => {
-			const input = email
-				? document.getElementById('verification-code-input')
-				: document.getElementById('email-input');
-
-			if (input) input.focus();
-		}, 100);
 	});
-
-	// Validation functions
-	function validateEmail() {
-		if (!email) {
-			emailError = rules.required(email);
-			return false;
-		}
-
-		emailError = rules.email(email) !== true ? rules.email(email) : '';
-		return !emailError;
-	}
-
-	function validateCode() {
-		if (!verificationCode) {
-			codeError = rules.required(verificationCode);
-			return false;
-		}
-
-		if (verificationCode.length !== 6 || !rules.number(verificationCode)) {
-			codeError = 'رمز التحقق يجب أن يتكون من 6 أرقام';
-			return false;
-		}
-
-		codeError = '';
-		return true;
-	}
-
-	function validateForm() {
-		const isEmailValid = validateEmail();
-		const isCodeValid = validateCode();
-		return isEmailValid && isCodeValid;
-	}
 
 	// Handle form submission
 	async function handleSubmit() {
-		if (!validateForm()) return;
+		error = '';
+		success = false;
+
+		// Validate form
+		if (!email) {
+			error = t('email_required', $language);
+			return;
+		}
+
+		if (!verification_code) {
+			error = t('verification_code_required', $language, { default: 'يرجى إدخال رمز التحقق' });
+			return;
+		}
 
 		loading = true;
-		error = null;
 
 		try {
-			const response = await auth.verifyEmail(email, verificationCode);
-			success = true;
-			uiStore.addToast('تم التحقق من بريدك الإلكتروني بنجاح!', TOAST_TYPES.SUCCESS);
+			// Call verify email service
+			const response = await authService.verifyEmail(email, verification_code);
 
-			// Redirect after 2 seconds
-			setTimeout(() => {
-				goto(redirectTo);
-			}, 2000);
+			// Update auth store
+			if (response.user) {
+				auth.setUser(response.user, response.user.roles || []);
+
+				// Show success message
+				success = true;
+				uiStore.showToast(
+					t('email_verified', $language, { default: 'تم التحقق من بريدك الإلكتروني بنجاح' }),
+					'success'
+				);
+
+				// Navigate to dashboard or home after a short delay
+				setTimeout(() => {
+					goto('/dashboard');
+				}, 2000);
+			} else {
+				throw new Error(
+					t('verification_error', $language, {
+						default: 'حدث خطأ أثناء التحقق من البريد الإلكتروني'
+					})
+				);
+			}
 		} catch (err) {
-			error = err.message || 'رمز التحقق غير صحيح أو منتهي الصلاحية. الرجاء المحاولة مرة أخرى.';
-			console.error('Email verification error:', err);
+			console.error('Verification error:', err);
+			error =
+				err.message ||
+				t('invalid_code', $language, { default: 'رمز التحقق غير صالح أو منتهي الصلاحية' });
 		} finally {
 			loading = false;
 		}
 	}
 
 	// Resend verification code
-	async function resendVerificationCode() {
-		if (!validateEmail() || resendDisabled) return;
+	async function resendCode() {
+		if (resending) return;
 
-		loading = true;
-		error = null;
+		if (!email) {
+			error = t('email_required', $language);
+			return;
+		}
+
+		resending = true;
+		error = '';
 
 		try {
 			await authService.resendVerification(email);
-			uiStore.addToast('تم إعادة إرسال رمز التحقق إلى بريدك الإلكتروني', TOAST_TYPES.SUCCESS);
-
-			// Disable resend button for 60 seconds
-			resendDisabled = true;
-			resendTimer = 60;
-
-			timerInterval = setInterval(() => {
-				resendTimer--;
-				if (resendTimer <= 0) {
-					clearInterval(timerInterval);
-					resendDisabled = false;
-				}
-			}, 1000);
+			uiStore.showToast(
+				t('verification_resent', $language, { default: 'تم إعادة إرسال رمز التحقق' }),
+				'success'
+			);
 		} catch (err) {
-			error = err.message || 'حدث خطأ أثناء إعادة إرسال رمز التحقق. الرجاء المحاولة مرة أخرى.';
-			console.error('Resend verification code error:', err);
+			console.error('Resend error:', err);
+			error =
+				err.message || t('resend_failed', $language, { default: 'فشل إعادة إرسال رمز التحقق' });
 		} finally {
-			loading = false;
+			resending = false;
 		}
 	}
-
-	// Handle input focus for verification code
-	function handleCodeInput(e) {
-		const input = e.target;
-		const value = input.value.replace(/\D/g, ''); // Keep only digits
-
-		// Update verification code with only digits
-		verificationCode = value.slice(0, 6);
-
-		// Auto validate after 6 digits
-		if (verificationCode.length === 6 && codeError) validateCode();
-	}
-
-	// Clean up on component destroy
-	onDestroy(() => {
-		if (timerInterval) clearInterval(timerInterval);
-	});
 </script>
 
-<div class="flex w-full items-center justify-center p-4">
-	<form
-		on:submit|preventDefault={handleSubmit}
-		class="shadow-card w-full max-w-md rounded-lg bg-white p-6 sm:p-8"
-	>
-		<h1 class="font-heading text-primary-600 mb-6 text-center text-2xl font-bold sm:text-3xl">
-			التحقق من البريد الإلكتروني
-		</h1>
+<div class="card p-6 w-full max-w-md mx-auto">
+	<header class="text-center mb-6">
+		<h2 class="h2">{t('verify_email', $language)}</h2>
+		<p class="text-surface-600-300-token">
+			{t('verification_instructions', $language, {
+				default: 'أدخل رمز التحقق المرسل إلى بريدك الإلكتروني'
+			})}
+		</p>
+	</header>
 
-		{#if error}
-			<Alert type="error" message={error} dismissible={true} on:dismiss={() => (error = null)} />
-		{/if}
+	<!-- Error message -->
+	{#if error}
+		<div class="alert variant-filled-error mb-4">
+			<div>{error}</div>
+		</div>
+	{/if}
 
-		{#if success}
-			<div class="flex flex-col items-center py-4 text-center">
-				<div class="mb-4 text-green-500">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 24 24"
-						fill="currentColor"
-						class="h-16 w-16"
-					>
-						<path d="M0 0h24v24H0V0z" fill="none" />
-						<path
-							d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm4.59-12.42L10 14.17l-2.59-2.58L6 13l4 4 8-8z"
-						/>
-					</svg>
-				</div>
-				<h2 class="mb-2 text-xl font-bold text-green-600">تم التحقق من بريدك الإلكتروني بنجاح!</h2>
-				<p class="mb-2 text-gray-600">سيتم تحويلك إلى لوحة التحكم...</p>
+	<!-- Success message -->
+	{#if success}
+		<div class="alert variant-filled-success mb-4 flex items-center gap-2">
+			<CheckCircle class="w-5 h-5" />
+			<div>
+				{t('email_verified_redirecting', $language, {
+					default: 'تم التحقق من بريدك الإلكتروني! جاري توجيهك...'
+				})}
 			</div>
-		{:else}
-			<p class="mb-4 text-sm text-gray-600">
-				لقد أرسلنا رمز تحقق مكون من 6 أرقام إلى بريدك الإلكتروني. يرجى إدخال الرمز أدناه للتحقق من
-				حسابك.
-			</p>
+		</div>
+	{/if}
 
-			<div class="mb-4">
-				<Input
-					id="email-input"
+	<form on:submit|preventDefault={handleSubmit} class={$textClass}>
+		<!-- Email Field -->
+		<label class="label">
+			<span>{t('email', $language)}</span>
+			<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+				<div class="input-group-shim">
+					<Mail class="w-5 h-5" />
+				</div>
+				<input
 					type="email"
-					label="البريد الإلكتروني"
-					placeholder="أدخل بريدك الإلكتروني"
-					value={email}
-					error={emailError}
-					on:input={(e) => {
-						email = e.target.value;
-						if (emailError) validateEmail();
-					}}
-					on:blur={validateEmail}
+					bind:value={email}
+					placeholder={t('email_placeholder', $language, { default: 'أدخل بريدك الإلكتروني' })}
+					class="input"
+					dir={$isRTL ? 'rtl' : 'ltr'}
+					autocomplete="email"
 					required
-					dir="ltr"
-					disabled={loading}
+					readonly={!!email}
 				/>
 			</div>
+		</label>
 
-			<div class="mb-6">
-				<label for="verification-code-input" class="mb-1 block text-sm font-medium text-gray-700"
-					>رمز التحقق</label
-				>
+		<!-- Verification Code Field -->
+		<label class="label mt-4">
+			<span>{t('verification_code', $language)}</span>
+			<input
+				type="text"
+				bind:value={verification_code}
+				placeholder={t('verification_code_placeholder', $language, {
+					default: 'أدخل رمز التحقق المكون من 6 أرقام'
+				})}
+				class="input"
+				dir={$isRTL ? 'rtl' : 'ltr'}
+				required
+				maxlength="6"
+				pattern="[0-9]{6}"
+			/>
+		</label>
 
-				<div class="space-y-4">
-					<div>
-						<Input
-							id="verification-code-input"
-							type="text"
-							placeholder="أدخل رمز التحقق المكون من 6 أرقام"
-							value={verificationCode}
-							error={codeError}
-							on:input={handleCodeInput}
-							on:blur={validateCode}
-							maxlength="6"
-							pattern="[0-9]*"
-							inputmode="numeric"
-							required
-							dir="ltr"
-							disabled={loading}
-							class="text-center tracking-wider"
-						/>
-					</div>
+		<!-- Submit Button -->
+		<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
+			{#if loading}
+				<span class="loading loading-spinner loading-sm"></span>
+				{t('verifying', $language, { default: 'جاري التحقق...' })}
+			{:else}
+				{t('verify_email', $language)}
+			{/if}
+		</button>
 
-					<div class="flex justify-between gap-2">
-						{#each Array(6) as _, i}
-							<div
-								class={`flex h-12 flex-1 items-center justify-center border-2 ${verificationCode.length > i ? 'border-primary-500 bg-primary-50' : 'border-gray-300'} rounded-md text-xl font-bold`}
-							>
-								{verificationCode[i] || ''}
-							</div>
-						{/each}
-					</div>
-				</div>
-			</div>
+		<!-- Resend Code -->
+		<div class="mt-6 text-center">
+			<p>{t('didnt_receive_code', $language, { default: 'لم تستلم الرمز؟' })}</p>
+			<button
+				type="button"
+				class="btn variant-ghost-primary mt-2 {resending ? 'opacity-50' : ''}"
+				on:click={resendCode}
+				disabled={resending}
+			>
+				{#if resending}
+					<span class="loading loading-spinner loading-sm"></span>
+					{t('resending', $language, { default: 'جاري إعادة الإرسال...' })}
+				{:else}
+					<RefreshCw class="w-4 h-4 {$isRTL ? 'ml-2' : 'mr-2'}" />
+					{t('resend_code', $language)}
+				{/if}
+			</button>
+		</div>
 
-			<div class="mb-6 text-center">
-				<button
-					type="button"
-					class={`text-sm ${resendDisabled ? 'cursor-not-allowed text-gray-400' : 'text-primary-600 hover:text-primary-700 hover:underline'} focus:ring-primary-500 rounded-md px-2 py-1 font-medium focus:ring-2 focus:ring-offset-2 focus:outline-none`}
-					on:click={resendVerificationCode}
-					disabled={resendDisabled || loading}
-				>
-					{resendDisabled ? `إعادة الإرسال (${resendTimer})` : 'لم تستلم الرمز؟ إعادة إرسال'}
-				</button>
-			</div>
-
-			<Button type="submit" variant="primary" fullWidth={true} disabled={loading} {loading}>
-				تأكيد
-			</Button>
-
-			<div class="mt-6 text-center text-sm">
-				<a
-					href="/login"
-					class="text-primary-600 hover:text-primary-700 font-semibold transition-colors hover:underline"
-				>
-					العودة إلى تسجيل الدخول
-				</a>
-			</div>
-		{/if}
+		<!-- Back to Login -->
+		<div class="mt-6 text-center">
+			<a href="/auth/login" class="anchor"
+				>{t('back_to_login', $language, { default: 'العودة إلى تسجيل الدخول' })}</a
+			>
+		</div>
 	</form>
 </div>

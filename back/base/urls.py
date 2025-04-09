@@ -1,153 +1,71 @@
-from django.urls import path, register_converter
+from django.urls import path
+from . import views
 
-from .views import (
-    # Base API views
-    BaseAPIView, BaseUploadView, MediaUploadView,
-
-    # Property views
-    PropertyListCreateView, PropertyDetailView, PropertyBySlugView, VerifyPropertyView, MyPropertiesView,
-    PropertyImageUploadView, PropertyImageSetPrimaryView, PropertyImageDeleteView,
-
-    # Auction views
-    AuctionListCreateView, AuctionDetailView, AuctionBySlugView, PlaceBidView, ExtendAuctionView,
-    CloseAuctionView, MyAuctionsView, AuctionImageUploadView,
-
-    # Bid views
-    BidListCreateView, BidDetailView, MarkBidAsWinningView, MyBidsView,
-
-    # Document views
-    DocumentListCreateView, DocumentDetailView, VerifyDocumentView, MyDocumentsView,
-    DocumentFileUploadView,
-
-    # Contract views
-    ContractListCreateView, ContractDetailView, SignContractAsBuyerView, SignContractAsSellerView,
-    SignContractAsAgentView, MyContractsView, UploadContractFilesView,
-
-    # Payment views
-    PaymentListCreateView, PaymentDetailView, ConfirmPaymentView, MyPaymentsView,
-    UploadPaymentReceiptView,
-
-    # Message Thread views
-    MessageThreadListCreateView, MessageThreadDetailView, ThreadBySlugView, AddThreadParticipantView,
-    RemoveThreadParticipantView, MarkThreadAsReadView, CloseThreadView, ReopenThreadView, MyThreadsView,
-
-    # Message views
-    MessageListCreateView, MessageDetailView, MarkMessageAsReadView, MyMessagesView,
-    UploadMessageAttachmentView,
-
-    # Transaction views
-    TransactionListCreateView, TransactionDetailView, MarkTransactionAsCompletedView,
-    MarkTransactionAsFailedView, MyTransactionsView,
-
-    # Notification views
-    NotificationListCreateView, NotificationDetailView, MarkNotificationAsReadView,
-    MarkAllNotificationsAsReadView, MyNotificationsView
-)
-
-
-class ArabicSlugConverter:
-    regex = r'[\w\d\-\u0621-\u064A]+'
-
-    def to_python(self, value):
-        return value
-
-    def to_url(self, value):
-        return value
-
-
-register_converter(ArabicSlugConverter, 'arabic_slug')
-
+app_name = 'auction_platform'
 
 urlpatterns = [
-    # List/Create endpoints - consistent pattern: /{resource}/
-    path('properties/', PropertyListCreateView.as_view(), name='property-list'),
-    path('auctions/', AuctionListCreateView.as_view(), name='auction-list'),
-    path('bids/', BidListCreateView.as_view(), name='bid-list'),
-    path('documents/', DocumentListCreateView.as_view(), name='document-list'),
-    path('contracts/', ContractListCreateView.as_view(), name='contract-list'),
-    path('payments/', PaymentListCreateView.as_view(), name='payment-list'),
-    path('threads/', MessageThreadListCreateView.as_view(), name='thread-list'),
-    path('messages/', MessageListCreateView.as_view(), name='message-list'),
-    path('transactions/', TransactionListCreateView.as_view(), name='transaction-list'),
-    path('notifications/', NotificationListCreateView.as_view(), name='notification-list'),
+    # Property URLs
+    path('properties/', views.PropertyListCreateView.as_view(), name='property-list'),
+    path('properties/<slug:slug>/', views.PropertyDetailView.as_view(), name='property-detail'),
+    path('properties/<slug:slug>/edit/', views.PropertyEditView.as_view(), name='property-edit'),
+    path('properties/<slug:slug>/delete/', views.PropertyDeleteView.as_view(), name='property-delete'),
+    path('properties/<int:property_id>/images/', views.PropertyImageListCreateView.as_view(), name='property-image-list'),
+    path('property-images/<int:pk>/', views.PropertyImageDetailView.as_view(), name='property-image-detail'),
+    path('property-images/<int:pk>/edit/', views.PropertyImageEditView.as_view(), name='property-image-edit'),
+    path('property-images/<int:pk>/delete/', views.PropertyImageDeleteView.as_view(), name='property-image-delete'),
 
-    # Detail endpoints - consistent pattern: /{resource}/{id}/
-    path('properties/<int:pk>/', PropertyDetailView.as_view(), name='property-detail'),
-    path('auctions/<int:pk>/', AuctionDetailView.as_view(), name='auction-detail'),
-    path('bids/<int:pk>/', BidDetailView.as_view(), name='bid-detail'),
-    path('documents/<int:pk>/', DocumentDetailView.as_view(), name='document-detail'),
-    path('contracts/<int:pk>/', ContractDetailView.as_view(), name='contract-detail'),
-    path('payments/<int:pk>/', PaymentDetailView.as_view(), name='payment-detail'),
-    path('threads/<int:pk>/', MessageThreadDetailView.as_view(), name='thread-detail'),
-    path('messages/<int:pk>/', MessageDetailView.as_view(), name='message-detail'),
-    path('transactions/<int:pk>/', TransactionDetailView.as_view(), name='transaction-detail'),
-    path('notifications/<int:pk>/', NotificationDetailView.as_view(), name='notification-detail'),
+    # Auction URLs
+    path('auctions/', views.AuctionListCreateView.as_view(), name='auction-list'),
+    path('auctions/<slug:slug>/', views.AuctionDetailView.as_view(), name='auction-detail'),
+    path('auctions/<slug:slug>/edit/', views.AuctionEditView.as_view(), name='auction-edit'),
+    path('auctions/<slug:slug>/delete/', views.AuctionDeleteView.as_view(), name='auction-delete'),
+    path('auctions/<int:auction_id>/images/', views.AuctionImageListCreateView.as_view(), name='auction-image-list'),
+    path('auction-images/<int:pk>/', views.AuctionImageDetailView.as_view(), name='auction-image-detail'),
+    path('auction-images/<int:pk>/edit/', views.AuctionImageEditView.as_view(), name='auction-image-edit'),
+    path('auction-images/<int:pk>/delete/', views.AuctionImageDeleteView.as_view(), name='auction-image-delete'),
 
-    # Slug-based detail endpoints - consistent pattern: /{resource}/slug/{slug}/
-    path('properties/slug/<arabic_slug:slug>/', PropertyBySlugView.as_view(), name='property-by-slug'),
-    path('auctions/slug/<arabic_slug:slug>/', AuctionBySlugView.as_view(), name='auction-by-slug'),
-    path('threads/slug/<arabic_slug:slug>/', ThreadBySlugView.as_view(), name='thread-by-slug'),
+    # Bid URLs
+    path('auctions/<int:auction_id>/bids/', views.BidListCreateView.as_view(), name='bid-list'),
+    path('bids/<int:pk>/', views.BidDetailView.as_view(), name='bid-detail'),
+    path('bids/<int:pk>/edit/', views.BidEditView.as_view(), name='bid-edit'),
+    path('bids/<int:pk>/delete/', views.BidDeleteView.as_view(), name='bid-delete'),
+    path('auctions/<int:auction_id>/bid-suggestions/', views.BidSuggestionsView.as_view(), name='bid-suggestions'),
 
-    # My resources endpoints - consistent pattern: /{resource}/my/
-    path('properties/my/', MyPropertiesView.as_view(), name='my-properties'),
-    path('auctions/my/', MyAuctionsView.as_view(), name='my-auctions'),
-    path('bids/my/', MyBidsView.as_view(), name='my-bids'),
-    path('documents/my/', MyDocumentsView.as_view(), name='my-documents'),
-    path('contracts/my/', MyContractsView.as_view(), name='my-contracts'),
-    path('payments/my/', MyPaymentsView.as_view(), name='my-payments'),
-    path('threads/my/', MyThreadsView.as_view(), name='my-threads'),
-    path('messages/my/', MyMessagesView.as_view(), name='my-messages'),
-    path('transactions/my/', MyTransactionsView.as_view(), name='my-transactions'),
-    path('notifications/my/', MyNotificationsView.as_view(), name='my-notifications'),
+    # Document URLs
+    path('documents/', views.DocumentListCreateView.as_view(), name='document-list'),
+    path('documents/<int:pk>/', views.DocumentDetailView.as_view(), name='document-detail'),
+    path('documents/<int:pk>/edit/', views.DocumentEditView.as_view(), name='document-edit'),
+    path('documents/<int:pk>/delete/', views.DocumentDeleteView.as_view(), name='document-delete'),
 
-    # Upload endpoints - consistent pattern: /{resource}/{id}/uploads/
-    path('properties/<int:pk>/uploads/', PropertyImageUploadView.as_view(), name='property-upload'),
-    path('auctions/<int:pk>/uploads/', AuctionImageUploadView.as_view(), name='auction-upload'),
-    path('documents/<int:pk>/uploads/', DocumentFileUploadView.as_view(), name='document-upload'),
-    path('contracts/<int:pk>/uploads/', UploadContractFilesView.as_view(), name='contract-upload'),
-    path('payments/<int:pk>/uploads/', UploadPaymentReceiptView.as_view(), name='payment-upload'),
-    path('messages/<int:pk>/uploads/', UploadMessageAttachmentView.as_view(), name='message-upload'),
+    # Contract URLs
+    path('contracts/', views.ContractListCreateView.as_view(), name='contract-list'),
+    path('contracts/<int:pk>/', views.ContractDetailView.as_view(), name='contract-detail'),
+    path('contracts/<int:pk>/edit/', views.ContractEditView.as_view(), name='contract-edit'),
+    path('contracts/<int:pk>/delete/', views.ContractDeleteView.as_view(), name='contract-delete'),
 
-    # Action endpoints - consistent pattern: /{resource}/{id}/actions/{action}/
-    # Property actions
-    path('properties/<int:pk>/actions/verify/', VerifyPropertyView.as_view(), name='property-verify'),
-    path('properties/<int:pk>/actions/set-primary-image/', PropertyImageSetPrimaryView.as_view(), name='property-set-primary-image'),
-    path('properties/<int:pk>/actions/delete-image/<int:image_index>/', PropertyImageDeleteView.as_view(), name='property-delete-image'),
+    # Message Thread URLs
+    path('threads/', views.MessageThreadListCreateView.as_view(), name='thread-list'),
+    path('threads/<int:pk>/', views.MessageThreadDetailView.as_view(), name='thread-detail'),
+    path('threads/<int:pk>/edit/', views.MessageThreadEditView.as_view(), name='thread-edit'),
+    path('threads/<int:pk>/delete/', views.MessageThreadDeleteView.as_view(), name='thread-delete'),
+    path('threads/<int:thread_id>/participants/', views.ThreadParticipantListView.as_view(), name='thread-participant-list'),
+    path('thread-participants/<int:pk>/', views.ThreadParticipantDetailView.as_view(), name='thread-participant-detail'),
+    path('thread-participants/<int:pk>/edit/', views.ThreadParticipantEditView.as_view(), name='thread-participant-edit'),
+    path('thread-participants/<int:pk>/delete/', views.ThreadParticipantDeleteView.as_view(), name='thread-participant-delete'),
+    path('threads/<int:thread_id>/messages/', views.MessageListCreateView.as_view(), name='message-list'),
+    path('messages/<int:pk>/', views.MessageDetailView.as_view(), name='message-detail'),
+    path('messages/<int:pk>/edit/', views.MessageEditView.as_view(), name='message-edit'),
+    path('messages/<int:pk>/delete/', views.MessageDeleteView.as_view(), name='message-delete'),
 
-    # Auction actions
-    path('auctions/<int:pk>/actions/bid/', PlaceBidView.as_view(), name='auction-bid'),
-    path('auctions/<int:pk>/actions/extend/', ExtendAuctionView.as_view(), name='auction-extend'),
-    path('auctions/<int:pk>/actions/close/', CloseAuctionView.as_view(), name='auction-close'),
+    # Notification URLs
+    path('notifications/', views.NotificationListView.as_view(), name='notification-list'),
+    path('notifications/<int:pk>/', views.NotificationDetailView.as_view(), name='notification-detail'),
+    path('notifications/<int:pk>/edit/', views.NotificationEditView.as_view(), name='notification-edit'),
+    path('notifications/<int:pk>/delete/', views.NotificationDeleteView.as_view(), name='notification-delete'),
 
-    # Bid actions
-    path('bids/<int:pk>/actions/mark-winning/', MarkBidAsWinningView.as_view(), name='bid-mark-winning'),
-
-    # Document actions
-    path('documents/<int:pk>/actions/verify/', VerifyDocumentView.as_view(), name='document-verify'),
-
-    # Contract actions
-    path('contracts/<int:pk>/actions/sign-buyer/', SignContractAsBuyerView.as_view(), name='contract-sign-buyer'),
-    path('contracts/<int:pk>/actions/sign-seller/', SignContractAsSellerView.as_view(), name='contract-sign-seller'),
-    path('contracts/<int:pk>/actions/sign-agent/', SignContractAsAgentView.as_view(), name='contract-sign-agent'),
-
-    # Payment actions
-    path('payments/<int:pk>/actions/confirm/', ConfirmPaymentView.as_view(), name='payment-confirm'),
-
-    # Thread actions
-    path('threads/<int:pk>/actions/add-participant/', AddThreadParticipantView.as_view(), name='thread-add-participant'),
-    path('threads/<int:pk>/actions/remove-participant/', RemoveThreadParticipantView.as_view(), name='thread-remove-participant'),
-    path('threads/<int:pk>/actions/mark-read/', MarkThreadAsReadView.as_view(), name='thread-mark-read'),
-    path('threads/<int:pk>/actions/close/', CloseThreadView.as_view(), name='thread-close'),
-    path('threads/<int:pk>/actions/reopen/', ReopenThreadView.as_view(), name='thread-reopen'),
-
-    # Message actions
-    path('messages/<int:pk>/actions/mark-read/', MarkMessageAsReadView.as_view(), name='message-mark-read'),
-
-    # Transaction actions
-    path('transactions/<int:pk>/actions/mark-completed/', MarkTransactionAsCompletedView.as_view(), name='transaction-mark-completed'),
-    path('transactions/<int:pk>/actions/mark-failed/', MarkTransactionAsFailedView.as_view(), name='transaction-mark-failed'),
-
-    # Notification actions
-    path('notifications/<int:pk>/actions/mark-read/', MarkNotificationAsReadView.as_view(), name='notification-mark-read'),
-    path('notifications/actions/mark-all-read/', MarkAllNotificationsAsReadView.as_view(), name='notification-mark-all-read'),
+    # Property View URLs (like floor plans, street views)
+    path('auctions/<int:auction_id>/property-views/', views.PropertyViewListCreateView.as_view(), name='property-view-list'),
+    path('property-views/<int:pk>/', views.PropertyViewDetailView.as_view(), name='property-view-detail'),
+    path('property-views/<int:pk>/edit/', views.PropertyViewEditView.as_view(), name='property-view-edit'),
+    path('property-views/<int:pk>/delete/', views.PropertyViewDeleteView.as_view(), name='property-view-delete'),
 ]

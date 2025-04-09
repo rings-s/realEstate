@@ -1,165 +1,106 @@
+<!--
+  ResetPasswordForm Component
+  Handles password reset with verification code
+-->
 <script>
-	import { onMount } from 'svelte';
+	import { createEventDispatcher } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { uiStore, TOAST_TYPES } from '$lib/stores/ui';
-	import { rules } from '$lib/utils/validation';
-	import authService from '$lib/services/auth';
+	import { onMount } from 'svelte';
+	import { language, isRTL, textClass, uiStore } from '$lib/stores/ui';
+	import { auth } from '$lib/stores/auth';
+	import { t } from '$lib/config/translations';
+	import { Mail, Key, Eye, EyeOff, RefreshCw, CheckCircle } from 'lucide-svelte';
+	import * as authService from '$lib/services/authService';
 
-	// Form components
-	import Button from '../common/Button.svelte';
-	import Input from '../common/Input.svelte';
-	import Alert from '../common/Alert.svelte';
+	const dispatch = createEventDispatcher();
 
-	// Props
-	export let redirectTo = '/login';
-
-	// Form steps
-	const STEPS = {
-		REQUEST: 'request',
-		VERIFY: 'verify',
-		RESET: 'reset',
-		SUCCESS: 'success'
-	};
-
-	// Form state
-	let email = '';
-	let resetCode = '';
-	let newPassword = '';
-	let confirmPassword = '';
-	let currentStep = STEPS.REQUEST;
+	// Form state tracking
+	let step = 1; // 1 = request reset, 2 = verify code, 3 = set new password
 	let loading = false;
-	let error = null;
-	let successMessage = '';
+	let error = '';
+	let success = false;
 
-	// Validation errors
-	let emailError = '';
-	let resetCodeError = '';
-	let newPasswordError = '';
-	let confirmPasswordError = '';
+	// Form data
+	let email = '';
+	let reset_code = '';
+	let new_password = '';
+	let confirm_password = '';
+	let showPassword = false;
+	let showConfirmPassword = false;
 
-	// Check URL parameters for email and step
+	// Get params from URL if available
 	onMount(() => {
-		const urlParams = new URLSearchParams(window.location.search);
-		const urlEmail = urlParams.get('email');
-		const urlStep = urlParams.get('step');
+		if ($page.url.searchParams.has('email')) {
+			email = $page.url.searchParams.get('email');
 
-		if (urlEmail) {
-			email = urlEmail;
+			if ($page.url.searchParams.has('code')) {
+				reset_code = $page.url.searchParams.get('code');
+				step = 2; // Move to verify code step
+			}
 		}
-
-		if (urlStep && Object.values(STEPS).includes(urlStep)) {
-			currentStep = urlStep;
-		}
-
-		// Focus first input
-		setTimeout(() => {
-			const firstInput = document.querySelector('input');
-			if (firstInput) firstInput.focus();
-		}, 100);
 	});
 
-	// Validation functions
-	function validateEmail() {
-		if (!email) {
-			emailError = rules.required(email);
-			return false;
-		}
+	// Toggle password visibility
+	const togglePassword = () => {
+		showPassword = !showPassword;
+	};
 
-		emailError = rules.email(email) !== true ? rules.email(email) : '';
-		return !emailError;
-	}
-
-	function validateResetCode() {
-		if (!resetCode) {
-			resetCodeError = rules.required(resetCode);
-			return false;
-		}
-
-		if (resetCode.length !== 6 || !rules.number(resetCode)) {
-			resetCodeError = 'رمز التحقق يجب أن يتكون من 6 أرقام';
-			return false;
-		}
-
-		resetCodeError = '';
-		return true;
-	}
-
-	function validateNewPassword() {
-		if (!newPassword) {
-			newPasswordError = rules.required(newPassword);
-			return false;
-		}
-
-		newPasswordError = rules.password(newPassword) !== true ? rules.password(newPassword) : '';
-		return !newPasswordError;
-	}
-
-	function validateConfirmPassword() {
-		if (!confirmPassword) {
-			confirmPasswordError = rules.required(confirmPassword);
-			return false;
-		}
-
-		if (newPassword !== confirmPassword) {
-			confirmPasswordError = 'كلمتا المرور غير متطابقتين';
-			return false;
-		}
-
-		confirmPasswordError = '';
-		return true;
-	}
+	const toggleConfirmPassword = () => {
+		showConfirmPassword = !showConfirmPassword;
+	};
 
 	// Request password reset
-	async function requestPasswordReset() {
-		if (!validateEmail()) return;
+	async function requestReset() {
+		error = '';
+
+		if (!email) {
+			error = t('email_required', $language);
+			return;
+		}
 
 		loading = true;
-		error = null;
 
 		try {
 			await authService.requestPasswordReset(email);
-			currentStep = STEPS.VERIFY;
-
-			// Update URL without reloading the page
-			const url = new URL(window.location);
-			url.searchParams.set('email', email);
-			url.searchParams.set('step', STEPS.VERIFY);
-			window.history.pushState({}, '', url);
-
-			successMessage = 'تم إرسال رمز التحقق إلى بريدك الإلكتروني';
-			uiStore.clearToasts();
-			uiStore.addToast(successMessage, TOAST_TYPES.SUCCESS);
+			step = 2; // Move to verify code step
+			uiStore.showToast(
+				t('reset_code_sent', $language, {
+					default: 'تم إرسال رمز إعادة تعيين كلمة المرور. يرجى التحقق من بريدك الإلكتروني.'
+				}),
+				'success'
+			);
 		} catch (err) {
-			error = err.message || 'حدث خطأ أثناء إرسال رمز التحقق. الرجاء المحاولة مرة أخرى.';
-			console.error('Password reset request error:', err);
+			console.error('Reset request error:', err);
+			error =
+				err.message ||
+				t('reset_request_failed', $language, { default: 'فشل طلب إعادة تعيين كلمة المرور' });
 		} finally {
 			loading = false;
 		}
 	}
 
 	// Verify reset code
-	async function verifyResetCode() {
-		if (!validateEmail() || !validateResetCode()) return;
+	async function verifyCode() {
+		error = '';
+
+		if (!email || !reset_code) {
+			error = t('email_code_required', $language, {
+				default: 'البريد الإلكتروني ورمز إعادة التعيين مطلوبان'
+			});
+			return;
+		}
 
 		loading = true;
-		error = null;
 
 		try {
-			await authService.verifyResetCode(email, resetCode);
-			currentStep = STEPS.RESET;
-
-			// Update URL without reloading the page
-			const url = new URL(window.location);
-			url.searchParams.set('step', STEPS.RESET);
-			window.history.pushState({}, '', url);
-
-			successMessage = 'تم التحقق من الرمز بنجاح';
-			uiStore.clearToasts();
-			uiStore.addToast(successMessage, TOAST_TYPES.SUCCESS);
+			await authService.verifyResetCode(email, reset_code);
+			step = 3; // Move to new password step
 		} catch (err) {
-			error = err.message || 'رمز التحقق غير صحيح أو منتهي الصلاحية. الرجاء المحاولة مرة أخرى.';
-			console.error('Reset code verification error:', err);
+			console.error('Code verification error:', err);
+			error =
+				err.message ||
+				t('invalid_code', $language, { default: 'رمز إعادة التعيين غير صالح أو منتهي الصلاحية' });
 		} finally {
 			loading = false;
 		}
@@ -167,381 +108,340 @@
 
 	// Reset password
 	async function resetPassword() {
-		if (
-			!validateEmail() ||
-			!validateResetCode() ||
-			!validateNewPassword() ||
-			!validateConfirmPassword()
-		)
+		error = '';
+
+		if (!email || !reset_code || !new_password || !confirm_password) {
+			error = t('all_fields_required', $language, { default: 'جميع الحقول مطلوبة' });
 			return;
+		}
+
+		if (new_password !== confirm_password) {
+			error = t('passwords_not_match', $language);
+			return;
+		}
+
+		if (new_password.length < 8) {
+			error = t('password_too_short', $language);
+			return;
+		}
 
 		loading = true;
-		error = null;
 
 		try {
-			await authService.resetPassword(email, resetCode, newPassword, confirmPassword);
-			currentStep = STEPS.SUCCESS;
+			// Call reset password service
+			const response = await authService.resetPassword(
+				email,
+				reset_code,
+				new_password,
+				confirm_password
+			);
 
-			// Update URL without reloading the page
-			const url = new URL(window.location);
-			url.searchParams.set('step', STEPS.SUCCESS);
-			window.history.pushState({}, '', url);
+			// Update auth store if user data is returned
+			if (response.user) {
+				auth.setUser(response.user, response.user.roles || []);
+			}
 
-			successMessage = 'تم إعادة تعيين كلمة المرور بنجاح';
-			uiStore.clearToasts();
-			uiStore.addToast(successMessage, TOAST_TYPES.SUCCESS);
+			// Show success message
+			success = true;
+			uiStore.showToast(
+				t('password_reset_success', $language, { default: 'تم إعادة تعيين كلمة المرور بنجاح' }),
+				'success'
+			);
+
+			// Navigate to dashboard or home after a short delay
+			setTimeout(() => {
+				goto('/dashboard');
+			}, 2000);
 		} catch (err) {
-			error = err.message || 'حدث خطأ أثناء إعادة تعيين كلمة المرور. الرجاء المحاولة مرة أخرى.';
 			console.error('Password reset error:', err);
-		} finally {
-			loading = false;
-		}
-	}
-
-	// Handle form submission based on current step
-	function handleSubmit() {
-		switch (currentStep) {
-			case STEPS.REQUEST:
-				requestPasswordReset();
-				break;
-			case STEPS.VERIFY:
-				verifyResetCode();
-				break;
-			case STEPS.RESET:
-				resetPassword();
-				break;
-			case STEPS.SUCCESS:
-				goto(redirectTo);
-				break;
-		}
-	}
-
-	// Go back to previous step
-	function goBack() {
-		switch (currentStep) {
-			case STEPS.VERIFY:
-				currentStep = STEPS.REQUEST;
-				break;
-			case STEPS.RESET:
-				currentStep = STEPS.VERIFY;
-				break;
-			default:
-				currentStep = STEPS.REQUEST;
-		}
-
-		// Update URL
-		const url = new URL(window.location);
-		url.searchParams.set('step', currentStep);
-		window.history.pushState({}, '', url);
-
-		error = null;
-	}
-
-	// Resend reset code
-	async function resendResetCode() {
-		if (!validateEmail()) return;
-
-		loading = true;
-		error = null;
-
-		try {
-			await authService.requestPasswordReset(email);
-			uiStore.clearToasts();
-			uiStore.addToast('تم إعادة إرسال رمز التحقق إلى بريدك الإلكتروني', TOAST_TYPES.SUCCESS);
-		} catch (err) {
-			error = err.message || 'حدث خطأ أثناء إعادة إرسال رمز التحقق. الرجاء المحاولة مرة أخرى.';
-			console.error('Resend reset code error:', err);
+			error =
+				err.message ||
+				t('password_reset_failed', $language, { default: 'فشل إعادة تعيين كلمة المرور' });
 		} finally {
 			loading = false;
 		}
 	}
 </script>
 
-<div class="w-full">
-	{#if error}
-		<Alert
-			type="error"
-			message={error}
-			dismissible={true}
-			on:dismiss={() => (error = null)}
-			class="mb-4"
-		/>
-	{/if}
+<div class="card p-6 w-full max-w-md mx-auto">
+	<header class="text-center mb-6">
+		<h2 class="h2">{t('reset_password', $language)}</h2>
+		<p class="text-surface-600-300-token">
+			{#if step === 1}
+				{t('reset_instructions_step1', $language, {
+					default: 'أدخل بريدك الإلكتروني لتلقي رمز إعادة تعيين كلمة المرور'
+				})}
+			{:else if step === 2}
+				{t('reset_instructions_step2', $language, {
+					default: 'أدخل رمز إعادة التعيين المرسل إلى بريدك الإلكتروني'
+				})}
+			{:else}
+				{t('reset_instructions_step3', $language, { default: 'أدخل كلمة المرور الجديدة' })}
+			{/if}
+		</p>
+	</header>
 
-	{#if successMessage && (currentStep === STEPS.VERIFY || currentStep === STEPS.RESET)}
-		<Alert
-			type="success"
-			message={successMessage}
-			dismissible={true}
-			on:dismiss={() => (successMessage = '')}
-			class="mb-4"
-		/>
-	{/if}
-
-	<form on:submit|preventDefault={handleSubmit} class="space-y-6">
-		<!-- Progress Indicator -->
-		<div class="mb-6">
-			<div class="flex justify-between">
-				<div
-					class={`flex flex-col items-center ${currentStep === STEPS.REQUEST ? 'text-primary-600 dark:text-primary-400' : currentStep !== STEPS.REQUEST ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}
-				>
-					<div
-						class={`flex h-8 w-8 items-center justify-center rounded-full ${
-							currentStep === STEPS.REQUEST
-								? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-								: currentStep !== STEPS.REQUEST
-									? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-									: 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-						} text-sm font-medium`}
-					>
-						1
-					</div>
-					<span class="mt-1 text-xs">طلب</span>
-				</div>
-
-				<div
-					class={`flex flex-col items-center ${currentStep === STEPS.VERIFY ? 'text-primary-600 dark:text-primary-400' : currentStep === STEPS.RESET || currentStep === STEPS.SUCCESS ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}
-				>
-					<div
-						class={`flex h-8 w-8 items-center justify-center rounded-full ${
-							currentStep === STEPS.VERIFY
-								? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-								: currentStep === STEPS.RESET || currentStep === STEPS.SUCCESS
-									? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-									: 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-						} text-sm font-medium`}
-					>
-						2
-					</div>
-					<span class="mt-1 text-xs">تحقق</span>
-				</div>
-
-				<div
-					class={`flex flex-col items-center ${currentStep === STEPS.RESET ? 'text-primary-600 dark:text-primary-400' : currentStep === STEPS.SUCCESS ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`}
-				>
-					<div
-						class={`flex h-8 w-8 items-center justify-center rounded-full ${
-							currentStep === STEPS.RESET
-								? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-								: currentStep === STEPS.SUCCESS
-									? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-									: 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-						} text-sm font-medium`}
-					>
-						3
-					</div>
-					<span class="mt-1 text-xs">تعيين</span>
-				</div>
-
-				<div
-					class={`flex flex-col items-center ${currentStep === STEPS.SUCCESS ? 'text-primary-600 dark:text-primary-400' : 'text-gray-400 dark:text-gray-500'}`}
-				>
-					<div
-						class={`flex h-8 w-8 items-center justify-center rounded-full ${
-							currentStep === STEPS.SUCCESS
-								? 'bg-primary-100 text-primary-700 dark:bg-primary-900 dark:text-primary-300'
-								: 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-						} text-sm font-medium`}
-					>
-						4
-					</div>
-					<span class="mt-1 text-xs">نجاح</span>
-				</div>
+	<!-- Step Progress -->
+	<div class="flex justify-between mb-8">
+		<div class="flex flex-col items-center">
+			<div
+				class="w-8 h-8 rounded-full flex items-center justify-center {step >= 1
+					? 'bg-primary-500 text-white'
+					: 'bg-surface-300-600-token'}"
+			>
+				1
 			</div>
+			<span class="text-xs mt-1">{t('request', $language, { default: 'الطلب' })}</span>
+		</div>
+		<div class="flex-1 flex items-center">
+			<div class="h-1 w-full {step >= 2 ? 'bg-primary-500' : 'bg-surface-300-600-token'}"></div>
+		</div>
+		<div class="flex flex-col items-center">
+			<div
+				class="w-8 h-8 rounded-full flex items-center justify-center {step >= 2
+					? 'bg-primary-500 text-white'
+					: 'bg-surface-300-600-token'}"
+			>
+				2
+			</div>
+			<span class="text-xs mt-1">{t('verify', $language, { default: 'التحقق' })}</span>
+		</div>
+		<div class="flex-1 flex items-center">
+			<div class="h-1 w-full {step >= 3 ? 'bg-primary-500' : 'bg-surface-300-600-token'}"></div>
+		</div>
+		<div class="flex flex-col items-center">
+			<div
+				class="w-8 h-8 rounded-full flex items-center justify-center {step >= 3
+					? 'bg-primary-500 text-white'
+					: 'bg-surface-300-600-token'}"
+			>
+				3
+			</div>
+			<span class="text-xs mt-1">{t('reset', $language, { default: 'إعادة التعيين' })}</span>
+		</div>
+	</div>
 
-			<div class="relative mt-3 h-1 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-				<div
-					class="bg-primary-600 dark:bg-primary-500 absolute top-0 right-0 h-full rounded-full transition-all duration-300"
-					style={`width: ${
-						currentStep === STEPS.REQUEST
-							? '25%'
-							: currentStep === STEPS.VERIFY
-								? '50%'
-								: currentStep === STEPS.RESET
-									? '75%'
-									: '100%'
-					}`}
-				></div>
+	<!-- Error message -->
+	{#if error}
+		<div class="alert variant-filled-error mb-4">
+			<div>{error}</div>
+		</div>
+	{/if}
+
+	<!-- Success message -->
+	{#if success}
+		<div class="alert variant-filled-success mb-4 flex items-center gap-2">
+			<CheckCircle class="w-5 h-5" />
+			<div>
+				{t('password_reset_redirecting', $language, {
+					default: 'تم إعادة تعيين كلمة المرور بنجاح! جاري توجيهك...'
+				})}
 			</div>
 		</div>
+	{/if}
 
-		{#if currentStep === STEPS.REQUEST}
-			<p class="mb-4 text-sm text-gray-600 dark:text-gray-300">
-				أدخل البريد الإلكتروني المرتبط بحسابك وسنرسل إليك رمز تأكيد لإعادة تعيين كلمة المرور.
-			</p>
+	<!-- Step 1: Request Reset -->
+	{#if step === 1}
+		<form on:submit|preventDefault={requestReset} class={$textClass}>
+			<!-- Email Field -->
+			<label class="label">
+				<span>{t('email', $language)}</span>
+				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+					<div class="input-group-shim">
+						<Mail class="w-5 h-5" />
+					</div>
+					<input
+						type="email"
+						bind:value={email}
+						placeholder={t('email_placeholder', $language, { default: 'أدخل بريدك الإلكتروني' })}
+						class="input"
+						dir={$isRTL ? 'rtl' : 'ltr'}
+						autocomplete="email"
+						required
+					/>
+				</div>
+			</label>
 
-			<div>
-				<Input
-					type="email"
-					label="البريد الإلكتروني"
-					placeholder="أدخل بريدك الإلكتروني"
-					value={email}
-					error={emailError}
-					on:input={(e) => {
-						email = e.target.value;
-						if (emailError) validateEmail();
-					}}
-					on:blur={validateEmail}
-					required
-					dir="ltr"
-					class="bg-white dark:bg-gray-700"
-				/>
-			</div>
+			<!-- Submit Button -->
+			<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
+				{#if loading}
+					<span class="loading loading-spinner loading-sm"></span>
+					{t('sending', $language, { default: 'جاري الإرسال...' })}
+				{:else}
+					{t('send_reset_code', $language, { default: 'إرسال رمز إعادة التعيين' })}
+				{/if}
+			</button>
+		</form>
 
-			<Button type="submit" variant="primary" fullWidth={true} disabled={loading} {loading}>
-				إرسال رمز التأكيد
-			</Button>
-		{:else if currentStep === STEPS.VERIFY}
-			<p class="mb-4 text-sm text-gray-600 dark:text-gray-300">
-				أدخل رمز التأكيد المكون من 6 أرقام الذي تم إرساله إلى بريدك الإلكتروني {email}.
-			</p>
+		<!-- Step 2: Verify Code -->
+	{:else if step === 2}
+		<form on:submit|preventDefault={verifyCode} class={$textClass}>
+			<!-- Email Field (readonly) -->
+			<label class="label">
+				<span>{t('email', $language)}</span>
+				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+					<div class="input-group-shim">
+						<Mail class="w-5 h-5" />
+					</div>
+					<input
+						type="email"
+						bind:value={email}
+						class="input"
+						dir={$isRTL ? 'rtl' : 'ltr'}
+						readonly
+					/>
+				</div>
+			</label>
 
-			<div>
-				<Input
-					type="text"
-					label="رمز التأكيد"
-					placeholder="أدخل رمز التأكيد"
-					value={resetCode}
-					error={resetCodeError}
-					on:input={(e) => {
-						resetCode = e.target.value.replace(/\D/g, '').substring(0, 6);
-						if (resetCodeError) validateResetCode();
-					}}
-					on:blur={validateResetCode}
-					maxlength="6"
-					pattern="[0-9]*"
-					inputmode="numeric"
-					required
-					dir="ltr"
-					class="bg-white text-center tracking-wider dark:bg-gray-700"
-				/>
-			</div>
+			<!-- Reset Code Field -->
+			<label class="label mt-4">
+				<span>{t('reset_code', $language, { default: 'رمز إعادة التعيين' })}</span>
+				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+					<div class="input-group-shim">
+						<Key class="w-5 h-5" />
+					</div>
+					<input
+						type="text"
+						bind:value={reset_code}
+						placeholder={t('reset_code_placeholder', $language, {
+							default: 'أدخل الرمز المكون من 6 أرقام'
+						})}
+						class="input"
+						dir={$isRTL ? 'rtl' : 'ltr'}
+						required
+						maxlength="6"
+						pattern="[0-9]{6}"
+					/>
+				</div>
+			</label>
 
-			<div class="mb-2 text-center">
-				<button
-					type="button"
-					class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 focus:ring-primary-500 rounded-md px-2 py-1 text-sm font-medium hover:underline focus:ring-2 focus:ring-offset-2 focus:outline-none dark:focus:ring-offset-gray-800"
-					on:click={resendResetCode}
-					disabled={loading}
-				>
-					لم تستلم الرمز؟ إعادة إرسال
+			<!-- Submit Button -->
+			<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
+				{#if loading}
+					<span class="loading loading-spinner loading-sm"></span>
+					{t('verifying', $language, { default: 'جاري التحقق...' })}
+				{:else}
+					{t('verify_code', $language, { default: 'التحقق من الرمز' })}
+				{/if}
+			</button>
+
+			<!-- Resend Code -->
+			<div class="mt-6 text-center">
+				<button type="button" class="btn variant-ghost-primary" on:click={() => (step = 1)}>
+					<RefreshCw class="w-4 h-4 {$isRTL ? 'ml-2' : 'mr-2'}" />
+					{t('resend_code', $language)}
 				</button>
 			</div>
+		</form>
 
-			<div class="flex flex-col gap-4 sm:flex-row sm:justify-between">
-				<Button
-					type="button"
-					variant="outline"
-					on:click={goBack}
-					disabled={loading}
-					class="order-2 w-full sm:order-1 sm:w-auto"
-				>
-					رجوع
-				</Button>
-
-				<Button
-					type="submit"
-					variant="primary"
-					disabled={loading}
-					{loading}
-					class="order-1 w-full sm:order-2 sm:w-auto"
-				>
-					تحقق من الرمز
-				</Button>
-			</div>
-		{:else if currentStep === STEPS.RESET}
-			<p class="mb-4 text-sm text-gray-600 dark:text-gray-300">
-				أدخل كلمة المرور الجديدة الخاصة بك.
-			</p>
-
-			<div>
-				<Input
-					type="password"
-					label="كلمة المرور الجديدة"
-					placeholder="أدخل كلمة المرور الجديدة"
-					value={newPassword}
-					error={newPasswordError}
-					on:input={(e) => {
-						newPassword = e.target.value;
-						if (newPasswordError) validateNewPassword();
-						if (confirmPassword && confirmPasswordError) validateConfirmPassword();
-					}}
-					on:blur={validateNewPassword}
-					required
-					class="bg-white dark:bg-gray-700"
-				/>
-				<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-					كلمة المرور يجب أن تحتوي على 8 أحرف على الأقل وتتضمن حرف كبير وحرف صغير ورقم ورمز خاص
-				</p>
-			</div>
-
-			<div>
-				<Input
-					type="password"
-					label="تأكيد كلمة المرور الجديدة"
-					placeholder="أدخل كلمة المرور الجديدة مرة أخرى"
-					value={confirmPassword}
-					error={confirmPasswordError}
-					on:input={(e) => {
-						confirmPassword = e.target.value;
-						if (confirmPasswordError) validateConfirmPassword();
-					}}
-					on:blur={validateConfirmPassword}
-					required
-					class="bg-white dark:bg-gray-700"
-				/>
-			</div>
-
-			<div class="flex flex-col gap-4 sm:flex-row sm:justify-between">
-				<Button
-					type="button"
-					variant="outline"
-					on:click={goBack}
-					disabled={loading}
-					class="order-2 w-full sm:order-1 sm:w-auto"
-				>
-					رجوع
-				</Button>
-
-				<Button
-					type="submit"
-					variant="primary"
-					disabled={loading}
-					{loading}
-					class="order-1 w-full sm:order-2 sm:w-auto"
-				>
-					إعادة تعيين كلمة المرور
-				</Button>
-			</div>
-		{:else if currentStep === STEPS.SUCCESS}
-			<div class="flex flex-col items-center py-4 text-center">
-				<div class="mb-4 text-green-500 dark:text-green-400">
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						fill="none"
-						viewBox="0 0 24 24"
-						stroke="currentColor"
-						stroke-width="2"
-						class="h-16 w-16"
-					>
-						<path
-							stroke-linecap="round"
-							stroke-linejoin="round"
-							d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+		<!-- Step 3: Set New Password -->
+	{:else if step === 3}
+		<form on:submit|preventDefault={resetPassword} class={$textClass}>
+			<!-- New Password Field -->
+			<label class="label">
+				<span>{t('new_password', $language)}</span>
+				<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
+					<div class="input-group-shim">
+						<Key class="w-5 h-5" />
+					</div>
+					{#if showPassword}
+						<input
+							type="text"
+							bind:value={new_password}
+							placeholder={t('new_password_placeholder', $language, {
+								default: 'أدخل كلمة المرور الجديدة'
+							})}
+							class="input"
+							dir={$isRTL ? 'rtl' : 'ltr'}
+							required
+							minlength="8"
 						/>
-					</svg>
+					{:else}
+						<input
+							type="password"
+							bind:value={new_password}
+							placeholder={t('new_password_placeholder', $language, {
+								default: 'أدخل كلمة المرور الجديدة'
+							})}
+							class="input"
+							dir={$isRTL ? 'rtl' : 'ltr'}
+							required
+							minlength="8"
+						/>
+					{/if}
+					<button type="button" class="input-group-shim" on:click={togglePassword}>
+						{#if showPassword}
+							<EyeOff class="w-5 h-5" />
+						{:else}
+							<Eye class="w-5 h-5" />
+						{/if}
+					</button>
 				</div>
-				<h2 class="mb-2 text-xl font-bold text-green-600 dark:text-green-400">
-					تم إعادة تعيين كلمة المرور بنجاح!
-				</h2>
-				<p class="mb-6 text-gray-600 dark:text-gray-300">
-					يمكنك الآن تسجيل الدخول باستخدام كلمة المرور الجديدة.
-				</p>
+			</label>
 
-				<Button type="button" variant="primary" fullWidth={true} on:click={() => goto('/login')}>
-					الذهاب إلى صفحة تسجيل الدخول
-				</Button>
+			<!-- Confirm New Password Field -->
+			<label class="label mt-4">
+				<span>{t('confirm_password', $language)}</span>
+				<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
+					<div class="input-group-shim">
+						<Key class="w-5 h-5" />
+					</div>
+					{#if showConfirmPassword}
+						<input
+							type="text"
+							bind:value={confirm_password}
+							placeholder={t('confirm_password_placeholder', $language, {
+								default: 'تأكيد كلمة المرور الجديدة'
+							})}
+							class="input"
+							dir={$isRTL ? 'rtl' : 'ltr'}
+							required
+						/>
+					{:else}
+						<input
+							type="password"
+							bind:value={confirm_password}
+							placeholder={t('confirm_password_placeholder', $language, {
+								default: 'تأكيد كلمة المرور الجديدة'
+							})}
+							class="input"
+							dir={$isRTL ? 'rtl' : 'ltr'}
+							required
+						/>
+					{/if}
+					<button type="button" class="input-group-shim" on:click={toggleConfirmPassword}>
+						{#if showConfirmPassword}
+							<EyeOff class="w-5 h-5" />
+						{:else}
+							<Eye class="w-5 h-5" />
+						{/if}
+					</button>
+				</div>
+			</label>
+
+			<!-- Password Requirements -->
+			<div class="mt-2 text-sm text-surface-600-300-token {$textClass}">
+				{t('password_requirements', $language, {
+					default: 'يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل'
+				})}
 			</div>
-		{/if}
-	</form>
+
+			<!-- Submit Button -->
+			<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
+				{#if loading}
+					<span class="loading loading-spinner loading-sm"></span>
+					{t('resetting', $language, { default: 'جاري إعادة التعيين...' })}
+				{:else}
+					{t('reset_password', $language)}
+				{/if}
+			</button>
+		</form>
+	{/if}
+
+	<!-- Back to Login -->
+	<div class="mt-6 text-center">
+		<a href="/auth/login" class="anchor"
+			>{t('back_to_login', $language, { default: 'العودة إلى تسجيل الدخول' })}</a
+		>
+	</div>
 </div>

@@ -1,294 +1,294 @@
-import { writable, derived } from 'svelte/store';
+/**
+ * UI Store
+ * Manages UI state like theme, language, notifications, etc.
+ */
 
-// Toast notification types
-export const TOAST_TYPES = {
-	SUCCESS: 'success',
-	ERROR: 'error',
-	INFO: 'info',
-	WARNING: 'warning'
+import { writable, derived } from 'svelte/store';
+import { browser } from '$app/environment';
+
+// Initial state
+const initialState = {
+	theme: 'light',
+	language: 'ar', // Default to Arabic
+	direction: 'rtl', // Default to RTL for Arabic
+	notifications: [],
+	modal: {
+		isOpen: false,
+		component: null,
+		props: {}
+	},
+	sidebar: {
+		isOpen: false
+	},
+	toast: {
+		isVisible: false,
+		message: '',
+		type: 'info',
+		timeout: 3000
+	}
 };
 
-// Create UI store with default values
-const createUiStore = () => {
-	const initialState = {
-		isLoading: false,
-		loadingMessage: '',
-		globalError: null,
-		toasts: [],
-		modals: {
-			// Map of modal IDs to their open state
-			// e.g. { login: false, confirmDelete: false }
-		},
-		activeModals: [], // Stack of active modal IDs
-		sidebarOpen: false,
-		theme: 'light', // 'light' or 'dark'
-		direction: 'rtl', // 'rtl' for Arabic
-		fontSize: 'medium', // 'small', 'medium', 'large'
-		highContrast: false,
-		confirmDialog: {
-			isOpen: false,
-			title: '',
-			message: '',
-			confirmText: 'نعم',
-			cancelText: 'لا',
-			onConfirm: null,
-			onCancel: null,
-			type: 'warning' // One of: info, warning, danger, success
-		}
-	};
+// Load saved settings from localStorage if in browser
+function getInitialState() {
+	if (!browser) return initialState;
 
-	const { subscribe, set, update } = writable(initialState);
+	try {
+		const savedTheme = localStorage.getItem('theme');
+		const savedLanguage = localStorage.getItem('language');
+		const savedDirection = localStorage.getItem('direction');
+
+		return {
+			...initialState,
+			theme: savedTheme || initialState.theme,
+			language: savedLanguage || initialState.language,
+			direction: savedDirection || initialState.direction
+		};
+	} catch (error) {
+		console.error('Error loading UI settings from localStorage:', error);
+		return initialState;
+	}
+}
+
+// Create the UI store
+function createUIStore() {
+	const { subscribe, set, update } = writable(getInitialState());
 
 	return {
 		subscribe,
 
-		// Loading state
-		startLoading: (message = 'جاري التحميل...') => {
-			update((state) => ({ ...state, isLoading: true, loadingMessage: message }));
-		},
-
-		stopLoading: () => {
-			update((state) => ({ ...state, isLoading: false, loadingMessage: '' }));
-		},
-
-		// Error handling
-		setGlobalError: (error) => {
-			update((state) => ({ ...state, globalError: error }));
-		},
-
-		clearGlobalError: () => {
-			update((state) => ({ ...state, globalError: null }));
-		},
-
-		// Toast notifications
-		addToast: (message, type = TOAST_TYPES.INFO, duration = 5000, id = Date.now()) => {
-			const toast = { id, message, type, duration };
-
-			update((state) => ({
-				...state,
-				toasts: [...state.toasts, toast]
-			}));
-
-			// Auto remove toast after duration
-			if (duration > 0) {
-				setTimeout(() => {
-					uiStore.removeToast(id);
-				}, duration);
-			}
-
-			return id;
-		},
-
-		removeToast: (id) => {
-			update((state) => ({
-				...state,
-				toasts: state.toasts.filter((toast) => toast.id !== id)
-			}));
-		},
-
-		clearToasts: () => {
-			update((state) => ({ ...state, toasts: [] }));
-		},
-
-		// Modal management
-		registerModal: (modalId, initialState = false) => {
-			update((state) => ({
-				...state,
-				modals: {
-					...state.modals,
-					[modalId]: initialState
-				}
-			}));
-		},
-
-		openModal: (modalId) => {
-			update((state) => {
-				// Add to active modals stack only if not already open
-				const newActiveModals = state.modals[modalId]
-					? state.activeModals
-					: [...state.activeModals, modalId];
-
-				return {
-					...state,
-					modals: {
-						...state.modals,
-						[modalId]: true
-					},
-					activeModals: newActiveModals
-				};
-			});
-		},
-
-		closeModal: (modalId) => {
-			update((state) => ({
-				...state,
-				modals: {
-					...state.modals,
-					[modalId]: false
-				},
-				// Remove from active modals stack
-				activeModals: state.activeModals.filter((id) => id !== modalId)
-			}));
-		},
-
-		closeAllModals: () => {
-			update((state) => {
-				const closedModals = {};
-				Object.keys(state.modals).forEach((key) => {
-					closedModals[key] = false;
-				});
-
-				return {
-					...state,
-					modals: closedModals,
-					activeModals: []
-				};
-			});
-		},
-
-		// Sidebar
-		toggleSidebar: () => {
-			update((state) => ({ ...state, sidebarOpen: !state.sidebarOpen }));
-		},
-
-		setSidebarOpen: (isOpen) => {
-			update((state) => ({ ...state, sidebarOpen: isOpen }));
-		},
-
-		// Theme and accessibility settings
+		/**
+		 * Set theme (light/dark)
+		 * @param {string} theme - Theme name
+		 */
 		setTheme: (theme) => {
-			if (theme !== 'light' && theme !== 'dark') return;
-
-			update((state) => ({ ...state, theme }));
-
-			// Persist theme selection
-			if (typeof localStorage !== 'undefined') {
-				localStorage.setItem('theme', theme);
-
-				// Apply theme to document
-				if (theme === 'dark') {
-					document.documentElement.classList.add('dark');
-				} else {
-					document.documentElement.classList.remove('dark');
-				}
-			}
-		},
-
-		setDirection: (direction) => {
-			if (direction !== 'rtl' && direction !== 'ltr') return;
-
-			update((state) => ({ ...state, direction }));
-
-			// Apply direction to document
-			if (typeof document !== 'undefined') {
-				document.dir = direction;
-				document.documentElement.setAttribute('dir', direction);
-			}
-		},
-
-		setFontSize: (fontSize) => {
-			if (!['small', 'medium', 'large'].includes(fontSize)) return;
-
-			update((state) => ({ ...state, fontSize }));
-
-			// Apply font size to document
-			if (typeof document !== 'undefined') {
-				document.documentElement.classList.remove('text-small', 'text-medium', 'text-large');
-				document.documentElement.classList.add(`text-${fontSize}`);
-			}
-		},
-
-		setHighContrast: (enabled) => {
-			update((state) => ({ ...state, highContrast: enabled }));
-
-			// Apply high contrast to document
-			if (typeof document !== 'undefined') {
-				if (enabled) {
-					document.documentElement.classList.add('high-contrast');
-				} else {
-					document.documentElement.classList.remove('high-contrast');
-				}
-			}
-		},
-
-		// Confirmation dialog
-		showConfirmDialog: (options) => {
-			const defaults = {
-				title: 'تأكيد',
-				message: 'هل أنت متأكد؟',
-				confirmText: 'نعم',
-				cancelText: 'لا',
-				type: 'warning',
-				onConfirm: () => {},
-				onCancel: () => {}
-			};
-
-			const dialogOptions = { ...defaults, ...options };
-
-			update((state) => ({
-				...state,
-				confirmDialog: {
-					...dialogOptions,
-					isOpen: true
-				}
-			}));
-		},
-
-		closeConfirmDialog: (confirmed = false) => {
 			update((state) => {
-				// Call appropriate callback
-				if (confirmed && state.confirmDialog.onConfirm) {
-					state.confirmDialog.onConfirm();
-				} else if (!confirmed && state.confirmDialog.onCancel) {
-					state.confirmDialog.onCancel();
+				if (browser) {
+					localStorage.setItem('theme', theme);
+					document.documentElement.setAttribute('data-theme', theme);
 				}
+				return { ...state, theme };
+			});
+		},
+
+		/**
+		 * Set language
+		 * @param {string} language - Language code (e.g., 'ar', 'en')
+		 */
+		setLanguage: (language) => {
+			update((state) => {
+				if (browser) {
+					localStorage.setItem('language', language);
+					document.documentElement.setAttribute('lang', language);
+
+					// Set direction based on language
+					const direction = language === 'ar' ? 'rtl' : 'ltr';
+					document.documentElement.setAttribute('dir', direction);
+					localStorage.setItem('direction', direction);
+
+					return {
+						...state,
+						language,
+						direction
+					};
+				}
+				return state;
+			});
+		},
+
+		/**
+		 * Set direction manually (RTL/LTR)
+		 * @param {string} direction - Direction ('rtl' or 'ltr')
+		 */
+		setDirection: (direction) => {
+			update((state) => {
+				if (browser) {
+					document.documentElement.setAttribute('dir', direction);
+					localStorage.setItem('direction', direction);
+				}
+				return { ...state, direction };
+			});
+		},
+
+		/**
+		 * Add notification
+		 * @param {Object} notification - Notification object
+		 */
+		addNotification: (notification) => {
+			update((state) => {
+				const id = Date.now();
+				const newNotification = {
+					id,
+					timestamp: new Date(),
+					read: false,
+					...notification
+				};
 
 				return {
 					...state,
-					confirmDialog: {
-						...state.confirmDialog,
-						isOpen: false
-					}
+					notifications: [newNotification, ...state.notifications]
 				};
 			});
 		},
 
-		// Reset UI to initial state
-		reset: () => {
-			set(initialState);
+		/**
+		 * Mark notification as read
+		 * @param {number} id - Notification ID
+		 */
+		markNotificationAsRead: (id) => {
+			update((state) => {
+				const updatedNotifications = state.notifications.map((notification) =>
+					notification.id === id ? { ...notification, read: true } : notification
+				);
+
+				return {
+					...state,
+					notifications: updatedNotifications
+				};
+			});
+		},
+
+		/**
+		 * Remove notification
+		 * @param {number} id - Notification ID
+		 */
+		removeNotification: (id) => {
+			update((state) => {
+				const updatedNotifications = state.notifications.filter(
+					(notification) => notification.id !== id
+				);
+
+				return {
+					...state,
+					notifications: updatedNotifications
+				};
+			});
+		},
+
+		/**
+		 * Open modal
+		 * @param {Component} component - Svelte component to render in modal
+		 * @param {Object} props - Props to pass to component
+		 */
+		openModal: (component, props = {}) => {
+			update((state) => ({
+				...state,
+				modal: {
+					isOpen: true,
+					component,
+					props
+				}
+			}));
+		},
+
+		/**
+		 * Close modal
+		 */
+		closeModal: () => {
+			update((state) => ({
+				...state,
+				modal: {
+					isOpen: false,
+					component: null,
+					props: {}
+				}
+			}));
+		},
+
+		/**
+		 * Toggle sidebar
+		 * @param {boolean} isOpen - Force open/closed state (optional)
+		 */
+		toggleSidebar: (isOpen) => {
+			update((state) => ({
+				...state,
+				sidebar: {
+					isOpen: isOpen !== undefined ? isOpen : !state.sidebar.isOpen
+				}
+			}));
+		},
+
+		/**
+		 * Show toast notification
+		 * @param {string} message - Toast message
+		 * @param {string} type - Toast type (info, success, warning, error)
+		 * @param {number} timeout - Auto-close timeout in ms
+		 */
+		showToast: (message, type = 'info', timeout = 3000) => {
+			update((state) => ({
+				...state,
+				toast: {
+					isVisible: true,
+					message,
+					type,
+					timeout
+				}
+			}));
+
+			// Auto-hide toast after timeout
+			if (timeout > 0) {
+				setTimeout(() => {
+					uiStore.hideToast();
+				}, timeout);
+			}
+		},
+
+		/**
+		 * Hide toast notification
+		 */
+		hideToast: () => {
+			update((state) => ({
+				...state,
+				toast: {
+					...state.toast,
+					isVisible: false
+				}
+			}));
+		},
+
+		/**
+		 * Initialize UI settings (call on app start)
+		 */
+		init: () => {
+			if (!browser) return;
+
+			update((state) => {
+				// Apply theme to document
+				document.documentElement.setAttribute('data-theme', state.theme);
+
+				// Apply language to document
+				document.documentElement.setAttribute('lang', state.language);
+
+				// Apply direction to document
+				document.documentElement.setAttribute('dir', state.direction);
+
+				return state;
+			});
 		}
 	};
-};
-
-// Create the store
-export const uiStore = createUiStore();
-
-// Derived stores
-export const isLoading = derived(uiStore, ($ui) => $ui.isLoading);
-export const loadingMessage = derived(uiStore, ($ui) => $ui.loadingMessage);
-export const globalError = derived(uiStore, ($ui) => $ui.globalError);
-export const toasts = derived(uiStore, ($ui) => $ui.toasts);
-export const sidebarOpen = derived(uiStore, ($ui) => $ui.sidebarOpen);
-export const theme = derived(uiStore, ($ui) => $ui.theme);
-export const direction = derived(uiStore, ($ui) => $ui.direction);
-export const fontSize = derived(uiStore, ($ui) => $ui.fontSize);
-export const highContrast = derived(uiStore, ($ui) => $ui.highContrast);
-export const confirmDialog = derived(uiStore, ($ui) => $ui.confirmDialog);
-export const activeModals = derived(uiStore, ($ui) => $ui.activeModals);
-
-// Helper to check if a specific modal is open
-export const isModalOpen = (modalId) => derived(uiStore, ($ui) => !!$ui.modals[modalId]);
-
-// Initialize theme and accessibility settings from localStorage if available
-if (typeof localStorage !== 'undefined' && typeof document !== 'undefined') {
-	const savedTheme = localStorage.getItem('theme');
-	if (savedTheme) {
-		uiStore.setTheme(savedTheme);
-	} else {
-		// Default to light theme
-		uiStore.setTheme('light');
-	}
-
-	// Set RTL direction for Arabic
-	uiStore.setDirection('rtl');
 }
+
+// Create and export the store
+export const uiStore = createUIStore();
+
+// Derived stores for convenient access
+export const theme = derived(uiStore, ($uiStore) => $uiStore.theme);
+export const language = derived(uiStore, ($uiStore) => $uiStore.language);
+export const direction = derived(uiStore, ($uiStore) => $uiStore.direction);
+export const isRTL = derived(direction, ($direction) => $direction === 'rtl');
+export const notifications = derived(uiStore, ($uiStore) => $uiStore.notifications);
+export const unreadNotifications = derived(notifications, ($notifications) =>
+	$notifications.filter((n) => !n.read)
+);
+export const modal = derived(uiStore, ($uiStore) => $uiStore.modal);
+export const sidebar = derived(uiStore, ($uiStore) => $uiStore.sidebar);
+export const toast = derived(uiStore, ($uiStore) => $uiStore.toast);
+
+// Arabic text direction utility
+export const textClass = derived(direction, ($direction) =>
+	$direction === 'rtl' ? 'text-right' : 'text-left'
+);
+
+// Export text alignment class for flex items
+export const flexClass = derived(direction, ($direction) =>
+	$direction === 'rtl' ? 'justify-end' : 'justify-start'
+);

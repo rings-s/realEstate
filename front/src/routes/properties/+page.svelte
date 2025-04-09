@@ -1,1039 +1,380 @@
-<!-- src/routes/properties/+page.svelte -->
+<!--
+  Properties Listing Page
+  Displays all properties with filtering and pagination
+-->
 <script>
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { language, isRTL, textClass } from '$lib/stores/ui';
+	import { t } from '$lib/config/translations';
 	import {
-		propertiesStore,
-		properties as propertiesData,
-		propertyFilters,
-		propertyPagination
+		properties,
+		propertiesList,
+		isLoading,
+		error,
+		filters,
+		pagination
 	} from '$lib/stores/properties';
-	import { auth } from '$lib/stores/auth';
-	import { uiStore } from '$lib/stores/ui';
-	import { processEntityData, PROPERTY_JSON_FIELDS } from '$lib/utils/jsonFields';
+	import { PROPERTY_TYPES } from '$lib/config/constants';
+	import { Building, Search, Filter, X } from 'lucide-svelte';
+	import PropertyCard from '$lib/components/property/PropertyCard.svelte';
 
-	// Import common components
-	import PropertyCard from '$lib/components/properties/PropertyCard.svelte';
-	import PropertyFilters from '$lib/components/properties/PropertyFilters.svelte';
-	import Alert from '$lib/components/common/Alert.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Pagination from '$lib/components/common/Pagination.svelte';
-	import SearchBar from '$lib/components/common/SearchBar.svelte';
-	import Breadcrumb from '$lib/components/common/Breadcrumb.svelte';
-	import Card from '$lib/components/common/Card.svelte';
-	import Icon from '$lib/components/common/Icon.svelte';
-	import Tabs from '$lib/components/common/Tabs.svelte';
-	import Loader from '$lib/components/common/Loader.svelte';
-
-	// ========== STATE MANAGEMENT ==========
-	// Page state
-	let error = null;
-	let showFilters = false;
-	let activeFilters = {};
-	let pageSize = 12;
-	let currentPage = 1;
-	let totalPages = 0;
-	let totalItems = 0;
-	let properties = [];
-	let hasMorePages = false;
+	// Filter state
 	let searchQuery = '';
-	let activeView = 'grid'; // grid or list
-	let selectedTab = 0; // 0 = all, 1 = active, 2 = sold
-	let loadingRequestId = null; // Track the current request ID
-	let isLoading = false; // Track loading state
-
-	// Track if initial load has been done
-	let initialLoadCompleted = false;
-
-	// Error state
-	let errorInfo = {
-		title: '',
-		message: '',
-		details: null,
-		suggestions: []
-	};
-
-	// Retry state
-	let retryCount = 0;
-	const MAX_RETRIES = 3;
-
-	// Cache for fetched data
-	let propertyCache = {};
-
-	// ========== CONFIGURATION ==========
-	// List configurations
-	const propertyTypes = [
-		{ value: 'apartment', label: 'شقة' },
-		{ value: 'villa', label: 'فيلا' },
-		{ value: 'land', label: 'أرض' },
-		{ value: 'commercial', label: 'تجاري' },
-		{ value: 'building', label: 'مبنى' },
-		{ value: 'industrial', label: 'صناعي' },
-		{ value: 'office', label: 'مكتب' },
-		{ value: 'retail', label: 'محل تجاري' }
-	];
-
-	const propertyStatus = [
-		{ value: 'active', label: 'نشط' },
-		{ value: 'pending_approval', label: 'قيد الموافقة' },
-		{ value: 'under_contract', label: 'تحت التعاقد' },
-		{ value: 'sold', label: 'مباع' },
-		{ value: 'inactive', label: 'غير نشط' }
-	];
-
-	const cities = [
-		'الرياض',
-		'جدة',
-		'مكة',
-		'المدينة المنورة',
-		'الدمام',
-		'الخبر',
-		'تبوك',
-		'القصيم',
-		'حائل',
-		'أبها',
-		'الطائف',
-		'جازان',
-		'نجران',
-		'الباحة',
-		'سكاكا',
-		'عرعر'
-	];
-
-	const priceRange = { min: 0, max: 10000000 };
-	const areaRange = { min: 0, max: 10000 };
-
-	// Breadcrumb navigation
-	const breadcrumbItems = [{ label: 'العقارات', href: '/properties' }];
-
-	// Tabs configuration
-	const tabs = [
-		{ label: 'جميع العقارات', value: '' },
-		{ label: 'العقارات النشطة', value: 'active' },
-		{ label: 'العقارات المباعة', value: 'sold' }
-	];
-
-	// ========== API & DATA FUNCTIONS ==========
-	/**
-	 * Get a cache key for the current filter set
-	 * @param {number} page - Page number
-	 * @param {object} filters - Filter parameters
-	 * @returns {string} Cache key
-	 */
-	function getCacheKey(page, filters) {
-		return `${page}_${JSON.stringify(filters)}`;
-	}
-
-	/**
-	 * Check if we have cached data for the current request
-	 * @param {number} page - Page number
-	 * @param {object} filters - Filter parameters
-	 * @returns {object|null} Cached data or null
-	 */
-	function getFromCache(page, filters) {
-		const key = getCacheKey(page, filters);
-		return propertyCache[key] || null;
-	}
-
-	/**
-	 * Save data to cache
-	 * @param {number} page - Page number
-	 * @param {object} filters - Filter parameters
-	 * @param {object} data - Data to cache
-	 */
-	function saveToCache(page, filters, data) {
-		const key = getCacheKey(page, filters);
-		propertyCache[key] = data;
-
-		// Limit cache size to 10 entries to prevent memory issues
-		const keys = Object.keys(propertyCache);
-		if (keys.length > 10) {
-			delete propertyCache[keys[0]];
-		}
-	}
-
-	/**
-	 * Direct fetch from API bypassing propertiesStore if needed
-	 * This provides a fallback if the store mechanism has issues
-	 */
-	async function directFetchProperties(params) {
-		isLoading = true;
-		error = null;
-
-		try {
-			// Convert params to query string
-			const queryParams = new URLSearchParams();
-			for (const [key, value] of Object.entries(params)) {
-				if (Array.isArray(value)) {
-					value.forEach((v) => queryParams.append(key, v));
-				} else if (value !== undefined && value !== null) {
-					queryParams.append(key, value);
-				}
-			}
-
-			// Make direct fetch request
-			const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
-			const url = `${API_BASE_URL}/properties/?${queryParams.toString()}`;
-
-			console.log('Making direct API request to:', url);
-
-			// Get token from localStorage
-			const token = localStorage.getItem('access_token');
-
-			const response = await fetch(url, {
-				method: 'GET',
-				headers: {
-					'Content-Type': 'application/json',
-					...(token ? { Authorization: `Bearer ${token}` } : {})
-				}
-			});
-
-			if (!response.ok) {
-				throw new Error(`API error: ${response.status} ${response.statusText}`);
-			}
-
-			const result = await response.json();
-			isLoading = false;
-
-			// Process and return results
-			if (Array.isArray(result.results)) {
-				return {
-					results: result.results.map((property) =>
-						processEntityData(property, PROPERTY_JSON_FIELDS)
-					),
-					count: result.count || 0
-				};
-			} else if (Array.isArray(result)) {
-				return {
-					results: result.map((property) => processEntityData(property, PROPERTY_JSON_FIELDS)),
-					count: result.length
-				};
-			} else {
-				return { results: [], count: 0 };
-			}
-		} catch (err) {
-			isLoading = false;
-			console.error('Error in direct fetch:', err);
-			throw err;
-		}
-	}
-
-	/**
-	 * Load properties with applied filters - improved error handling and fallback mechanisms
-	 * @param {number} page - Page number
-	 * @param {object} filters - Filter parameters
-	 */
-	async function loadProperties(page = 1, filters = {}) {
-		// Generate a unique request ID
-		const requestId = Date.now().toString();
-		loadingRequestId = requestId;
-		isLoading = true;
-
-		// Reset error state
-		error = null;
-		errorInfo = {
-			title: '',
-			message: '',
-			details: null,
-			suggestions: []
-		};
-
-		// Update state
-		currentPage = page;
-		activeFilters = { ...filters };
-
-		try {
-			// Check if we have cached data first
-			const cachedData = getFromCache(page, filters);
-			if (cachedData) {
-				console.log('Using cached data for this request');
-				properties = cachedData.properties;
-				totalItems = cachedData.totalItems;
-				totalPages = cachedData.totalPages;
-				hasMorePages = cachedData.hasMorePages;
-				isLoading = false;
-				return;
-			}
-
-			// Build final filter params
-			const params = {
-				...filters,
-				page,
-				page_size: pageSize
-			};
-
-			// Only add is_published=true for non-admin users
-			if (!$auth.user?.is_staff) {
-				params.is_published = true;
-			}
-
-			console.log(`[Request ${requestId}] Loading properties with params:`, params);
-
-			// Try using the store first
-			let result;
-			try {
-				result = await propertiesStore.loadProperties(params);
-			} catch (storeError) {
-				console.error('Store error, trying direct fetch:', storeError);
-				// If the store fails, try direct fetch as fallback
-				result = await directFetchProperties(params);
-			}
-
-			// If this is not the most recent request, ignore the results
-			if (loadingRequestId !== requestId) {
-				console.log(`[Request ${requestId}] Ignored stale response`);
-				isLoading = false;
-				return;
-			}
-
-			// Process result data
-			if (result.results) {
-				properties = result.results;
-				totalItems = result.count || 0;
-				totalPages = Math.ceil(totalItems / pageSize);
-				hasMorePages = currentPage < totalPages;
-			} else if (Array.isArray(result)) {
-				properties = result;
-				totalItems = result.length;
-				totalPages = Math.ceil(totalItems / pageSize);
-				hasMorePages = false;
-			} else {
-				properties = [];
-				totalItems = 0;
-				totalPages = 0;
-				hasMorePages = false;
-			}
-
-			// Cache the results
-			saveToCache(page, filters, {
-				properties,
-				totalItems,
-				totalPages,
-				hasMorePages
-			});
-
-			// Reset retry count on success
-			retryCount = 0;
-
-			// Mark initial load as completed
-			initialLoadCompleted = true;
-			isLoading = false;
-
-			console.log(
-				`[Request ${requestId}] Completed successfully with ${properties.length} properties`
-			);
-		} catch (err) {
-			// Only handle errors for the most recent request
-			if (loadingRequestId !== requestId) {
-				isLoading = false;
-				return;
-			}
-
-			console.error(`[Request ${requestId}] Error loading properties:`, err);
-			error = err;
-
-			// Format the error for better user guidance
-			errorInfo = formatApiError(err);
-
-			// Show error toast
-			uiStore.addToast(errorInfo.title || 'حدث خطأ أثناء تحميل العقارات', 'error');
-			isLoading = false;
-		}
-	}
-
-	/**
-	 * Format API errors for better user feedback
-	 * @param {Error} err - The API error
-	 */
-	function formatApiError(err) {
-		// Default error information
-		const formattedError = {
-			title: 'حدث خطأ أثناء تحميل العقارات',
-			message: 'لا يمكن الاتصال بالخادم حاليًا. يرجى المحاولة مرة أخرى لاحقًا.',
-			details: null,
-			suggestions: [
-				'تأكد من اتصالك بالإنترنت',
-				'حاول تحديث الصفحة',
-				'قد تكون هناك مشكلة مؤقتة في الخادم'
-			]
-		};
-
-		// Check for DRF accepted_renderer error which is likely our issue
-		if (err.message && err.message.includes('accepted_renderer')) {
-			formattedError.title = 'خطأ في واجهة برمجة التطبيقات';
-			formattedError.message = 'هناك مشكلة في الخادم. الفريق التقني يعمل على إصلاح المشكلة.';
-			formattedError.details = 'خطأ في الطلب: accepted_renderer not set on Response';
-			formattedError.suggestions = [
-				'حاول استخدام فلاتر مختلفة',
-				'يمكنك تصفح القائمة دون استخدام الفلاتر مؤقتًا',
-				'حاول لاحقًا، الفريق التقني يعمل على إصلاح المشكلة'
-			];
-			return formattedError;
-		}
-
-		// Check if it's a network error
-		if (err.message === 'Failed to fetch' || err.message?.includes('NetworkError')) {
-			formattedError.title = 'خطأ في الاتصال بالشبكة';
-			formattedError.message = 'لا يمكن الاتصال بالخادم. يرجى التحقق من اتصالك بالإنترنت.';
-			return formattedError;
-		}
-
-		// Check if it's a permission error (based on error shared)
-		if (
-			err.message &&
-			(err.message.includes('permission_denied') ||
-				err.message.includes('not authenticated') ||
-				err.message.includes('not authorized'))
-		) {
-			formattedError.title = 'خطأ في صلاحيات الوصول';
-			formattedError.message =
-				'ليس لديك الصلاحية للوصول إلى هذه البيانات. يرجى تسجيل الدخول مرة أخرى.';
-			formattedError.suggestions = [
-				'تأكد من تسجيل الدخول',
-				'قد تكون الجلسة قد انتهت صلاحيتها',
-				'اتصل بمسؤول النظام إذا استمرت المشكلة'
-			];
-			return formattedError;
-		}
-
-		// If we have a status code, provide more specific guidance
-		if (err.status) {
-			switch (err.status) {
-				case 401:
-					formattedError.title = 'غير مصرح';
-					formattedError.message = 'يرجى تسجيل الدخول للوصول إلى هذه البيانات.';
-					break;
-				case 403:
-					formattedError.title = 'غير مسموح';
-					formattedError.message = 'ليس لديك صلاحية للوصول إلى هذه البيانات.';
-					break;
-				case 404:
-					formattedError.title = 'البيانات غير موجودة';
-					formattedError.message = 'العقارات التي تبحث عنها غير موجودة.';
-					break;
-				case 500:
-					formattedError.title = 'خطأ في الخادم';
-					formattedError.message = 'هناك مشكلة في الخادم. جاري العمل على إصلاحها.';
-					formattedError.details = err.data?.error || err.message || 'خطأ داخلي في الخادم';
-					break;
-				default:
-					formattedError.details = err.data?.error || err.message || null;
-			}
-		}
-
-		return formattedError;
-	}
-
-	/**
-	 * Retry API request with exponential backoff and improved error handling
-	 */
-	function retryWithBackoff() {
-		if (retryCount < MAX_RETRIES) {
-			retryCount++;
-			const delay = Math.pow(2, retryCount) * 1000; // 2s, 4s, 8s
-
-			// Show retry toast
-			uiStore.addToast(`جاري إعادة المحاولة (${retryCount}/${MAX_RETRIES})...`, 'info');
-
-			// Clear the current error to show loading state during retry
-			error = null;
-			isLoading = true;
-
-			setTimeout(() => {
-				// Try with simplified filters if we're retrying - this can help with DRF renderer issues
-				if (retryCount > 1) {
-					// Create a simplified version of filters to avoid potential issues
-					const simplifiedFilters = {};
-					// Keep only the most essential filters
-					if (activeFilters.search) simplifiedFilters.search = activeFilters.search;
-					if (activeFilters.status) simplifiedFilters.status = activeFilters.status;
-
-					loadProperties(currentPage, simplifiedFilters);
-				} else {
-					loadProperties(currentPage, activeFilters);
-				}
-			}, delay);
-		} else {
-			// Max retries reached
-			uiStore.addToast(
-				'تعذر الاتصال بالخادم بعد عدة محاولات. يرجى التحقق من اتصالك بالإنترنت أو المحاولة لاحقًا.',
-				'error'
-			);
-			retryCount = 0;
-			isLoading = false;
-
-			// If all retries fail, try loading some default data directly
-			loadDefaultProperties();
-		}
-	}
-
-	/**
-	 * Last resort - load some default properties without filters
-	 * This is a fallback if all API calls fail
-	 */
-	function loadDefaultProperties() {
-		// Mock some basic properties as a fallback
-		const defaultProperties = [
-			{
-				id: 1,
-				title: 'فيلا فاخرة في الرياض',
-				property_type: 'villa',
-				city: 'الرياض',
-				district: 'حي النرجس',
-				area: 500,
-				bedrooms: 5,
-				bathrooms: 6,
-				estimated_value: 3500000,
-				description: 'فيلا فاخرة مع حديقة خاصة ومسبح',
-				status: 'active',
-				is_verified: true
-			},
-			{
-				id: 2,
-				title: 'شقة مميزة في جدة',
-				property_type: 'apartment',
-				city: 'جدة',
-				district: 'حي الشاطئ',
-				area: 200,
-				bedrooms: 3,
-				bathrooms: 2,
-				estimated_value: 1200000,
-				description: 'شقة حديثة بإطلالة على البحر',
-				status: 'active',
-				is_verified: true
-			},
-			{
-				id: 3,
-				title: 'أرض استثمارية في الدمام',
-				property_type: 'land',
-				city: 'الدمام',
-				district: 'حي الفيصلية',
-				area: 1000,
-				estimated_value: 2000000,
-				description: 'أرض استثمارية في موقع حيوي',
-				status: 'active',
-				is_verified: false
-			}
-		];
-
-		properties = defaultProperties;
-		totalItems = defaultProperties.length;
-		totalPages = 1;
-		hasMorePages = false;
-
-		error = {
-			message: 'تم تحميل بيانات افتراضية بسبب مشكلة في الاتصال بالخادم'
-		};
-
-		errorInfo = {
-			title: 'تم تحميل بيانات افتراضية',
-			message: 'نظرًا لوجود مشكلة في الاتصال بالخادم، تم تحميل بعض العقارات الافتراضية للعرض.',
-			details: 'البيانات المعروضة حاليًا هي بيانات عينة فقط وقد لا تعكس البيانات الفعلية.',
-			suggestions: [
-				'يمكنك تصفح هذه العقارات مؤقتًا',
-				'حاول تحديث الصفحة لاحقًا',
-				'اتصل بالدعم الفني إذا استمرت المشكلة'
-			]
-		};
-	}
-
-	// ========== EVENT HANDLERS ==========
-	/**
-	 * Handle filter application
-	 */
-	function handleFilterApply(event) {
-		const filters = event.detail;
-		console.log('Applied filters:', filters);
-		loadProperties(1, filters);
-	}
-
-	/**
-	 * Handle filter reset
-	 */
-	function handleFilterReset() {
-		activeFilters = {};
-		searchQuery = '';
-		loadProperties(1, {});
-	}
-
-	/**
-	 * Handle property selection to navigate to detail page
-	 */
-	function handlePropertySelect(event) {
-		const { property } = event.detail;
-		goto(`/properties/${property.slug || property.id}`);
-	}
-
-	/**
-	 * Handle pagination change
-	 */
-	function handlePageChange(event) {
-		const page = event.detail;
-		if (page !== currentPage) {
-			loadProperties(page, activeFilters);
-			// Scroll to top of the page
-			window.scrollTo({ top: 0, behavior: 'smooth' });
-		}
-	}
-
-	/**
-	 * Toggle filters visibility
-	 */
-	function toggleFilters() {
-		showFilters = !showFilters;
-	}
-
-	/**
-	 * Add new property button action
-	 */
-	function handleAddProperty() {
-		goto('/properties/add');
-	}
-
-	/**
-	 * Handle search query
-	 */
-	function handleSearch(event) {
-		searchQuery = event.detail;
-		const newFilters = { ...activeFilters, search: searchQuery };
-		loadProperties(1, newFilters);
-	}
-
-	/**
-	 * Toggle view between grid and list
-	 */
-	function toggleView(view) {
-		activeView = view;
-	}
-
-	/**
-	 * Handle tab change - optimized to prevent duplicate loading
-	 */
-	function handleTabChange(event) {
-		const newTabIndex = event.detail.index;
-
-		// Don't reload if same tab is clicked
-		if (selectedTab === newTabIndex) {
-			return;
-		}
-
-		selectedTab = newTabIndex;
-		const status = tabs[selectedTab].value;
-		const newFilters = { ...activeFilters };
-
-		// Update status filter
-		if (status) {
-			newFilters.status = status;
-		} else {
-			delete newFilters.status;
-		}
-
-		loadProperties(1, newFilters);
-	}
-
-	/**
-	 * Handle page size change
-	 */
-	function handlePageSizeChange(event) {
-		pageSize = event.detail.pageSize;
-		loadProperties(1, activeFilters);
-	}
-
-	// ========== LIFECYCLE ==========
-	// Load properties on mount
+	let propertyType = '';
+	let city = '';
+	let status = '';
+	let isFilterOpen = false;
+
+	// Get URL params on mount
 	onMount(async () => {
-		// Get any URL parameters for filters
-		const urlParams = new URLSearchParams(window.location.search);
-		const urlFilters = {};
+		// Get search params from URL
+		const params = $page.url.searchParams;
+		searchQuery = params.get('search') || '';
+		propertyType = params.get('property_type') || '';
+		city = params.get('city') || '';
+		status = params.get('status') || '';
 
-		for (const [key, value] of urlParams.entries()) {
-			urlFilters[key] = value;
-		}
+		// Initial load with URL params
+		const initialFilters = {
+			search: searchQuery,
+			property_type: propertyType,
+			city: city,
+			status: status,
+			is_published: true // Only show published properties
+		};
 
-		// Apply any filters from URL
-		if (Object.keys(urlFilters).length > 0) {
-			activeFilters = urlFilters;
-			if (urlFilters.search) {
-				searchQuery = urlFilters.search;
-			}
-
-			// Set initial tab based on status filter if present
-			if (urlFilters.status) {
-				const tabIndex = tabs.findIndex((tab) => tab.value === urlFilters.status);
-				if (tabIndex !== -1) {
-					selectedTab = tabIndex;
-				}
-			}
-		}
-
-		// Only load once on mount
-		if (!initialLoadCompleted) {
-			await loadProperties(1, activeFilters);
-		}
+		await properties.loadProperties(initialFilters);
 	});
+
+	// Handle search form submission
+	function handleSearch(e) {
+		e?.preventDefault();
+
+		// Update URL with search params
+		const url = new URL(window.location);
+		if (searchQuery) url.searchParams.set('search', searchQuery);
+		else url.searchParams.delete('search');
+
+		if (propertyType) url.searchParams.set('property_type', propertyType);
+		else url.searchParams.delete('property_type');
+
+		if (city) url.searchParams.set('city', city);
+		else url.searchParams.delete('city');
+
+		if (status) url.searchParams.set('status', status);
+		else url.searchParams.delete('status');
+
+		history.pushState({}, '', url);
+
+		// Update filters and load properties
+		properties.updateFilters({
+			search: searchQuery,
+			property_type: propertyType,
+			city: city,
+			status: status
+		});
+	}
+
+	// Reset filters
+	function resetFilters() {
+		searchQuery = '';
+		propertyType = '';
+		city = '';
+		status = '';
+		handleSearch();
+	}
+
+	// Handle pagination
+	function changePage(newPage) {
+		if (newPage < 1 || newPage > $pagination.totalPages) return;
+		properties.changePage(newPage);
+	}
+
+	// Toggle filter sidebar on mobile
+	function toggleFilter() {
+		isFilterOpen = !isFilterOpen;
+	}
 </script>
 
 <svelte:head>
-	<title>قائمة العقارات | نظام المزادات العقارية</title>
-	<meta
-		name="description"
-		content="استعراض العقارات المتاحة للبيع والمزاد في منصة المزادات العقارية"
-	/>
+	<title>{t('properties', $language)} | {t('app_name', $language)}</title>
 </svelte:head>
 
 <div class="container mx-auto px-4 py-8">
-	<!-- Breadcrumb navigation -->
-	<div class="mb-6">
-		<Breadcrumb items={breadcrumbItems} separator="chevron" home={true} />
-	</div>
+	<!-- Page Header -->
+	<header class="mb-8">
+		<h1 class="h1 mb-2">{t('properties', $language)}</h1>
+		<p class="text-surface-600-300-token">
+			{t('properties_subtitle', $language, { default: 'استكشف العقارات المتاحة للبيع والمزاد' })}
+		</p>
+	</header>
 
-	<!-- Page header with actions -->
-	<div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-		<div>
-			<h1 class="text-3xl font-bold text-gray-900 dark:text-white">العقارات</h1>
-			<p class="mt-2 text-gray-600 dark:text-gray-400">استعراض العقارات المتاحة للبيع والمزاد</p>
-		</div>
+	<!-- Main Content with Filters -->
+	<div class="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
+		<!-- Filters - Desktop (Side) / Mobile (Modal) -->
+		<div
+			class="md:block {isFilterOpen
+				? 'fixed inset-0 z-40 bg-surface-backdrop-token grid place-items-center'
+				: 'hidden'}"
+			class:fixed={isFilterOpen}
+			class:inset-0={isFilterOpen}
+			class:z-40={isFilterOpen}
+			class:bg-surface-backdrop-token={isFilterOpen}
+			class:place-items-center={isFilterOpen}
+		>
+			<div class="card p-4 w-full md:w-auto {isFilterOpen ? 'max-w-md mx-auto' : ''}">
+				<div class="flex justify-between items-center mb-4">
+					<h3 class="h3">{t('filter', $language)}</h3>
+					<button class="btn-icon md:hidden variant-ghost" on:click={toggleFilter}>
+						<X class="w-5 h-5" />
+					</button>
+				</div>
 
-		<div class="flex flex-wrap gap-3">
-			<!-- View toggle -->
-			<div
-				class="flex rounded-md border border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800"
-			>
-				<button
-					class={`px-3 py-2 ${activeView === 'grid' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'}`}
-					on:click={() => toggleView('grid')}
-					aria-label="عرض شبكي"
-				>
-					<Icon name="grid" customClass="h-5 w-5" />
-				</button>
-				<button
-					class={`px-3 py-2 ${activeView === 'list' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'}`}
-					on:click={() => toggleView('list')}
-					aria-label="عرض قائمة"
-				>
-					<Icon name="list" customClass="h-5 w-5" />
-				</button>
-			</div>
+				<form on:submit|preventDefault={handleSearch} class={$textClass}>
+					<!-- Search -->
+					<label class="label">
+						<span>{t('search', $language)}</span>
+						<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+							<div class="input-group-shim">
+								<Search class="w-4 h-4" />
+							</div>
+							<input
+								type="text"
+								bind:value={searchQuery}
+								placeholder={t('search_placeholder', $language, { default: 'ابحث عن عقار...' })}
+								class="input"
+							/>
+						</div>
+					</label>
 
-			<!-- Filter toggle -->
-			<Button variant="outline" on:click={toggleFilters}>
-				<Icon name="filter" customClass="ml-2" />
-				{showFilters ? 'إخفاء الفلاتر' : 'عرض الفلاتر'}
-			</Button>
+					<!-- Property Type -->
+					<label class="label mt-4">
+						<span>{t('property_type', $language)}</span>
+						<select bind:value={propertyType} class="select w-full">
+							<option value="">{t('all_types', $language, { default: 'جميع الأنواع' })}</option>
+							{#each PROPERTY_TYPES as type}
+								<option value={type.value}
+									>{t(type.value, $language, { default: type.label })}</option
+								>
+							{/each}
+						</select>
+					</label>
 
-			<!-- Add property button for authenticated users -->
-			{#if $auth.isAuthenticated}
-				<Button variant="primary" on:click={handleAddProperty}>
-					<Icon name="plus" customClass="ml-2" />
-					إضافة عقار
-				</Button>
-			{/if}
-		</div>
-	</div>
-
-	<!-- Tabs for property status filtering -->
-	<div class="mb-6">
-		<Tabs
-			{tabs}
-			activeTab={selectedTab}
-			variant="underline"
-			fullWidth={false}
-			on:change={handleTabChange}
-		/>
-	</div>
-
-	<!-- Search and filters -->
-	<div class="mb-6 space-y-4">
-		<!-- Search bar -->
-		<Card variant="default" padding="md">
-			<SearchBar
-				value={searchQuery}
-				placeholder="ابحث عن عقار حسب العنوان، الوصف، أو المدينة..."
-				on:search={handleSearch}
-			/>
-		</Card>
-
-		<!-- Advanced filters -->
-		<PropertyFilters
-			{showFilters}
-			{activeFilters}
-			{propertyTypes}
-			{propertyStatus}
-			{cities}
-			{priceRange}
-			{areaRange}
-			on:filter={handleFilterApply}
-			on:reset={handleFilterReset}
-			on:toggleFilters={toggleFilters}
-		/>
-	</div>
-
-	<!-- Active filters summary -->
-	{#if Object.keys(activeFilters).length > 0 && Object.keys(activeFilters).some((key) => key !== 'page' && key !== 'page_size' && key !== 'ordering')}
-		<Card variant="default" padding="md" class="mb-6">
-			<div class="flex flex-wrap items-center gap-2">
-				<span class="text-sm font-medium text-gray-700 dark:text-gray-300">الفلاتر النشطة:</span>
-
-				{#each Object.entries(activeFilters) as [key, value]}
-					{#if value && key !== 'page' && key !== 'page_size' && key !== 'ordering'}
-						<span
-							class="rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-						>
-							{key === 'property_type'
-								? 'نوع العقار'
-								: key === 'city'
-									? 'المدينة'
-									: key === 'district'
-										? 'الحي'
-										: key === 'status'
-											? 'الحالة'
-											: key === 'bedrooms'
-												? 'عدد الغرف'
-												: key === 'bathrooms'
-													? 'عدد الحمامات'
-													: key === 'min_price'
-														? 'السعر الأدنى'
-														: key === 'max_price'
-															? 'السعر الأقصى'
-															: key === 'min_area'
-																? 'المساحة الأدنى'
-																: key === 'max_area'
-																	? 'المساحة الأقصى'
-																	: key === 'search'
-																		? 'البحث'
-																		: key}: {value}
-						</span>
-					{/if}
-				{/each}
-
-				<Button variant="ghost" size="sm" on:click={handleFilterReset}>مسح الفلاتر</Button>
-			</div>
-		</Card>
-	{/if}
-
-	<!-- Results summary -->
-	{#if !error && properties.length > 0}
-		<div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-			تم العثور على {totalItems} عقار
-			{#if Object.keys(activeFilters).length > 0 && Object.keys(activeFilters).some((key) => key !== 'page' && key !== 'page_size' && key !== 'ordering')}
-				مطابق للفلاتر
-			{/if}
-		</div>
-	{/if}
-
-	<!-- Loading Indicator - UPDATED with Loader component -->
-	{#if isLoading}
-		<div class="py-12 text-center">
-			<Loader size="lg" center={true} />
-			<p class="mt-4 text-lg font-medium text-gray-700 dark:text-gray-300">
-				جاري تحميل العقارات...
-			</p>
-		</div>
-		<!-- Property Listings -->
-	{:else}
-		<div>
-			{#if error}
-				<!-- Error state -->
-				<Card variant="default" padding="lg" class="mb-6">
-					<div class="mb-4">
-						<Alert
-							type="error"
-							title={errorInfo.title || 'خطأ في تحميل العقارات'}
-							message={errorInfo.message ||
-								error.message ||
-								'حدث خطأ أثناء تحميل العقارات. يرجى المحاولة مرة أخرى.'}
-							dismissible={true}
+					<!-- City -->
+					<label class="label mt-4">
+						<span>{t('city', $language)}</span>
+						<input
+							type="text"
+							bind:value={city}
+							placeholder={t('city_placeholder', $language, { default: 'المدينة...' })}
+							class="input w-full"
 						/>
-					</div>
+					</label>
 
-					{#if errorInfo.details}
-						<div class="mb-4 rounded-md bg-gray-50 p-4 dark:bg-gray-700">
-							<h4 class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-								تفاصيل الخطأ:
-							</h4>
-							<code class="block text-sm whitespace-pre-wrap text-gray-600 dark:text-gray-400">
-								{errorInfo.details}
-							</code>
+					<!-- Status -->
+					<label class="label mt-4">
+						<span>{t('status', $language)}</span>
+						<select bind:value={status} class="select w-full">
+							<option value="">{t('all_status', $language, { default: 'جميع الحالات' })}</option>
+							<option value="available">{t('available', $language)}</option>
+							<option value="under_contract">{t('under_contract', $language)}</option>
+							<option value="auction">{t('in_auction', $language)}</option>
+						</select>
+					</label>
+
+					<!-- Filter Buttons -->
+					<div class="flex flex-col gap-2 mt-6">
+						<button type="submit" class="btn variant-filled-primary w-full">
+							<Filter class="w-4 h-4 {$isRTL ? 'ml-2' : 'mr-2'}" />
+							{t('apply_filters', $language, { default: 'تطبيق الفلاتر' })}
+						</button>
+
+						<button type="button" class="btn variant-ghost w-full" on:click={resetFilters}>
+							{t('reset_filters', $language, { default: 'إعادة ضبط الفلاتر' })}
+						</button>
+					</div>
+				</form>
+			</div>
+		</div>
+
+		<!-- Properties List -->
+		<div>
+			<!-- Mobile Filter Toggle -->
+			<div class="md:hidden mb-4">
+				<button class="btn variant-ghost-surface w-full" on:click={toggleFilter}>
+					<Filter class="w-4 h-4 {$isRTL ? 'ml-2' : 'mr-2'}" />
+					{t('filters', $language, { default: 'الفلاتر' })}
+				</button>
+			</div>
+
+			<!-- Results Counter -->
+			<div class="mb-4 flex justify-between items-center">
+				<p class={$textClass}>
+					{$isLoading
+						? t('loading', $language)
+						: t('showing_results', $language, {
+								default: 'عرض {{count}} عقار',
+								count: $propertiesList.length
+							})}
+				</p>
+
+				<!-- Sort Dropdown (could be implemented later) -->
+			</div>
+
+			<!-- Loading State -->
+			{#if $isLoading}
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+					{#each Array(6) as _, i}
+						<div class="card p-4 h-80">
+							<div class="placeholder animate-pulse w-full h-40 mb-4 rounded-lg"></div>
+							<div class="placeholder animate-pulse w-2/3 h-4 mb-2"></div>
+							<div class="placeholder animate-pulse w-full h-4 mb-2"></div>
+							<div class="placeholder animate-pulse w-1/2 h-4"></div>
 						</div>
-					{/if}
+					{/each}
+				</div>
 
-					{#if errorInfo.suggestions && errorInfo.suggestions.length > 0}
-						<div class="mb-4">
-							<h4 class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">اقتراحات:</h4>
-							<ul class="list-inside list-disc text-sm text-gray-600 dark:text-gray-400">
-								{#each errorInfo.suggestions as suggestion}
-									<li>{suggestion}</li>
-								{/each}
-							</ul>
-						</div>
-					{/if}
+				<!-- Error State -->
+			{:else if $error}
+				<div class="alert variant-filled-error">
+					<p>{$error}</p>
+				</div>
 
-					<div class="flex justify-end gap-3">
-						<Button variant="outline" on:click={handleFilterReset}>إعادة تعيين الفلاتر</Button>
-						<Button variant="primary" on:click={retryWithBackoff}>إعادة المحاولة</Button>
-					</div>
-				</Card>
+				<!-- Empty State -->
+			{:else if $propertiesList.length === 0}
+				<div class="card p-12 text-center">
+					<Building class="w-16 h-16 mx-auto text-primary-500 mb-4" />
+					<h3 class="h3 mb-2">
+						{t('no_properties_found', $language, { default: 'لم يتم العثور على عقارات' })}
+					</h3>
+					<p class="text-surface-600-300-token mb-6">
+						{t('try_different_filters', $language, {
+							default: 'حاول تغيير معايير البحث للعثور على المزيد من العقارات'
+						})}
+					</p>
+					<button class="btn variant-ghost-primary" on:click={resetFilters}>
+						{t('clear_filters', $language, { default: 'مسح الفلاتر' })}
+					</button>
+				</div>
 
-				<!-- Show properties if we have fallback data even with error -->
-				{#if properties.length > 0}
-					<div class="mt-6 mb-4 rounded-md bg-amber-50 p-4 dark:bg-amber-900/20">
-						<p class="text-amber-800 dark:text-amber-300">
-							نعرض بيانات قد تكون غير محدثة أو افتراضية بسبب تعذر الاتصال بالخادم.
-						</p>
-					</div>
-
-					<!-- Continue to show properties grid/list -->
-				{/if}
-			{:else if properties.length === 0}
-				<!-- Empty state -->
-				<Card variant="default" padding="lg" class="py-12 text-center">
-					<div class="flex flex-col items-center justify-center">
-						<Icon name="home" customClass="h-16 w-16 text-gray-400 mb-4" />
-						<h3 class="text-lg font-medium text-gray-900 dark:text-white">
-							لم يتم العثور على عقارات
-						</h3>
-						<p class="mt-2 text-gray-600 dark:text-gray-400">
-							لم يتم العثور على أي عقارات تطابق معايير البحث.
-						</p>
-						<Button variant="primary" class="mt-4" on:click={handleFilterReset}>
-							إعادة تعيين الفلاتر
-						</Button>
-					</div>
-				</Card>
-			{/if}
-
-			<!-- Properties Grid/List View - Always render if we have properties -->
-			{#if properties.length > 0}
-				{#if activeView === 'grid'}
-					<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-						{#each properties as property (property.id)}
-							<Card
-								variant="elevated"
-								hover={true}
-								padding="none"
-								clickable={true}
-								on:click={() => handlePropertySelect({ detail: { property } })}
-							>
-								<PropertyCard {property} />
-							</Card>
-						{/each}
-					</div>
-				{:else}
-					<div class="space-y-4">
-						{#each properties as property (property.id)}
-							<Card
-								variant="elevated"
-								horizontal={true}
-								hover={true}
-								clickable={true}
-								on:click={() => handlePropertySelect({ detail: { property } })}
-							>
-								<!-- Image slot -->
-								<div slot="image" class="h-full w-48">
-									<img
-										src={property.main_image_url || '/images/placeholder-property.jpg'}
-										alt={property.title}
-										class="h-full w-full object-cover"
-									/>
-								</div>
-
-								<!-- Content -->
-								<div class="flex-1 p-4">
-									<div class="mb-2 flex items-start justify-between">
-										<div>
-											<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-												{property.title}
-											</h3>
-											<p class="text-sm text-gray-600 dark:text-gray-300">
-												{property.district}, {property.city}
-											</p>
-										</div>
-										<span class="font-bold text-green-600 dark:text-green-400">
-											{property.estimated_value?.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')} ريال
-										</span>
-									</div>
-
-									<div class="mb-3 flex flex-wrap gap-4 text-sm text-gray-600 dark:text-gray-300">
-										{#if property.area}
-											<div class="flex items-center">
-												<Icon name="layout" customClass="mr-1 h-4 w-4" />
-												<span>{property.area} م²</span>
-											</div>
-										{/if}
-
-										{#if property.bedrooms !== undefined && property.bedrooms !== null}
-											<div class="flex items-center">
-												<Icon name="bed" customClass="mr-1 h-4 w-4" />
-												<span>{property.bedrooms} غرف</span>
-											</div>
-										{/if}
-
-										{#if property.bathrooms !== undefined && property.bathrooms !== null}
-											<div class="flex items-center">
-												<Icon name="droplet" customClass="mr-1 h-4 w-4" />
-												<span>{property.bathrooms} حمامات</span>
-											</div>
-										{/if}
-									</div>
-
-									{#if property.description}
-										<p class="mb-3 line-clamp-2 text-sm text-gray-600 dark:text-gray-300">
-											{property.description}
-										</p>
-									{/if}
-
-									<div class="flex flex-wrap gap-2">
-										<span
-											class="rounded-full px-2 py-1 text-xs font-medium
-											{property.status === 'active'
-												? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-												: property.status === 'sold'
-													? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-													: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'}"
-										>
-											{property.status === 'active'
-												? 'نشط'
-												: property.status === 'sold'
-													? 'مباع'
-													: property.status === 'pending_approval'
-														? 'قيد الموافقة'
-														: property.status === 'under_contract'
-															? 'تحت التعاقد'
-															: property.status === 'inactive'
-																? 'غير نشط'
-																: property.status}
-										</span>
-
-										{#if property.is_verified}
-											<span
-												class="rounded-full bg-teal-100 px-2 py-1 text-xs font-medium text-teal-800 dark:bg-teal-900 dark:text-teal-200"
-											>
-												موثق
-											</span>
-										{/if}
-									</div>
-								</div>
-							</Card>
-						{/each}
-					</div>
-				{/if}
+				<!-- Results List -->
+			{:else}
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+					{#each $propertiesList as property (property.id)}
+						<PropertyCard {property} />
+					{/each}
+				</div>
 
 				<!-- Pagination -->
-				{#if totalPages > 1}
-					<div class="mt-8">
-						<Pagination
-							{currentPage}
-							{totalPages}
-							{totalItems}
-							{pageSize}
-							maxPageNumbers={5}
-							showPageSize={true}
-							on:pageChange={handlePageChange}
-							on:pageSizeChange={handlePageSizeChange}
-						/>
+				{#if $pagination.totalPages > 1}
+					<div class="flex justify-center mt-8">
+						<nav class="flex space-x-2 rtl:space-x-reverse">
+							<!-- Previous Button -->
+							<button
+								class="btn btn-sm variant-ghost-surface"
+								disabled={$pagination.page === 1}
+								on:click={() => changePage($pagination.page - 1)}
+							>
+								{$isRTL ? '›' : '‹'}
+							</button>
+
+							<!-- Page Numbers -->
+							{#each Array(Math.min(5, $pagination.totalPages)) as _, i}
+								{#if $pagination.totalPages <= 5}
+									<!-- Show all pages if 5 or fewer -->
+									<button
+										class="btn btn-sm {$pagination.page === i + 1
+											? 'variant-filled-primary'
+											: 'variant-ghost-surface'}"
+										on:click={() => changePage(i + 1)}
+									>
+										{i + 1}
+									</button>
+								{:else}
+									<!-- Show ellipsis for larger page counts -->
+									{#if $pagination.page <= 3 && i < 5}
+										<!-- First 5 pages -->
+										<button
+											class="btn btn-sm {$pagination.page === i + 1
+												? 'variant-filled-primary'
+												: 'variant-ghost-surface'}"
+											on:click={() => changePage(i + 1)}
+										>
+											{i + 1}
+										</button>
+									{:else if $pagination.page > $pagination.totalPages - 3 && i < 5}
+										<!-- Last 5 pages -->
+										{@const pageNum = $pagination.totalPages - 4 + i}
+										<button
+											class="btn btn-sm {$pagination.page === pageNum
+												? 'variant-filled-primary'
+												: 'variant-ghost-surface'}"
+											on:click={() => changePage(pageNum)}
+										>
+											{pageNum}
+										</button>
+									{:else if i === 0}
+										<!-- First page -->
+										<button class="btn btn-sm variant-ghost-surface" on:click={() => changePage(1)}>
+											1
+										</button>
+									{:else if i === 1}
+										<!-- Ellipsis or second page -->
+										{#if $pagination.page > 3}
+											<span class="flex items-center justify-center w-8">...</span>
+										{:else}
+											<button
+												class="btn btn-sm variant-ghost-surface"
+												on:click={() => changePage(2)}
+											>
+												2
+											</button>
+										{/if}
+									{:else if i === 2}
+										<!-- Current page area -->
+										<button
+											class="btn btn-sm variant-filled-primary"
+											on:click={() => changePage($pagination.page)}
+										>
+											{$pagination.page}
+										</button>
+									{:else if i === 3}
+										<!-- Ellipsis or second-to-last page -->
+										{#if $pagination.page < $pagination.totalPages - 2}
+											<span class="flex items-center justify-center w-8">...</span>
+										{:else}
+											<button
+												class="btn btn-sm variant-ghost-surface"
+												on:click={() => changePage($pagination.totalPages - 1)}
+											>
+												{$pagination.totalPages - 1}
+											</button>
+										{/if}
+									{:else if i === 4}
+										<!-- Last page -->
+										<button
+											class="btn btn-sm variant-ghost-surface"
+											on:click={() => changePage($pagination.totalPages)}
+										>
+											{$pagination.totalPages}
+										</button>
+									{/if}
+								{/if}
+							{/each}
+
+							<!-- Next Button -->
+							<button
+								class="btn btn-sm variant-ghost-surface"
+								disabled={$pagination.page === $pagination.totalPages}
+								on:click={() => changePage($pagination.page + 1)}
+							>
+								{$isRTL ? '‹' : '›'}
+							</button>
+						</nav>
 					</div>
 				{/if}
 			{/if}
 		</div>
-	{/if}
+	</div>
 </div>

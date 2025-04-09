@@ -1,223 +1,378 @@
-import { writable, derived, get } from 'svelte/store';
-import { browser } from '$app/environment';
-import notificationsService from '$lib/services/notifications';
-import { isAuthenticated } from './auth';
+import { writable, derived } from 'svelte/store';
+import { get } from 'svelte/store';
+import { addToast } from '$lib/stores/ui';
+import { t } from '$lib/config/translations';
+import { language } from '$lib/stores/ui';
+import notificationsService from '$lib/services/notificationsService';
 
-const createNotificationsStore = () => {
-	const initialState = {
-		notifications: [],
-		unreadCount: 0,
-		isLoading: false,
-		error: null,
-		wsConnection: null,
-		isConnected: false
-	};
+// Initial state
+const initialState = {
+	notificationsList: [],
+	unreadCount: 0,
+	isLoading: false,
+	error: null,
+	filters: {
+		notification_type: '',
+		is_read: '',
+		is_important: '',
+		search: '',
+		page: 1,
+		page_size: 20
+	},
+	pagination: {
+		page: 1,
+		totalPages: 1,
+		totalItems: 0,
+		hasNext: false,
+		hasPrev: false
+	}
+};
 
-	const { subscribe, set, update } = writable(initialState);
-
-	// Setup WebSocket connection
-	const setupWebSocket = () => {
-		try {
-			if (!browser) return null;
-
-			// Close existing connection if any
-			const store = get({ subscribe });
-			if (store.wsConnection) {
-				store.wsConnection.close();
-			}
-
-			// Create WebSocket connection
-			const { socket, close } = notificationsService.subscribeToNotifications();
-
-			socket.onopen = () => {
-				update((state) => ({ ...state, isConnected: true }));
-			};
-
-			socket.onclose = () => {
-				update((state) => ({ ...state, isConnected: false, wsConnection: null }));
-			};
-
-			socket.onerror = (error) => {
-				console.error('WebSocket error:', error);
-				update((state) => ({ ...state, isConnected: false }));
-			};
-
-			socket.onmessage = (event) => {
-				try {
-					const data = JSON.parse(event.data);
-
-					if (data.type === 'notification') {
-						// Add the new notification to our store
-						update((state) => ({
-							...state,
-							notifications: [data.notification, ...state.notifications],
-							unreadCount: state.unreadCount + 1
-						}));
-					}
-				} catch (error) {
-					console.error('Error processing WebSocket message:', error);
-				}
-			};
-
-			return { socket, close };
-		} catch (error) {
-			console.error('Error setting up WebSocket:', error);
-			return null;
-		}
-	};
+// Create store
+function createNotificationsStore() {
+	const { subscribe, set, update } = writable({ ...initialState });
 
 	return {
 		subscribe,
 
-		// Initialize notifications
-		initialize: () => {
-			if (!browser) return;
+		/**
+		 * Reset store to initial state
+		 */
+		reset: () => set({ ...initialState }),
 
-			// Load notifications
-			notificationsStore.loadNotifications();
-
-			// Setup subscription to auth store
-			const unsubscribe = isAuthenticated.subscribe(($isAuthenticated) => {
-				if ($isAuthenticated) {
-					// Connect WebSocket when authenticated
-					const connection = setupWebSocket();
-					if (connection) {
-						update((state) => ({ ...state, wsConnection: connection }));
-					}
-				} else {
-					// Disconnect and clear notifications when logged out
-					update((state) => {
-						if (state.wsConnection) {
-							state.wsConnection.close();
-						}
-						return {
-							...initialState,
-							wsConnection: null,
-							isConnected: false
-						};
-					});
-				}
-			});
-
-			// Return cleanup function
-			return () => {
-				unsubscribe();
-				const store = get({ subscribe });
-				if (store.wsConnection) {
-					store.wsConnection.close();
-				}
-			};
-		},
-
-		// Load notifications
-		loadNotifications: async (isRead = null) => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
+		/**
+		 * Load notifications with optional filters
+		 * @param {object} filters - Filter parameters
+		 */
+		loadNotifications: async (filters = {}) => {
+			update((state) => ({
+				...state,
+				isLoading: true,
+				error: null
+			}));
 
 			try {
-				const filters = {};
-				if (isRead !== null) {
-					filters.is_read = isRead;
-				}
+				// Merge existing filters with new filters
+				const mergedFilters = {
+					...get({ subscribe }).filters,
+					...filters,
+					page: filters.page || get({ subscribe }).filters.page,
+					page_size: filters.page_size || get({ subscribe }).filters.page_size
+				};
 
-				const response = await notificationsService.getMyNotifications(filters);
+				const response = await notificationsService.getNotifications(mergedFilters);
 
-				// Count unread notifications
-				const unreadCount = isRead === true ? 0 : response.filter((n) => !n.is_read).length;
+				// Update pagination info
+				const pagination = {
+					page: response.page || 1,
+					totalPages: response.total_pages || 1,
+					totalItems: response.count || 0,
+					hasNext: response.page < response.total_pages,
+					hasPrev: response.page > 1
+				};
 
 				update((state) => ({
 					...state,
-					notifications: response,
-					unreadCount,
+					notificationsList: response.results || [],
+					filters: mergedFilters,
+					pagination,
 					isLoading: false
 				}));
 
-				return response;
+				// Also update unread count
+				notificationsStore.getUnreadCount();
+
+				return response.results || [];
 			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
-				throw error;
+				update((state) => ({
+					...state,
+					isLoading: false,
+					error: error.message || 'Failed to load notifications'
+				}));
+
+				addToast(
+					t('notifications_load_error', get(language), { default: 'فشل تحميل الإشعارات' }),
+					'error'
+				);
+
+				return [];
 			}
 		},
 
-		// Load unread notifications
-		loadUnreadNotifications: async () => {
-			return notificationsStore.loadNotifications(false);
-		},
-
-		// Mark notification as read
-		markAsRead: async (id) => {
+		/**
+		 * Get notification unread count
+		 */
+		getUnreadCount: async () => {
 			try {
-				await notificationsService.markAsRead(id);
+				const result = await notificationsService.getUnreadCount();
 
-				update((state) => {
-					const updatedNotifications = state.notifications.map((n) =>
-						n.id === id ? { ...n, is_read: true } : n
-					);
+				update((state) => ({
+					...state,
+					unreadCount: result.unread_count || 0
+				}));
 
-					// Recalculate unread count
-					const unreadCount = updatedNotifications.filter((n) => !n.is_read).length;
-
-					return {
-						...state,
-						notifications: updatedNotifications,
-						unreadCount
-					};
-				});
+				return result.unread_count || 0;
 			} catch (error) {
-				console.error('Error marking notification as read:', error);
+				console.error('Failed to get unread notification count:', error);
+				return 0;
 			}
 		},
 
-		// Mark all notifications as read
+		/**
+		 * Mark a notification as read
+		 * @param {string} notificationId - Notification ID
+		 */
+		markAsRead: async (notificationId) => {
+			try {
+				const updatedNotification = await notificationsService.updateNotification(notificationId, {
+					is_read: true,
+					read_at: new Date().toISOString()
+				});
+
+				update((state) => ({
+					...state,
+					notificationsList: state.notificationsList.map((n) =>
+						n.id === notificationId ? updatedNotification : n
+					),
+					unreadCount: Math.max(0, state.unreadCount - 1)
+				}));
+
+				return updatedNotification;
+			} catch (error) {
+				console.error('Failed to mark notification as read:', error);
+				return null;
+			}
+		},
+
+		/**
+		 * Mark all notifications as read
+		 */
 		markAllAsRead: async () => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
+			update((state) => ({
+				...state,
+				isLoading: true,
+				error: null
+			}));
 
 			try {
 				await notificationsService.markAllAsRead();
 
-				update((state) => {
-					const updatedNotifications = state.notifications.map((n) => ({ ...n, is_read: true }));
+				update((state) => ({
+					...state,
+					notificationsList: state.notificationsList.map((n) => ({
+						...n,
+						is_read: true,
+						read_at: n.read_at || new Date().toISOString()
+					})),
+					unreadCount: 0,
+					isLoading: false
+				}));
 
-					return {
-						...state,
-						notifications: updatedNotifications,
-						unreadCount: 0,
-						isLoading: false
-					};
-				});
+				addToast(
+					t('all_marked_read', get(language), { default: 'تم تحديد جميع الإشعارات كمقروءة' }),
+					'success'
+				);
+
+				return true;
 			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
-				throw error;
+				update((state) => ({
+					...state,
+					isLoading: false,
+					error: error.message || 'Failed to mark all notifications as read'
+				}));
+
+				addToast(
+					t('mark_all_read_error', get(language), { default: 'فشل تحديد جميع الإشعارات كمقروءة' }),
+					'error'
+				);
+
+				return false;
 			}
 		},
 
-		// Clear error state
-		clearError: () => {
-			update((state) => ({ ...state, error: null }));
+		/**
+		 * Delete a notification
+		 * @param {string} notificationId - Notification ID
+		 */
+		deleteNotification: async (notificationId) => {
+			try {
+				await notificationsService.deleteNotification(notificationId);
+
+				update((state) => ({
+					...state,
+					notificationsList: state.notificationsList.filter((n) => n.id !== notificationId),
+					// If the notification was unread, decrement the unread count
+					unreadCount: state.notificationsList.find((n) => n.id === notificationId && !n.is_read)
+						? Math.max(0, state.unreadCount - 1)
+						: state.unreadCount
+				}));
+
+				return true;
+			} catch (error) {
+				console.error('Failed to delete notification:', error);
+				return false;
+			}
+		},
+
+		/**
+		 * Clear all notifications
+		 */
+		clearAllNotifications: async () => {
+			update((state) => ({
+				...state,
+				isLoading: true,
+				error: null
+			}));
+
+			try {
+				await notificationsService.clearAllNotifications();
+
+				update((state) => ({
+					...state,
+					notificationsList: [],
+					unreadCount: 0,
+					isLoading: false
+				}));
+
+				addToast(
+					t('notifications_cleared', get(language), { default: 'تم مسح جميع الإشعارات' }),
+					'success'
+				);
+
+				return true;
+			} catch (error) {
+				update((state) => ({
+					...state,
+					isLoading: false,
+					error: error.message || 'Failed to clear notifications'
+				}));
+
+				addToast(
+					t('clear_notifications_error', get(language), { default: 'فشل مسح الإشعارات' }),
+					'error'
+				);
+
+				return false;
+			}
+		},
+
+		/**
+		 * Change page in pagination
+		 * @param {number} page - Page number
+		 */
+		changePage: (page) => {
+			update((state) => {
+				// Don't allow invalid page numbers
+				if (page < 1 || page > state.pagination.totalPages) {
+					return state;
+				}
+
+				// Update filters with new page number
+				const newFilters = {
+					...state.filters,
+					page
+				};
+
+				// Load notifications with new page
+				notificationsStore.loadNotifications(newFilters);
+
+				return {
+					...state,
+					filters: newFilters
+				};
+			});
+		},
+
+		/**
+		 * Update filters and load notifications
+		 * @param {object} newFilters - New filter values
+		 */
+		updateFilters: (newFilters) => {
+			// Reset to page 1 when filters change
+			const filtersWithPage = {
+				...newFilters,
+				page: 1
+			};
+
+			notificationsStore.loadNotifications(filtersWithPage);
+		},
+
+		/**
+		 * Poll for new notifications
+		 * @param {number} interval - Polling interval in ms (default: 30000)
+		 * @returns {function} Function to stop polling
+		 */
+		startPolling: (interval = 30000) => {
+			const intervalId = setInterval(async () => {
+				await notificationsStore.getUnreadCount();
+
+				// If we're on the notifications page, also refresh the list
+				const currentFilters = get({ subscribe }).filters;
+				if (window.location.pathname.includes('/notifications')) {
+					await notificationsStore.loadNotifications(currentFilters);
+				}
+			}, interval);
+
+			// Return function to stop polling
+			return () => clearInterval(intervalId);
+		},
+
+		/**
+		 * Process a new push notification
+		 * @param {object} notification - Notification data
+		 */
+		processPushNotification: (notification) => {
+			// Add the notification to the list if it's not already there
+			update((state) => {
+				// Check if notification already exists
+				const exists = state.notificationsList.some((n) => n.id === notification.id);
+
+				if (!exists) {
+					// Add to list and increment unread count
+					return {
+						...state,
+						notificationsList: [notification, ...state.notificationsList],
+						unreadCount: state.unreadCount + 1
+					};
+				}
+
+				return state;
+			});
+
+			// Show toast for the notification
+			addToast(
+				notification.title || t('new_notification', get(language), { default: 'إشعار جديد' }),
+				'info',
+				7000
+			);
 		}
 	};
-};
-
-// Create the store
-export const notificationsStore = createNotificationsStore();
-
-// Initialize notifications store when in browser context
-if (browser) {
-	const cleanup = notificationsStore.initialize();
-
-	// Clean up on page unload if needed
-	if (typeof window !== 'undefined') {
-		window.addEventListener('beforeunload', cleanup);
-	}
 }
 
-// Derived stores
-export const notifications = derived(notificationsStore, ($store) => $store.notifications);
-export const unreadNotificationsCount = derived(notificationsStore, ($store) => $store.unreadCount);
-export const notificationsLoading = derived(notificationsStore, ($store) => $store.isLoading);
-export const notificationsError = derived(notificationsStore, ($store) => $store.error);
-export const notificationsConnected = derived(notificationsStore, ($store) => $store.isConnected);
+// Create store instance
+const notificationsStore = createNotificationsStore();
 
-// Derived store for getting unread notifications
-export const unreadNotifications = derived(notifications, ($notifications) =>
-	$notifications.filter((n) => !n.is_read)
+// Create derived stores for convenience
+export const notificationsList = derived(
+	notificationsStore,
+	($notifications) => $notifications.notificationsList
 );
+
+export const unreadCount = derived(
+	notificationsStore,
+	($notifications) => $notifications.unreadCount
+);
+
+export const isLoading = derived(notificationsStore, ($notifications) => $notifications.isLoading);
+
+export const error = derived(notificationsStore, ($notifications) => $notifications.error);
+
+export const filters = derived(notificationsStore, ($notifications) => $notifications.filters);
+
+export const pagination = derived(
+	notificationsStore,
+	($notifications) => $notifications.pagination
+);
+
+// Export the store and its methods
+export default notificationsStore;

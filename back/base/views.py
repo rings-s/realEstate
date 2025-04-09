@@ -1,3035 +1,1143 @@
-import logging
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from django.db import transaction
-from django.db.models import F, Q, Exists, OuterRef, Subquery
-from django.http import Http404
 from django.utils.translation import gettext_lazy as _
-from rest_framework import permissions, status
+from django.db.models import Q
+from rest_framework import generics, status, filters
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.exceptions import PermissionDenied
+from django_filters.rest_framework import DjangoFilterBackend
 
 from .models import (
-    Property, Auction, Bid, Document, Contract, Payment, Transaction,
-    PropertyView, MessageThread, Message, ThreadParticipant, Notification
+    Property, PropertyImage, Auction, AuctionImage, Bid, Document, Contract,
+    MessageThread, ThreadParticipant, Message, PropertyView, Notification
 )
-
 from .serializers import (
-    PropertySerializer, AuctionSerializer, BidSerializer, DocumentSerializer,
-    ContractSerializer, PaymentSerializer, TransactionSerializer,
-    PropertyViewSerializer, MessageThreadSerializer, MessageSerializer,
-    ThreadParticipantSerializer, NotificationSerializer
+    PropertySerializer, PropertyImageSerializer, AuctionSerializer, AuctionImageSerializer,
+    BidSerializer, DocumentSerializer, ContractSerializer, MessageThreadSerializer,
+    ThreadParticipantSerializer, MessageSerializer, PropertyViewSerializer, NotificationSerializer
 )
 from .permissions import (
-    IsPropertyOwner, IsAuctionCreator, IsSellerPermission, IsBuyerPermission,
-    IsInspectorPermission, IsLegalPermission, IsAgentPermission, IsAppraiserPermission
+    IsAdminUser, IsVerifiedUser, HasRolePermission, IsPropertyOwner, IsAuctionParticipant,
+    IsBidOwner, IsDocumentAuthorized, IsMessageParticipant, IsContractParty, ReadOnly,
+    IsOwnerOrReadOnly, IsAdminOrReadOnly
 )
 from .decorators import (
-    debug_request, handle_exceptions, cache_view, timer,
-    CACHE_SHORT, CACHE_MEDIUM, CACHE_LONG
+    api_role_required, api_verified_user_required, api_permission_required,
+    log_api_calls, timing_decorator
 )
-from .utils import MediaHandler, create_response
-from accounts.models import Role
-
-logger = logging.getLogger(__name__)
-
-
-# BaseAPIView with fixed permission_denied method
-class BaseAPIView(APIView):
-    """Base API view with common functionality and error handling"""
-    permission_classes = [permissions.IsAuthenticated]
-    pagination_class = PageNumberPagination
-
-    # Define permission map for different HTTP methods
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [permissions.IsAdminUser],
-        'put': [permissions.IsAdminUser],
-        'patch': [permissions.IsAdminUser],
-        'delete': [permissions.IsAdminUser],
-    }
-
-    @handle_exceptions
-    def dispatch(self, request, *args, **kwargs):
-        """Apply exception handling to all methods"""
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_permissions(self):
-        """Get permissions based on request method"""
-        method = self.request.method.lower()
-        if method in self.action_permission_map:
-            return [permission() for permission in self.action_permission_map[method]]
-        return [permission() for permission in self.permission_classes]
-
-    def paginate_queryset(self, queryset):
-        """Paginate a queryset"""
-        if not hasattr(self, '_paginator'):
-            self._paginator = self.pagination_class()
-        return self._paginator.paginate_queryset(queryset, self.request, view=self)
-
-    def get_paginated_response(self, data):
-        """Return a paginated response"""
-        return self._paginator.get_paginated_response(data)
-
-    # Shorthand response methods
-    def error_response(self, error, error_code=None, status_code=status.HTTP_400_BAD_REQUEST):
-        return create_response(error=error, error_code=error_code, status_code=status_code)
-
-    def success_response(self, data=None, message=None, status_code=status.HTTP_200_OK):
-        return create_response(data=data, message=message, status_code=status_code)
-
-    def not_found(self, message="Resource not found"):
-        return self.error_response(error=message, error_code="not_found", status_code=status.HTTP_404_NOT_FOUND)
-
-    # FIXED METHOD - Added request parameter and code parameter to match DRF's signature
-    def permission_denied(self, request=None, message="Permission denied", code=None):
-        """
-        Override DRF's permission_denied method to use our response format.
-        Matches Django REST Framework's method signature to avoid conflicts.
-        """
-        error_code = code or "permission_denied"
-        return self.error_response(error=message, error_code=error_code, status_code=status.HTTP_403_FORBIDDEN)
+from .utils import (
+    get_bid_increment_suggestions, check_auction_status, get_user_permissions,
+    check_user_permission
+)
 
 
-# Base class for file uploads
-class BaseUploadView(BaseAPIView):
+# -------------------------------------------------------------------------
+# Custom Pagination Classes
+# -------------------------------------------------------------------------
+
+class StandardResultsSetPagination(PageNumberPagination):
+    """Standard pagination for most views"""
+    page_size = 20
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class LargeResultsSetPagination(PageNumberPagination):
+    """Pagination for views that might have many results"""
+    page_size = 50
+    page_size_query_param = 'page_size'
+    max_page_size = 200
+
+
+class SmallResultsSetPagination(PageNumberPagination):
+    """Pagination for views with few items per page"""
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+
+
+# -------------------------------------------------------------------------
+# Property Views
+# -------------------------------------------------------------------------
+
+class PropertyListCreateView(generics.ListCreateAPIView):
     """
-    Base class for handling file uploads.
-    This should be subclassed for specific entity types.
+    List all properties or create a new property.
     """
-    permission_classes = [permissions.IsAuthenticated]
-
-    # Configuration to be set by subclasses
-    model_class = None
-    file_field_name = 'files'
-    allow_multiple = True
-    allowed_extensions = []
-    max_file_size = 5 * 1024 * 1024  # 5MB default
-
-    def get_object(self, pk):
-        """Get the object and verify permissions"""
-        if not self.model_class:
-            raise ValueError("model_class must be set in subclass")
-
-        obj = get_object_or_404(self.model_class, pk=pk)
-        self.check_object_permissions(self.request, obj)
-        return obj
-
-    @handle_exceptions
-    @transaction.atomic
-    def post(self, request, pk):
-        """Upload files for an entity"""
-        try:
-            # Get entity and check permissions
-            obj = self.get_object(pk)
-
-            # Check if files were provided
-            if self.file_field_name not in request.FILES:
-                return self.error_response(
-                    _('No files were provided'),
-                    'no_files',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Get files
-            files = request.FILES.getlist(self.file_field_name)
-
-            # Check if multiple files are allowed
-            if not self.allow_multiple and len(files) > 1:
-                return self.error_response(
-                    _('Only one file is allowed'),
-                    'too_many_files',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Check for max files
-            if len(files) > 10:  # Hardcoded limit for safety
-                return self.error_response(
-                    _('Too many files. Maximum is 10 files per upload.'),
-                    'too_many_files',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Validate file extensions
-            if self.allowed_extensions:
-                for file in files:
-                    ext = file.name.split('.')[-1].lower()
-                    if ext not in self.allowed_extensions:
-                        return self.error_response(
-                            _('Invalid file type. Allowed types: {}').format(
-                                ', '.join(self.allowed_extensions)
-                            ),
-                            'invalid_file_type',
-                            status.HTTP_400_BAD_REQUEST
-                        )
-
-            # Validate file sizes
-            for file in files:
-                if file.size > self.max_file_size:
-                    return self.error_response(
-                        _('File too large. Maximum size is {} MB').format(
-                            self.max_file_size / (1024 * 1024)
-                        ),
-                        'file_too_large',
-                        status.HTTP_400_BAD_REQUEST
-                    )
-
-            # Process files based on model type
-            if self.model_class.__name__ == 'Property' and self.file_field_name == 'images':
-                new_files = MediaHandler.process_property_images(obj, files)
-            elif self.model_class.__name__ == 'Auction' and self.file_field_name == 'images':
-                new_files = MediaHandler.process_auction_images(obj, files)
-            elif self.model_class.__name__ == 'Document' and self.file_field_name == 'files':
-                new_files = MediaHandler.process_document_files(obj, files)
-            else:
-                # Generic handling for models with JSONFields
-                current_files = getattr(obj, self.file_field_name, None) or []
-                new_files = []
-
-                for file in files:
-                    file_info = MediaHandler.save_file(
-                        file,
-                        self.model_class.__name__.lower(),
-                        obj.pk,
-                        self.file_field_name
-                    )
-                    new_files.append(file_info)
-
-                updated_files = current_files + new_files
-                setattr(obj, self.file_field_name, updated_files)
-                obj.save(update_fields=[self.file_field_name, 'updated_at'])
-
-            # Return success response
-            return self.success_response(
-                data={
-                    'count': len(new_files),
-                    self.file_field_name: new_files
-                },
-                message=_('Files uploaded successfully'),
-                status_code=status.HTTP_201_CREATED
-            )
-
-        except PermissionDenied as e:
-            return self.permission_denied(str(e))
-        except Http404:
-            return self.not_found(f"{self.model_class.__name__} not found")
-        except ValueError as e:
-            return self.error_response(str(e), 'validation_error', status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"Error uploading files: {str(e)}")
-            return self.error_response(
-                _('Failed to process file uploads'),
-                'upload_error',
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
-# ============================================================================
-# Media Upload Views - Unified approach using MediaHandler
-# ============================================================================
-
-class MediaUploadView(BaseAPIView):
-    """
-    Unified media upload view for handling file uploads across different entity types.
-    This replaces multiple redundant upload views with a single, configurable implementation.
-    """
-    permission_classes = [permissions.IsAuthenticated]
-
-    # Configuration to be set by subclasses
-    entity_model = None
-    entity_type = None
-    media_type = 'image'
-    max_files = 10
-
-    def get_entity(self, pk):
-        """Get the entity and verify permissions"""
-        if not self.entity_model:
-            raise ValueError("entity_model must be set in subclass")
-
-        entity = get_object_or_404(self.entity_model, pk=pk)
-        user = self.request.user
-
-        # Check permissions based on entity type
-        if not user.is_staff:
-            if hasattr(entity, 'owner') and entity.owner != user:
-                if hasattr(entity, 'created_by') and entity.created_by != user:
-                    if hasattr(entity, 'auctioneer') and entity.auctioneer != user:
-                        raise PermissionDenied(_("You don't have permission to upload files for this {entity_type}"))
-
-        return entity
-
-    @handle_exceptions
-    @transaction.atomic
-    def post(self, request, pk):
-        """Upload files for an entity"""
-        try:
-            # Get entity and check permissions
-            entity = self.get_entity(pk)
-
-            # Determine field name based on media type
-            field_name = 'files' if self.media_type == 'document' else 'images'
-
-            # Check if files were provided
-            if field_name not in request.FILES:
-                return self.error_response(
-                    _('No files were provided'),
-                    'no_files',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Get files
-            files = request.FILES.getlist(field_name)
-
-            # Check for max files
-            if len(files) > self.max_files:
-                return self.error_response(
-                    _('Too many files. Maximum is {max} files per upload.').format(max=self.max_files),
-                    'too_many_files',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Process uploads based on entity and media type
-            if self.entity_type == 'property' and self.media_type == 'image':
-                new_files = MediaHandler.process_property_images(entity, files)
-            elif self.entity_type == 'auction' and self.media_type == 'image':
-                new_files = MediaHandler.process_auction_images(entity, files)
-            elif self.entity_type == 'document' and self.media_type == 'document':
-                new_files = MediaHandler.process_document_files(entity, files)
-            else:
-                return self.error_response(
-                    _('Unsupported entity or media type'),
-                    'configuration_error',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Return success response
-            return self.success_response(
-                data={
-                    'count': len(new_files),
-                    field_name: new_files
-                },
-                message=_('Files uploaded successfully'),
-                status_code=status.HTTP_201_CREATED
-            )
-
-        except PermissionDenied as e:
-            return self.permission_denied(str(e))
-        except Http404:
-            return self.not_found(f"{self.entity_type.title()} not found")
-        except ValueError as e:
-            return self.error_response(str(e), 'validation_error', status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"Error uploading files: {str(e)}")
-            return self.error_response(
-                _('Failed to process file uploads'),
-                'upload_error',
-                status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-class PropertyImageUploadView(MediaUploadView):
-    """Upload images for a property"""
-    entity_model = Property
-    entity_type = 'property'
-    media_type = 'image'
-    max_files = 10
-
-
-class PropertyImageSetPrimaryView(BaseAPIView):
-    """Set a primary image for a property"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @handle_exceptions
-    def post(self, request, pk):
-        """Set a property image as primary"""
-        try:
-            # Get property and check permissions
-            property_obj = get_object_or_404(Property, pk=pk)
-
-            if not request.user.is_staff and property_obj.owner != request.user:
-                return self.permission_denied(_('You do not have permission to modify this property'))
-
-            # Get image index
-            try:
-                image_index = int(request.data.get('image_index', -1))
-            except (TypeError, ValueError):
-                return self.error_response(_('Invalid image index'), 'invalid_index', status.HTTP_400_BAD_REQUEST)
-
-            # Set primary image
-            primary_image = MediaHandler.set_primary_image(property_obj, image_index)
-
-            return self.success_response(
-                data={'image': primary_image},
-                message=_('Primary image set successfully')
-            )
-
-        except Http404:
-            return self.not_found(_('Property not found'))
-        except ValueError as e:
-            return self.error_response(str(e), 'invalid_index', status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"Error setting primary image: {str(e)}")
-            return self.error_response(_('Failed to set primary image'), 'update_error', status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-class PropertyImageDeleteView(BaseAPIView):
-    """Delete a property image"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @handle_exceptions
-    @transaction.atomic
-    def delete(self, request, pk, image_index):
-        """Delete an image from a property"""
-        try:
-            # Get property and check permissions
-            property_obj = get_object_or_404(Property, pk=pk)
-
-            if not request.user.is_staff and property_obj.owner != request.user:
-                return self.permission_denied(_('You do not have permission to modify this property'))
-
-            # Convert image_index to integer
-            try:
-                image_index = int(image_index)
-            except ValueError:
-                return self.error_response(_('Invalid image index'), 'invalid_index', status.HTTP_400_BAD_REQUEST)
-
-            # Delete the image
-            deleted_image = MediaHandler.delete_image(property_obj, image_index)
-
-            return self.success_response(
-                data={'deleted_image': deleted_image},
-                message=_('Image deleted successfully')
-            )
-
-        except Http404:
-            return self.not_found(_('Property not found'))
-        except ValueError as e:
-            return self.error_response(str(e), 'invalid_index', status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"Error deleting image: {str(e)}")
-            return self.error_response(_('Failed to delete image'), 'delete_error', status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-class AuctionImageUploadView(MediaUploadView):
-    """Upload images for an auction"""
-    entity_model = Auction
-    entity_type = 'auction'
-    media_type = 'image'
-    max_files = 10
-
-
-class DocumentFileUploadView(MediaUploadView):
-    """Upload files for a document"""
-    entity_model = Document
-    entity_type = 'document'
-    media_type = 'document'
-    max_files = 5
-
-
-class PropertyListCreateView(BaseAPIView):
-    """List and create properties"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [IsSellerPermission],
-    }
+    serializer_class = PropertySerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['property_type', 'status', 'city', 'is_published', 'is_featured', 'is_verified']
+    search_fields = ['title', 'address', 'description', 'city', 'property_number']
+    ordering_fields = ['created_at', 'market_value', 'size_sqm', 'bedrooms', 'year_built']
+    ordering = ['-is_featured', '-created_at']
 
     def get_queryset(self):
-        """Get filtered property queryset"""
-        queryset = Property.objects.all()
-        params = self.request.query_params
+        """
+        Return different querysets based on user role and permissions.
+        - Admin users can see all properties
+        - Property owners can see their own properties
+        - Other users can only see published properties
+        """
+        user = self.request.user
 
-        # Show only published properties to non-staff
-        if not self.request.user.is_staff:
-            queryset = queryset.filter(is_published=True)
+        # Admin users can see all properties
+        if user.has_role('admin'):
+            return Property.objects.all()
 
-        # Apply filters
-        filters = {k: v for k, v in params.items()
-                  if k in ['status', 'property_type', 'city', 'district',
-                          'bedrooms', 'bathrooms'] and v}
+        # Property owners can see their own properties
+        if user.has_role('seller') or user.has_role('owner'):
+            own_properties = Q(owner=user)
+            published_properties = Q(is_published=True)
+            return Property.objects.filter(own_properties | published_properties)
 
-        if filters:
-            queryset = queryset.filter(**filters)
+        # Other users can only see published properties
+        return Property.objects.filter(is_published=True)
 
-        # Apply search
-        search = params.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(title__icontains=search) |
-                Q(description__icontains=search) |
-                Q(address__icontains=search) |
-                Q(property_number__icontains=search)
-            )
+    def perform_create(self, serializer):
+        """Set the owner to the current user when creating a property"""
+        serializer.save(owner=self.request.user)
 
-        # Apply ordering
-        ordering = params.get('ordering')
-        if ordering and ordering.lstrip('-') in ['created_at', 'estimated_value', 'area', 'views_count']:
-            queryset = queryset.order_by(ordering)
-        else:
-            queryset = queryset.order_by('-created_at')
-
-        return queryset
-
-    def get(self, request, format=None):
-        """List properties"""
-        queryset = self.get_queryset()
-
-        # Handle pagination
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = PropertySerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = PropertySerializer(queryset, many=True)
-        return self.success_response(data=serializer.data)
-
-    @transaction.atomic
-    def post(self, request, format=None):
-        """Create a property"""
-        serializer = PropertySerializer(data=request.data)
-        if not serializer.is_valid():
-            return self.error_response(serializer.errors, 'validation_error')
-
-        try:
-            property_obj = serializer.save(owner=request.user)
-            return self.success_response(
-                data=serializer.data,
-                message=_('Property created successfully'),
-                status_code=status.HTTP_201_CREATED
-            )
-        except Exception as e:
-            logger.error(f"Error creating property: {str(e)}")
-            return self.error_response(_('Failed to create property'), 'creation_failed',
-                                      status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class PropertyDetailView(BaseAPIView):
-    """Retrieve, update and delete a property"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'put': [IsPropertyOwner],
-        'patch': [IsPropertyOwner],
-        'delete': [permissions.IsAdminUser],
-    }
-
-    def get_object(self, pk):
-        """Get property with permission check"""
-        property_obj = get_object_or_404(Property, pk=pk)
-        self.check_object_permissions(self.request, property_obj)
-        return property_obj
-
-    def get(self, request, pk, format=None):
-        """Retrieve a property"""
-        property_obj = self.get_object(pk)
-        serializer = PropertySerializer(property_obj)
-        return Response(serializer.data)
-
-    def put(self, request, pk, format=None):
-        """Update a property"""
-        property_obj = self.get_object(pk)
-        serializer = PropertySerializer(property_obj, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request, pk, format=None):
-        """Partially update a property"""
-        property_obj = self.get_object(pk)
-        serializer = PropertySerializer(property_obj, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk, format=None):
-        """Delete a property"""
-        property_obj = self.get_object(pk)
-        property_obj.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-class PropertyBySlugView(BaseAPIView):
-    """Retrieve a property by slug"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @debug_request
-    @cache_view(timeout=CACHE_MEDIUM, key_prefix='property_slug', vary_on_user=False)
-    def get(self, request, slug, format=None):
-        """Get property by slug and increment view count"""
-        try:
-            # Filter by user permissions
-            queryset = Property.objects.all()
-            if not request.user.is_staff:
-                queryset = queryset.filter(is_published=True)
-
-            property_obj = get_object_or_404(queryset, slug=slug)
-
-            # Increment views count atomically
-            with transaction.atomic():
-                Property.objects.filter(pk=property_obj.pk).update(views_count=F('views_count') + 1)
-                property_obj.refresh_from_db()
-
-            serializer = PropertySerializer(property_obj)
-            return self.success_response(data=serializer.data)
-        except Http404:
-            return self.not_found(f"Property with slug '{slug}' not found")
-        except Exception as e:
-            logger.error(f"Error retrieving property by slug '{slug}': {str(e)}")
-            return self.error_response("An error occurred", "retrieval_error",
-                                      status.HTTP_500_INTERNAL_SERVER_ERROR)
+    @log_api_calls
+    def create(self, request, *args, **kwargs):
+        """Override create to add logging"""
+        return super().create(request, *args, **kwargs)
 
 
-class MyPropertiesView(BaseAPIView):
-    """List properties owned by current user"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request, format=None):
-        """Get user's properties"""
-        properties = Property.objects.filter(owner=request.user)
-
-        # Handle pagination
-        page = self.paginate_queryset(properties)
-        if page is not None:
-            serializer = PropertySerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = PropertySerializer(properties, many=True)
-        return Response(serializer.data)
-
-class VerifyPropertyView(BaseAPIView):
-    """Verify a property"""
-    permission_classes = [IsInspectorPermission]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Mark property as verified"""
-        property_obj = get_object_or_404(Property, pk=pk)
-
-        # Already verified
-        if property_obj.is_verified:
-            return Response({'status': 'Property already verified'})
-
-        # Update verification status
-        property_obj.is_verified = True
-        property_obj.verified_by = request.user
-        property_obj.verification_date = timezone.now()
-        property_obj.save(update_fields=['is_verified', 'verified_by', 'verification_date', 'updated_at'])
-
-        return Response({'status': 'Property verified'})
-
-
-##### ======> Auction Views
-
-class AuctionListCreateView(BaseAPIView):
-    """List and create auctions"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [IsSellerPermission | IsAgentPermission],
-    }
+class PropertyDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a property.
+    """
+    queryset = Property.objects.all()
+    serializer_class = PropertySerializer
+    permission_classes = [IsAuthenticated]
+    lookup_field = 'slug'
 
     def get_queryset(self):
-        """Get filtered auction queryset"""
-        queryset = Auction.objects.all()
+        """
+        Return different querysets based on user role and permissions.
+        """
         user = self.request.user
-        params = self.request.query_params
 
-        # Filter for non-staff users
-        if not user.is_staff:
-            queryset = queryset.filter(
-                # Public or user is invited to private
-                (Q(is_private=False) | Q(is_private=True, invited_bidders=user)),
-                is_published=True
-            )
+        # Admin users can see all properties
+        if user.has_role('admin'):
+            return Property.objects.all()
 
-        # Apply filters
-        filters = {}
-        for field in ['status', 'auction_type']:
-            if params.get(field):
-                filters[field] = params.get(field)
+        # Property owners can see their own properties
+        if user.has_role('seller') or user.has_role('owner'):
+            own_properties = Q(owner=user)
+            published_properties = Q(is_published=True)
+            return Property.objects.filter(own_properties | published_properties)
 
-        # Boolean filters
-        for field in ['is_featured', 'is_published']:
-            if params.get(field) is not None:
-                filters[field] = params.get(field).lower() == 'true'
+        # Other users can only see published properties
+        return Property.objects.filter(is_published=True)
 
-        if filters:
-            queryset = queryset.filter(**filters)
 
-        # Apply search
-        search = params.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(title__icontains=search) |
-                Q(description__icontains=search)
-            )
+class PropertyEditView(generics.UpdateAPIView):
+    """
+    Update a property.
+    """
+    queryset = Property.objects.all()
+    serializer_class = PropertySerializer
+    permission_classes = [IsAuthenticated, IsPropertyOwner]
+    lookup_field = 'slug'
 
-        # Apply ordering
-        ordering = params.get('ordering')
-        if ordering and ordering.lstrip('-') in ['start_date', 'end_date', 'current_bid', 'views_count']:
-            queryset = queryset.order_by(ordering)
-        else:
-            queryset = queryset.order_by('-created_at')
+    @api_verified_user_required
+    def update(self, request, *args, **kwargs):
+        """Override update to add verification check"""
+        return super().update(request, *args, **kwargs)
 
-        return queryset
+    @api_verified_user_required
+    def partial_update(self, request, *args, **kwargs):
+        """Override partial_update to add verification check"""
+        return super().partial_update(request, *args, **kwargs)
 
-    def get(self, request, format=None):
-        """List auctions"""
-        queryset = self.get_queryset()
 
-        # Handle pagination
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = AuctionSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+class PropertyDeleteView(generics.DestroyAPIView):
+    """
+    Delete a property.
+    """
+    queryset = Property.objects.all()
+    serializer_class = PropertySerializer
+    permission_classes = [IsAuthenticated, IsPropertyOwner]
+    lookup_field = 'slug'
 
-        serializer = AuctionSerializer(queryset, many=True)
+    @api_verified_user_required
+    def destroy(self, request, *args, **kwargs):
+        """Override destroy to add verification check"""
+        return super().destroy(request, *args, **kwargs)
+
+
+class PropertyImageListCreateView(generics.ListCreateAPIView):
+    """
+    List all images for a property or create a new image.
+    """
+    serializer_class = PropertyImageSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        """Get images for the specified property"""
+        property_id = self.kwargs.get('property_id')
+        return PropertyImage.objects.filter(property_id=property_id).order_by('order', '-is_primary')
+
+    def perform_create(self, serializer):
+        """Set the property when creating an image"""
+        property_obj = get_object_or_404(Property, id=self.kwargs.get('property_id'))
+
+        # Check if user has permission to add images
+        if not (self.request.user.has_role('admin') or property_obj.owner == self.request.user):
+            self.permission_denied(self.request, message=_('You do not have permission to add images to this property.'))
+
+        serializer.save(property=property_obj)
+
+
+class PropertyImageDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a property image.
+    """
+    queryset = PropertyImage.objects.all()
+    serializer_class = PropertyImageSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class PropertyImageEditView(generics.UpdateAPIView):
+    """
+    Update a property image.
+    """
+    queryset = PropertyImage.objects.all()
+    serializer_class = PropertyImageSerializer
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+
+    def get_owner(self, obj):
+        """Get the owner of the property image"""
+        return obj.property.owner
+
+
+class PropertyImageDeleteView(generics.DestroyAPIView):
+    """
+    Delete a property image.
+    """
+    queryset = PropertyImage.objects.all()
+    serializer_class = PropertyImageSerializer
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+
+    def get_owner(self, obj):
+        """Get the owner of the property image"""
+        return obj.property.owner
+
+
+# -------------------------------------------------------------------------
+# Auction Views
+# -------------------------------------------------------------------------
+
+class AuctionListCreateView(generics.ListCreateAPIView):
+    """
+    List all auctions or create a new auction.
+    """
+    serializer_class = AuctionSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['auction_type', 'status', 'is_published', 'is_featured', 'is_private']
+    search_fields = ['title', 'description', 'related_property__title']
+    ordering_fields = ['start_date', 'end_date', 'created_at', 'current_bid']
+    ordering = ['-is_featured', '-start_date']
+
+    def get_queryset(self):
+        """
+        Return different querysets based on user role and permissions.
+        """
+        user = self.request.user
+
+        # Admin users can see all auctions
+        if user.has_role('admin'):
+            return Auction.objects.all()
+
+        # Property owners can see auctions related to their properties
+        if user.has_role('seller') or user.has_role('owner'):
+            own_auctions = Q(related_property__owner=user)
+            public_auctions = Q(is_published=True, is_private=False)
+            return Auction.objects.filter(own_auctions | public_auctions)
+
+        # Other users can only see published, non-private auctions
+        return Auction.objects.filter(is_published=True, is_private=False)
+
+    @api_verified_user_required
+    @api_permission_required('can_create_auction')
+    def create(self, request, *args, **kwargs):
+        """Override create to add permission check"""
+        property_id = request.data.get('related_property')
+        if property_id:
+            property_obj = get_object_or_404(Property, id=property_id)
+
+            # Check if user has permission to create an auction for this property
+            if not (request.user.has_role('admin') or property_obj.owner == request.user):
+                return Response(
+                    {'detail': _('You do not have permission to create an auction for this property.')},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+        return super().create(request, *args, **kwargs)
+
+
+class AuctionDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve an auction.
+    """
+    queryset = Auction.objects.all()
+    serializer_class = AuctionSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_field = 'slug'
+
+    def get_queryset(self):
+        """
+        Return different querysets based on user role and permissions.
+        """
+        user = self.request.user
+
+        # Admin users can see all auctions
+        if user.has_role('admin'):
+            return Auction.objects.all()
+
+        # Property owners can see auctions related to their properties
+        if user.has_role('seller') or user.has_role('owner'):
+            own_auctions = Q(related_property__owner=user)
+            public_auctions = Q(is_published=True, is_private=False)
+            # Private auctions where user has placed a bid
+            bid_auctions = Q(is_private=True, bids__bidder=user)
+            return Auction.objects.filter(own_auctions | public_auctions | bid_auctions).distinct()
+
+        # Other users can only see published, non-private auctions, or private auctions they've bid on
+        public_auctions = Q(is_published=True, is_private=False)
+        bid_auctions = Q(is_private=True, bids__bidder=user)
+        return Auction.objects.filter(public_auctions | bid_auctions).distinct()
+
+    def retrieve(self, request, *args, **kwargs):
+        """Override retrieve to update auction status and increment view count"""
+        instance = self.get_object()
+
+        # Update auction status
+        check_auction_status(instance)
+
+        # Increment view count
+        instance.view_count += 1
+        instance.save(update_fields=['view_count'])
+
+        serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
-    def post(self, request, format=None):
-        """Create an auction"""
-        serializer = AuctionSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save(
-                created_by=request.user,
-                # If no auctioneer specified, use current user
-                auctioneer=serializer.validated_data.get('auctioneer', request.user)
-            )
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class AuctionDetailView(BaseAPIView):
-    """Retrieve, update and delete an auction"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'put': [IsAuctionCreator],
-        'patch': [IsAuctionCreator],
-        'delete': [permissions.IsAdminUser],
-    }
+class AuctionEditView(generics.UpdateAPIView):
+    """
+    Update an auction.
+    """
+    queryset = Auction.objects.all()
+    serializer_class = AuctionSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    lookup_field = 'slug'
 
-    def get_object(self, pk):
-        """Get auction with permission check"""
-        auction = get_object_or_404(Auction, pk=pk)
-        self.check_object_permissions(self.request, auction)
-        return auction
+    @api_verified_user_required
+    def update(self, request, *args, **kwargs):
+        """Override update to add verification check"""
+        auction = self.get_object()
 
-    def get(self, request, pk, format=None):
-        """Retrieve an auction"""
-        auction = self.get_object(pk)
-        serializer = AuctionSerializer(auction)
-        return Response(serializer.data)
-
-    def put(self, request, pk, format=None):
-        """Update an auction"""
-        auction = self.get_object(pk)
-        serializer = AuctionSerializer(auction, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request, pk, format=None):
-        """Partially update an auction"""
-        auction = self.get_object(pk)
-        serializer = AuctionSerializer(auction, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk, format=None):
-        """Delete an auction"""
-        auction = self.get_object(pk)
-        auction.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-class AuctionBySlugView(BaseAPIView):
-    """Retrieve an auction by slug"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @debug_request
-    @cache_view(timeout=CACHE_SHORT, key_prefix='auction_slug', vary_on_user=True)
-    def get(self, request, slug, format=None):
-        """Get auction by slug and increment view count"""
-        user = request.user
-
-        # Get accessible auctions
-        if user.is_staff:
-            queryset = Auction.objects.all()
-        else:
-            queryset = Auction.objects.filter(
-                # Public or user is invited
-                (Q(is_private=False) | Q(is_private=True, invited_bidders=user))
+        # Check if user has permission to update this auction
+        if not (request.user.has_role('admin') or auction.related_property.owner == request.user):
+            return Response(
+                {'detail': _('You do not have permission to update this auction.')},
+                status=status.HTTP_403_FORBIDDEN
             )
 
-        auction = get_object_or_404(queryset, slug=slug)
+        return super().update(request, *args, **kwargs)
 
-        # Increment views count atomically
-        with transaction.atomic():
-            Auction.objects.filter(pk=auction.pk).update(views_count=F('views_count') + 1)
-            auction.refresh_from_db()
+    @api_verified_user_required
+    def partial_update(self, request, *args, **kwargs):
+        """Override partial_update to add verification check"""
+        auction = self.get_object()
 
-        serializer = AuctionSerializer(auction)
-        return Response(serializer.data)
+        # Check if user has permission to update this auction
+        if not (request.user.has_role('admin') or auction.related_property.owner == request.user):
+            return Response(
+                {'detail': _('You do not have permission to update this auction.')},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-class MyAuctionsView(BaseAPIView):
-    """List auctions the user is involved with"""
-    permission_classes = [permissions.IsAuthenticated]
+        return super().partial_update(request, *args, **kwargs)
 
-    def get(self, request, format=None):
-        """Get user's auctions"""
-        auctions = Auction.objects.filter(
-            Q(created_by=request.user) |
-            Q(auctioneer=request.user) |
-            Q(invited_bidders=request.user)
+
+class AuctionDeleteView(generics.DestroyAPIView):
+    """
+    Delete an auction.
+    """
+    queryset = Auction.objects.all()
+    serializer_class = AuctionSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    lookup_field = 'slug'
+
+
+class AuctionImageListCreateView(generics.ListCreateAPIView):
+    """
+    List all images for an auction or create a new image.
+    """
+    serializer_class = AuctionImageSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+
+    def get_queryset(self):
+        """Get images for the specified auction"""
+        auction_id = self.kwargs.get('auction_id')
+        return AuctionImage.objects.filter(auction_id=auction_id).order_by('order', '-is_primary')
+
+    def perform_create(self, serializer):
+        """Set the auction when creating an image"""
+        auction = get_object_or_404(Auction, id=self.kwargs.get('auction_id'))
+
+        # Check if user has permission to add images
+        if not (self.request.user.has_role('admin') or auction.related_property.owner == self.request.user):
+            self.permission_denied(self.request, message=_('You do not have permission to add images to this auction.'))
+
+        serializer.save(auction=auction)
+
+
+class AuctionImageDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve an auction image.
+    """
+    queryset = AuctionImage.objects.all()
+    serializer_class = AuctionImageSerializer
+    permission_classes = [IsAuthenticated]
+
+
+class AuctionImageEditView(generics.UpdateAPIView):
+    """
+    Update an auction image.
+    """
+    queryset = AuctionImage.objects.all()
+    serializer_class = AuctionImageSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+
+
+class AuctionImageDeleteView(generics.DestroyAPIView):
+    """
+    Delete an auction image.
+    """
+    queryset = AuctionImage.objects.all()
+    serializer_class = AuctionImageSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+
+
+# -------------------------------------------------------------------------
+# Bid Views
+# -------------------------------------------------------------------------
+
+class BidListCreateView(generics.ListCreateAPIView):
+    """
+    List all bids for an auction or create a new bid.
+    """
+    serializer_class = BidSerializer
+    permission_classes = [IsAuthenticated, IsVerifiedUser]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['status', 'is_auto_bid']
+    ordering_fields = ['bid_time', 'bid_amount']
+    ordering = ['-bid_time']
+
+    def get_queryset(self):
+        """Get bids for the specified auction"""
+        auction_id = self.kwargs.get('auction_id')
+        user = self.request.user
+
+        # Get the auction
+        try:
+            auction = Auction.objects.get(id=auction_id)
+        except Auction.DoesNotExist:
+            return Bid.objects.none()
+
+        # Admin users and property owners can see all bids
+        if user.has_role('admin') or auction.related_property.owner == user:
+            return Bid.objects.filter(auction_id=auction_id)
+
+        # Other users can only see their own bids
+        return Bid.objects.filter(auction_id=auction_id, bidder=user)
+
+    @api_verified_user_required
+    def perform_create(self, serializer):
+        """Set the auction and bidder when creating a bid"""
+        auction_id = self.kwargs.get('auction_id')
+        auction = get_object_or_404(Auction, id=auction_id)
+
+        # Update auction status
+        status = check_auction_status(auction)
+
+        # Check if auction is live
+        if status != 'live':
+            self.permission_denied(
+                self.request,
+                message=_('Bids can only be placed on live auctions. Current status: {status}').format(status=status)
+            )
+
+        # Save the bid
+        serializer.save(
+            auction=auction,
+            bidder=self.request.user,
+            bid_time=timezone.now(),
+            ip_address=self.request.META.get('REMOTE_ADDR', ''),
+            user_agent=self.request.META.get('HTTP_USER_AGENT', '')
+        )
+
+
+class BidDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a bid.
+    """
+    queryset = Bid.objects.all()
+    serializer_class = BidSerializer
+    permission_classes = [IsAuthenticated, IsBidOwner]
+
+
+class BidEditView(generics.UpdateAPIView):
+    """
+    Update a bid.
+    """
+    queryset = Bid.objects.all()
+    serializer_class = BidSerializer
+    permission_classes = [IsAuthenticated, IsBidOwner, IsAdminUser]
+
+    @api_role_required('admin')
+    def update(self, request, *args, **kwargs):
+        """Only admin users can update bids"""
+        return super().update(request, *args, **kwargs)
+
+    @api_role_required('admin')
+    def partial_update(self, request, *args, **kwargs):
+        """Only admin users can update bids"""
+        return super().partial_update(request, *args, **kwargs)
+
+
+class BidDeleteView(generics.DestroyAPIView):
+    """
+    Delete a bid.
+    """
+    queryset = Bid.objects.all()
+    serializer_class = BidSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+
+class BidSuggestionsView(APIView):
+    """
+    Get bid increment suggestions for an auction.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, auction_id, format=None):
+        """Get bid increment suggestions"""
+        auction = get_object_or_404(Auction, id=auction_id)
+
+        # Get suggestions
+        suggestions = get_bid_increment_suggestions(
+            auction.current_bid or auction.starting_bid,
+            min_increment=auction.minimum_increment,
+            count=3,
+            factor=1.5
+        )
+
+        return Response({
+            'auction_id': auction_id,
+            'current_bid': auction.current_bid,
+            'minimum_increment': auction.minimum_increment,
+            'suggestions': suggestions
+        })
+
+
+# -------------------------------------------------------------------------
+# Document Views
+# -------------------------------------------------------------------------
+
+class DocumentListCreateView(generics.ListCreateAPIView):
+    """
+    List all documents or create a new document.
+    """
+    serializer_class = DocumentSerializer
+    permission_classes = [IsAuthenticated, IsVerifiedUser]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['document_type', 'verification_status', 'is_public']
+    search_fields = ['title', 'description', 'document_number']
+    ordering_fields = ['created_at', 'title']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        """
+        Return different querysets based on user role and permissions.
+        """
+        user = self.request.user
+
+        # Admin users can see all documents
+        if user.has_role('admin'):
+            return Document.objects.all()
+
+        # Legal users can see documents pending verification
+        if user.has_role('legal'):
+            own_documents = Q(uploaded_by=user)
+            pending_documents = Q(verification_status='pending')
+            public_documents = Q(is_public=True)
+            return Document.objects.filter(own_documents | pending_documents | public_documents)
+
+        # Property owners can see documents related to their properties
+        own_documents = Q(uploaded_by=user)
+        property_documents = Q(related_property__owner=user)
+        auction_documents = Q(related_auction__related_property__owner=user)
+        contract_seller_documents = Q(related_contract__seller=user)
+        contract_buyer_documents = Q(related_contract__buyer=user)
+        public_documents = Q(is_public=True)
+
+        return Document.objects.filter(
+            own_documents | property_documents | auction_documents |
+            contract_seller_documents | contract_buyer_documents | public_documents
         ).distinct()
 
-        # Handle pagination
-        page = self.paginate_queryset(auctions)
-        if page is not None:
-            serializer = AuctionSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+    def perform_create(self, serializer):
+        """Set the uploaded_by to the current user when creating a document"""
+        serializer.save(uploaded_by=self.request.user)
 
-        serializer = AuctionSerializer(auctions, many=True)
-        return Response(serializer.data)
 
-class ExtendAuctionView(BaseAPIView):
-    """Extend an auction's end time"""
-    permission_classes = [IsAuctionCreator]
+class DocumentDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a document.
+    """
+    queryset = Document.objects.all()
+    serializer_class = DocumentSerializer
+    permission_classes = [IsAuthenticated, IsDocumentAuthorized]
 
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Extend auction duration"""
-        try:
-            auction = get_object_or_404(Auction, pk=pk)
-            minutes = request.data.get('minutes', auction.extension_minutes)
 
-            # Validate auction status
-            if auction.status not in ['active', 'extended']:
-                return self.error_response(
-                    'Only active or extended auctions can be extended',
-                    'invalid_status',
-                    status.HTTP_400_BAD_REQUEST
+class DocumentEditView(generics.UpdateAPIView):
+    """
+    Update a document.
+    """
+    queryset = Document.objects.all()
+    serializer_class = DocumentSerializer
+    permission_classes = [IsAuthenticated, IsDocumentAuthorized]
+
+    def perform_update(self, serializer):
+        """
+        Handle verification status changes
+        """
+        instance = self.get_object()
+        verification_status = serializer.validated_data.get('verification_status')
+
+        # If verification status is changing to 'verified', set verification details
+        if verification_status == 'verified' and instance.verification_status != 'verified':
+            if self.request.user.has_role('admin') or self.request.user.has_role('legal'):
+                serializer.save(
+                    verified_by=self.request.user,
+                    verification_date=timezone.now()
                 )
-
-            # Extend the auction
-            success = auction.extend_auction(minutes=minutes)
-
-            if success:
-                return self.success_response(
-                    message=f'Auction extended by {minutes} minutes'
+            else:
+                # Non-authorized users can't verify documents
+                self.permission_denied(
+                    self.request,
+                    message=_('Only admin or legal users can verify documents.')
                 )
-
-            return self.error_response('Failed to extend auction', 'extension_failed')
-        except Http404:
-            return self.not_found('Auction not found')
-        except Exception as e:
-            logger.error(f"Error extending auction: {str(e)}")
-            return self.error_response('An error occurred', 'extension_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class CloseAuctionView(BaseAPIView):
-    """Close an auction before its end time"""
-    permission_classes = [IsAuctionCreator]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Close an auction manually"""
-        try:
-            auction = get_object_or_404(Auction, pk=pk)
-
-            # Validate auction status
-            if auction.status not in ['active', 'extended']:
-                return self.error_response(
-                    f'Only active or extended auctions can be closed',
-                    'invalid_status',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Check if already ended naturally
-            now = timezone.now()
-            if now > auction.end_date:
-                return self.error_response(
-                    'Auction has already ended naturally',
-                    'already_ended',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Close the auction
-            auction.status = 'closed'
-            auction.end_reason = request.data.get('reason', 'Manually closed by auctioneer')
-            auction.end_date = timezone.now()
-            auction.save(update_fields=['status', 'end_reason', 'end_date', 'updated_at'])
-
-            return self.success_response(message='Auction closed successfully')
-        except Http404:
-            return self.not_found('Auction not found')
-        except Exception as e:
-            logger.error(f"Error closing auction: {str(e)}")
-            return self.error_response('An error occurred', 'closure_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-# Use MediaUploadView instead of BaseUploadView
-class UploadAuctionImagesView(MediaUploadView):
-    """Upload images for an auction"""
-    entity_model = Auction
-    entity_type = 'auction'
-    media_type = 'image'
-    max_files = 10
+        else:
+            serializer.save()
 
 
-# Bid Views
-class PlaceBidView(BaseAPIView):
-    """Place a bid on an auction"""
-    permission_classes = [permissions.IsAuthenticated]
+class DocumentDeleteView(generics.DestroyAPIView):
+    """
+    Delete a document.
+    """
+    queryset = Document.objects.all()
+    serializer_class = DocumentSerializer
+    permission_classes = [IsAuthenticated, IsDocumentAuthorized]
 
-    def validate_bid(self, auction, user, bid_amount):
-        """Validate bid parameters"""
-        # Check if auction is active
-        if auction.status != 'active':
-            return False, 'Cannot bid on inactive auction', 'inactive_auction', status.HTTP_400_BAD_REQUEST
 
-        # Check if auction is open
-        now = timezone.now()
-        if now < auction.start_date or now > auction.end_date:
-            return False, 'Auction is not open for bids', 'auction_closed', status.HTTP_400_BAD_REQUEST
+# -------------------------------------------------------------------------
+# Contract Views
+# -------------------------------------------------------------------------
 
-        # Check if private and user is invited
-        if auction.is_private and user not in auction.invited_bidders.all():
-            return False, 'You are not invited to this auction', 'not_invited', status.HTTP_403_FORBIDDEN
-
-        # Validate bid amount
-        if bid_amount is None:
-            return False, 'Bid amount is required', 'missing_amount', status.HTTP_400_BAD_REQUEST
-
-        try:
-            bid_amount = float(bid_amount)
-        except (ValueError, TypeError):
-            return False, 'Invalid bid amount format', 'invalid_format', status.HTTP_400_BAD_REQUEST
-
-        # Check if bid is high enough
-        highest_bid = auction.highest_bid
-        min_bid = highest_bid + auction.min_bid_increment
-
-        if bid_amount < min_bid:
-            return False, f'Bid amount must be at least {min_bid}', 'bid_too_low', status.HTTP_400_BAD_REQUEST
-
-        return True, None, None, None
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Place a bid"""
-        try:
-            auction = get_object_or_404(Auction, pk=pk)
-        except Http404:
-            return self.not_found('Auction not found')
-
-        # Validate bid
-        bid_amount = request.data.get('bid_amount')
-        is_valid, error_msg, error_code, error_status = self.validate_bid(
-            auction, request.user, bid_amount
-        )
-
-        if not is_valid:
-            return self.error_response(error_msg, error_code, error_status)
-
-        # Create bid
-        bid_data = {
-            'auction': auction.id,
-            'bidder': request.user.id,
-            'bid_amount': float(bid_amount),
-            'max_bid_amount': request.data.get('max_bid_amount'),
-            'is_auto_bid': bool(request.data.get('max_bid_amount')),
-        }
-
-        serializer = BidSerializer(data=bid_data)
-        if not serializer.is_valid():
-            return self.error_response(serializer.errors, 'validation_error')
-
-        # Save bid with meta data
-        bid = serializer.save(
-            bidder=request.user,
-            ip_address=request.META.get('REMOTE_ADDR'),
-            user_agent=request.META.get('HTTP_USER_AGENT')
-        )
-
-        # Auto-extend if bid is near the end
-        now = timezone.now()
-        time_left = (auction.end_date - now).total_seconds() / 60
-        if auction.auto_extend and time_left <= auction.extension_minutes:
-            auction.extend_auction()
-
-        return self.success_response(
-            data=serializer.data,
-            message='Bid placed successfully',
-            status_code=status.HTTP_201_CREATED
-        )
-
-class BidListCreateView(BaseAPIView):
-    """List and create bids"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [permissions.IsAuthenticated],
-    }
+class ContractListCreateView(generics.ListCreateAPIView):
+    """
+    List all contracts or create a new contract.
+    """
+    serializer_class = ContractSerializer
+    permission_classes = [IsAuthenticated, IsVerifiedUser]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'payment_method', 'is_verified']
+    search_fields = ['title', 'description', 'contract_number']
+    ordering_fields = ['contract_date', 'total_amount', 'created_at']
+    ordering = ['-created_at']
 
     def get_queryset(self):
-        """Get filtered bid queryset"""
-        queryset = Bid.objects.all()
+        """
+        Return different querysets based on user role and permissions.
+        """
         user = self.request.user
-        params = self.request.query_params
 
-        # Filter for non-staff users
-        if not user.is_staff:
-            queryset = queryset.filter(
-                Q(bidder=user) |
-                Q(auction__created_by=user) |
-                Q(auction__auctioneer=user)
-            )
+        # Admin users can see all contracts
+        if user.has_role('admin'):
+            return Contract.objects.all()
 
-        # Apply filters
-        if params.get('auction'):
-            queryset = queryset.filter(auction=params.get('auction'))
+        # Legal users can see contracts they need to verify
+        if user.has_role('legal'):
+            legal_contracts = Q(is_verified=False)
+            user_contracts = Q(buyer=user) | Q(seller=user)
+            return Contract.objects.filter(legal_contracts | user_contracts)
 
-        if params.get('bidder'):
-            queryset = queryset.filter(bidder=params.get('bidder'))
+        # Users can see contracts where they are buyer or seller
+        return Contract.objects.filter(Q(buyer=user) | Q(seller=user))
 
-        if params.get('status'):
-            queryset = queryset.filter(status=params.get('status'))
+    @api_verified_user_required
+    def create(self, request, *args, **kwargs):
+        """Create a contract with validation"""
+        property_id = request.data.get('related_property')
 
-        if params.get('is_auto_bid') is not None:
-            is_auto = params.get('is_auto_bid').lower() == 'true'
-            queryset = queryset.filter(is_auto_bid=is_auto)
+        if property_id:
+            property_obj = get_object_or_404(Property, id=property_id)
 
-        # Apply ordering
-        ordering = params.get('ordering')
-        if ordering and ordering.lstrip('-') in ['bid_amount', 'bid_time']:
-            queryset = queryset.order_by(ordering)
-        else:
-            queryset = queryset.order_by('-bid_time')
-
-        return queryset
-
-    def get(self, request, format=None):
-        """List bids"""
-        queryset = self.get_queryset()
-
-        # Handle pagination
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = BidSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = BidSerializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def post(self, request, format=None):
-        """Create a bid"""
-        serializer = BidSerializer(data=request.data)
-        if serializer.is_valid():
-            # Check if user can bid on this auction
-            auction = serializer.validated_data.get('auction')
-            user = request.user
-
-            if auction.is_private and user not in auction.invited_bidders.all():
+            # Check if user has permission to create a contract for this property
+            if not (request.user.has_role('admin') or property_obj.owner == request.user):
                 return Response(
-                    {"error": "You are not invited to this private auction"},
+                    {'detail': _('You do not have permission to create a contract for this property.')},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # Save bid with meta data
-            bid = serializer.save(
-                bidder=user,
-                ip_address=request.META.get('REMOTE_ADDR'),
-                user_agent=request.META.get('HTTP_USER_AGENT')
-            )
+        return super().create(request, *args, **kwargs)
 
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class BidDetailView(BaseAPIView):
-    """Retrieve, update and delete a bid"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'put': [permissions.IsAdminUser],
-        'patch': [permissions.IsAdminUser],
-        'delete': [permissions.IsAdminUser],
-    }
+class ContractDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a contract.
+    """
+    queryset = Contract.objects.all()
+    serializer_class = ContractSerializer
+    permission_classes = [IsAuthenticated, IsContractParty]
 
-    def get_object(self, pk):
-        """Get bid with permission check"""
+
+class ContractEditView(generics.UpdateAPIView):
+    """
+    Update a contract.
+    """
+    queryset = Contract.objects.all()
+    serializer_class = ContractSerializer
+    permission_classes = [IsAuthenticated, IsContractParty]
+
+    def perform_update(self, serializer):
+        """
+        Handle verification status changes and signatures
+        """
+        instance = self.get_object()
+        data = serializer.validated_data
         user = self.request.user
 
-        # Filter based on permissions
-        if user.is_staff:
-            queryset = Bid.objects.all()
-        else:
-            queryset = Bid.objects.filter(
-                Q(bidder=user) |
-                Q(auction__created_by=user) |
-                Q(auction__auctioneer=user)
-            )
-
-        bid = get_object_or_404(queryset, pk=pk)
-        self.check_object_permissions(self.request, bid)
-        return bid
-
-    def get(self, request, pk, format=None):
-        """Retrieve a bid"""
-        bid = self.get_object(pk)
-        serializer = BidSerializer(bid)
-        return Response(serializer.data)
-
-    def put(self, request, pk, format=None):
-        """Update a bid"""
-        bid = self.get_object(pk)
-        serializer = BidSerializer(bid, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request, pk, format=None):
-        """Partially update a bid"""
-        bid = self.get_object(pk)
-        serializer = BidSerializer(bid, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk, format=None):
-        """Delete a bid"""
-        bid = self.get_object(pk)
-        bid.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-class MyBidsView(BaseAPIView):
-    """List bids placed by current user"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request, format=None):
-        """Get user's bids"""
-        bids = Bid.objects.filter(bidder=request.user)
-
-        # Filter by auction if specified
-        auction_id = request.query_params.get('auction_id')
-        if auction_id:
-            bids = bids.filter(auction_id=auction_id)
-
-        # Handle pagination
-        page = self.paginate_queryset(bids)
-        if page is not None:
-            serializer = BidSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = BidSerializer(bids, many=True)
-        return Response(serializer.data)
-
-class MarkBidAsWinningView(BaseAPIView):
-    """Mark a bid as the winning bid"""
-    permission_classes = [IsAgentPermission]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Mark bid as winning"""
-        try:
-            bid = get_object_or_404(Bid, pk=pk)
-            auction = bid.auction
-
-            # Check permissions
-            user = request.user
-            if not user.is_staff and user != auction.created_by and user != auction.auctioneer:
-                return self.permission_denied('You do not have permission to mark the winning bid')
-
-            # Check auction status
-            if auction.status not in ['closed', 'extended', 'active']:
-                return self.error_response(
-                    f'Cannot mark winning bid for auction with status {auction.status}',
-                    'invalid_status',
-                    status.HTTP_400_BAD_REQUEST
+        # Handle verification
+        is_verified = data.get('is_verified')
+        if is_verified and not instance.is_verified:
+            if user.has_role('admin') or user.has_role('legal'):
+                serializer.save(
+                    verified_by=user,
+                    verification_date=timezone.now()
+                )
+                return
+            else:
+                # Non-authorized users can't verify contracts
+                self.permission_denied(
+                    self.request,
+                    message=_('Only admin or legal users can verify contracts.')
                 )
 
-            # Check if already has a winner
-            if auction.winning_bidder is not None:
-                return self.error_response(
-                    'This auction already has a winning bid',
-                    'winner_exists',
-                    status.HTTP_400_BAD_REQUEST
-                )
+        # Handle signatures
+        buyer_signed = data.get('buyer_signed')
+        seller_signed = data.get('seller_signed')
 
-            # Mark as winning
-            success = bid.mark_as_winning()
+        if buyer_signed and not instance.buyer_signed and user == instance.buyer:
+            serializer.save(buyer_signed_date=timezone.now())
+            return
 
-            if success:
-                return self.success_response(message='Bid marked as winning successfully')
+        if seller_signed and not instance.seller_signed and user == instance.seller:
+            serializer.save(seller_signed_date=timezone.now())
+            return
 
-            return self.error_response('Failed to mark bid as winning', 'marking_failed')
-        except Http404:
-            return self.not_found('Bid not found')
-        except Exception as e:
-            logger.error(f"Error marking bid as winning: {str(e)}")
-            return self.error_response('An error occurred', 'marking_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
+        serializer.save()
 
 
-# Document Views
-class DocumentListCreateView(BaseAPIView):
-    """List and create documents"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [permissions.IsAuthenticated],
-    }
+class ContractDeleteView(generics.DestroyAPIView):
+    """
+    Delete a contract.
+    """
+    queryset = Contract.objects.all()
+    serializer_class = ContractSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
-    def get_queryset(self):
-        """Get filtered document queryset"""
-        queryset = Document.objects.all()
-        user = self.request.user
-        params = self.request.query_params
 
-        # Filter for non-staff users
-        if not user.is_staff:
-            queryset = queryset.filter(
-                Q(uploaded_by=user) |
-                Q(related_property__owner=user) |
-                Q(auction__created_by=user) |
-                Q(auction__auctioneer=user) |
-                Q(contract__buyer=user) |
-                Q(contract__seller=user) |
-                Q(contract__agent=user)
-            )
-
-        # Apply filters
-        filters = {}
-        for field in ['document_type', 'verification_status', 'related_property', 'auction', 'contract']:
-            if params.get(field):
-                filters[field] = params.get(field)
-
-        if filters:
-            queryset = queryset.filter(**filters)
-
-        # Apply search
-        search = params.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(title__icontains=search) |
-                Q(description__icontains=search) |
-                Q(document_number__icontains=search)
-            )
-
-        # Apply ordering
-        ordering = params.get('ordering')
-        if ordering and ordering.lstrip('-') in ['created_at', 'issue_date', 'expiry_date']:
-            queryset = queryset.order_by(ordering)
-        else:
-            queryset = queryset.order_by('-created_at')
-
-        return queryset
-
-    def get(self, request, format=None):
-        """List documents"""
-        queryset = self.get_queryset()
-
-        # Handle pagination
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = DocumentSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = DocumentSerializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def post(self, request, format=None):
-        """Create a document"""
-        serializer = DocumentSerializer(data=request.data)
-        if serializer.is_valid():
-            document = serializer.save(uploaded_by=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-class DocumentDetailView(BaseAPIView):
-    """Retrieve, update and delete a document"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'put': [permissions.IsAuthenticated],
-        'patch': [permissions.IsAuthenticated],
-        'delete': [permissions.IsAdminUser],
-    }
-
-    def get_object(self, pk):
-        """Get document with permission check"""
-        document = get_object_or_404(Document, pk=pk)
-        self.check_object_permissions(self.request, document)
-
-        # Additional permission check for updates
-        if self.request.method in ['PUT', 'PATCH']:
-            user = self.request.user
-            if (user != document.uploaded_by and
-                not user.is_staff and
-                not user.has_role(Role.LEGAL)):
-                raise PermissionDenied("You don't have permission to update this document")
-
-        return document
-
-    def get(self, request, pk, format=None):
-        """Retrieve a document"""
-        document = self.get_object(pk)
-        serializer = DocumentSerializer(document)
-        return Response(serializer.data)
-
-    def put(self, request, pk, format=None):
-        """Update a document"""
-        document = self.get_object(pk)
-        serializer = DocumentSerializer(document, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request, pk, format=None):
-        """Partially update a document"""
-        document = self.get_object(pk)
-        serializer = DocumentSerializer(document, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk, format=None):
-        """Delete a document"""
-        document = self.get_object(pk)
-        document.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-class VerifyDocumentView(BaseAPIView):
-    """Verify a document"""
-    permission_classes = [IsLegalPermission | IsInspectorPermission]
-
-    def post(self, request, pk, format=None):
-        """Mark document as verified"""
-        document = get_object_or_404(Document, pk=pk)
-        notes = request.data.get('notes')
-
-        # Execute verification
-        success = document.verify(user=request.user, notes=notes)
-
-        if success:
-            return Response({'status': 'Document verified'})
-        return Response(
-            {'error': 'Failed to verify document'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-class MyDocumentsView(BaseAPIView):
-    """List documents uploaded by current user"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request, format=None):
-        """Get user's documents"""
-        documents = Document.objects.filter(uploaded_by=request.user)
-
-        # Filter by type if specified
-        doc_type = request.query_params.get('document_type')
-        if doc_type:
-            documents = documents.filter(document_type=doc_type)
-
-        # Handle pagination
-        page = self.paginate_queryset(documents)
-        if page is not None:
-            serializer = DocumentSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = DocumentSerializer(documents, many=True)
-        return Response(serializer.data)
-
-# Use MediaUploadView instead of BaseUploadView
-class UploadDocumentFilesView(MediaUploadView):
-    """Upload files to a document"""
-    entity_model = Document
-    entity_type = 'document'
-    media_type = 'document'
-    max_files = 5
-
-
-# Contract Views
-class ContractListCreateView(BaseAPIView):
-    """List and create contracts"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [IsLegalPermission | IsAgentPermission],
-    }
-
-    def get_queryset(self):
-        """Get filtered contract queryset"""
-        queryset = Contract.objects.all()
-        user = self.request.user
-        params = self.request.query_params
-
-        # Filter for non-staff users
-        if not user.is_staff:
-            queryset = queryset.filter(
-                Q(buyer=user) |
-                Q(seller=user) |
-                Q(agent=user) |
-                Q(auction__created_by=user) |
-                Q(auction__auctioneer=user)
-            )
-
-        # Apply filters
-        filters = {}
-        for field in ['status', 'buyer', 'seller', 'agent', 'related_property', 'auction']:
-            if params.get(field):
-                filters[field] = params.get(field)
-
-        if filters:
-            queryset = queryset.filter(**filters)
-
-        # Apply search
-        search = params.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(title__icontains=search) |
-                Q(contract_number__icontains=search)
-            )
-
-        # Apply ordering
-        ordering = params.get('ordering')
-        if ordering and ordering.lstrip('-') in ['created_at', 'contract_date', 'contract_amount']:
-            queryset = queryset.order_by(ordering)
-        else:
-            queryset = queryset.order_by('-created_at')
-
-        return queryset
-
-    def get(self, request, format=None):
-        """List contracts"""
-        queryset = self.get_queryset()
-
-        # Handle pagination
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = ContractSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = ContractSerializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def post(self, request, format=None):
-        """Create a contract"""
-        serializer = ContractSerializer(data=request.data)
-        if serializer.is_valid():
-            contract = serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-class ContractDetailView(BaseAPIView):
-    """Retrieve, update and delete a contract"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'put': [IsLegalPermission | IsAgentPermission],
-        'patch': [IsLegalPermission | IsAgentPermission],
-        'delete': [permissions.IsAdminUser],
-    }
-
-    def get_object(self, pk):
-        """Get contract with permission check"""
-        contract = get_object_or_404(Contract, pk=pk)
-        self.check_object_permissions(self.request, contract)
-        return contract
-
-    def get(self, request, pk, format=None):
-        """Retrieve a contract"""
-        contract = self.get_object(pk)
-        serializer = ContractSerializer(contract)
-        return Response(serializer.data)
-
-    def put(self, request, pk, format=None):
-        """Update a contract"""
-        contract = self.get_object(pk)
-        serializer = ContractSerializer(contract, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request, pk, format=None):
-        """Partially update a contract"""
-        contract = self.get_object(pk)
-        serializer = ContractSerializer(contract, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk, format=None):
-        """Delete a contract"""
-        contract = self.get_object(pk)
-        contract.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-# Use MediaUploadView instead of BaseUploadView
-class UploadContractFilesView(MediaUploadView):
-    """Upload files to a contract"""
-    entity_model = Contract
-    entity_type = 'contract'
-    media_type = 'document'
-    max_files = 10
-
-class SignContractAsBuyerView(BaseAPIView):
-    """Sign a contract as buyer"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Sign contract as buyer"""
-        try:
-            contract = get_object_or_404(Contract, pk=pk)
-            user = request.user
-
-            # Verify user is the buyer
-            if user != contract.buyer:
-                return self.permission_denied('You are not the buyer for this contract')
-
-            # Check if already signed
-            if contract.buyer_signed:
-                return self.success_response(message='Contract already signed by buyer')
-
-            # Sign the contract
-            success = contract.sign_as_buyer(user=user)
-
-            if success:
-                return self.success_response(message='Contract signed successfully')
-
-            return self.error_response('Failed to sign contract', 'signing_failed')
-        except Http404:
-            return self.not_found('Contract not found')
-        except Exception as e:
-            logger.error(f"Error signing contract as buyer: {str(e)}")
-            return self.error_response('An error occurred', 'signing_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class SignContractAsSellerView(BaseAPIView):
-    """Sign a contract as seller"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Sign contract as seller"""
-        try:
-            contract = get_object_or_404(Contract, pk=pk)
-            user = request.user
-
-            # Verify user is the seller
-            if user != contract.seller:
-                return self.permission_denied('You are not the seller for this contract')
-
-            # Check if already signed
-            if contract.seller_signed:
-                return self.success_response(message='Contract already signed by seller')
-
-            # Sign the contract
-            success = contract.sign_as_seller(user=user)
-
-            if success:
-                return self.success_response(message='Contract signed successfully')
-
-            return self.error_response('Failed to sign contract', 'signing_failed')
-        except Http404:
-            return self.not_found('Contract not found')
-        except Exception as e:
-            logger.error(f"Error signing contract as seller: {str(e)}")
-            return self.error_response('An error occurred', 'signing_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class SignContractAsAgentView(BaseAPIView):
-    """Sign a contract as agent"""
-    permission_classes = [IsAgentPermission]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Sign contract as agent"""
-        try:
-            contract = get_object_or_404(Contract, pk=pk)
-            user = request.user
-
-            # Verify user is the agent
-            if user != contract.agent:
-                return self.permission_denied('You are not the agent for this contract')
-
-            # Check if already signed
-            if contract.agent_signed:
-                return self.success_response(message='Contract already signed by agent')
-
-            # Sign as agent
-            contract.agent_signed = True
-            contract.agent_signature_date = timezone.now()
-
-            # Update status if all parties signed
-            if contract.buyer_signed and contract.seller_signed:
-                contract.status = 'signed'
-
-            contract.save(update_fields=[
-                'agent_signed', 'agent_signature_date', 'status', 'updated_at'
-            ])
-
-            return self.success_response(message='Contract signed successfully')
-        except Http404:
-            return self.not_found('Contract not found')
-        except Exception as e:
-            logger.error(f"Error signing contract as agent: {str(e)}")
-            return self.error_response('An error occurred', 'signing_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class MyContractsView(BaseAPIView):
-    """List contracts the user is involved with"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request, format=None):
-        """Get user's contracts"""
-        user = request.user
-        contracts = Contract.objects.filter(
-            Q(buyer=user) |
-            Q(seller=user) |
-            Q(agent=user)
-        )
-
-        # Filter by status if specified
-        status_filter = request.query_params.get('status')
-        if status_filter:
-            contracts = contracts.filter(status=status_filter)
-
-        # Handle pagination
-        page = self.paginate_queryset(contracts)
-        if page is not None:
-            serializer = ContractSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = ContractSerializer(contracts, many=True)
-        return Response(serializer.data)
-
-
-# Payment Views
-class PaymentListCreateView(BaseAPIView):
-    """List and create payments"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [permissions.IsAuthenticated],
-    }
-
-    def get_queryset(self):
-        """Get filtered payment queryset"""
-        queryset = Payment.objects.all()
-        user = self.request.user
-        params = self.request.query_params
-
-        # Filter for non-staff/non-agent users
-        if not user.is_staff and not user.has_role(Role.AGENT):
-            queryset = queryset.filter(
-                Q(payer=user) |
-                Q(payee=user) |
-                Q(contract__buyer=user) |
-                Q(contract__seller=user) |
-                Q(contract__agent=user)
-            )
-
-        # Apply filters
-        filters = {}
-        for field in ['status', 'payment_type', 'payment_method', 'contract', 'payer', 'payee']:
-            if params.get(field):
-                filters[field] = params.get(field)
-
-        if filters:
-            queryset = queryset.filter(**filters)
-
-        # Apply search
-        search = params.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(payment_number__icontains=search) |
-                Q(transaction_reference__icontains=search)
-            )
-
-        # Apply ordering
-        ordering = params.get('ordering')
-        if ordering and ordering.lstrip('-') in ['payment_date', 'amount', 'created_at']:
-            queryset = queryset.order_by(ordering)
-        else:
-            queryset = queryset.order_by('-payment_date')
-
-        return queryset
-
-    def get(self, request, format=None):
-        """List payments"""
-        queryset = self.get_queryset()
-
-        # Handle pagination
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = PaymentSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = PaymentSerializer(queryset, many=True)
-        return self.success_response(data=serializer.data)
-
-    @transaction.atomic
-    def post(self, request, format=None):
-        """Create a payment"""
-        serializer = PaymentSerializer(data=request.data)
-        if not serializer.is_valid():
-            return self.error_response(serializer.errors, 'validation_error')
-
-        try:
-            payment = serializer.save(payer=request.user)
-            return self.success_response(
-                data=serializer.data,
-                message='Payment created successfully',
-                status_code=status.HTTP_201_CREATED
-            )
-        except Exception as e:
-            logger.error(f"Error creating payment: {str(e)}")
-            return self.error_response('Failed to create payment', 'creation_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class PaymentDetailView(BaseAPIView):
-    """Retrieve, update and delete a payment"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'put': [permissions.IsAdminUser | IsAgentPermission],
-        'patch': [permissions.IsAdminUser | IsAgentPermission],
-        'delete': [permissions.IsAdminUser],
-    }
-
-    def get_object(self, pk):
-        """Get payment with permission check"""
-        payment = get_object_or_404(Payment, pk=pk)
-        self.check_object_permissions(self.request, payment)
-        return payment
-
-    def get(self, request, pk, format=None):
-        """Retrieve a payment"""
-        payment = self.get_object(pk)
-        serializer = PaymentSerializer(payment)
-        return Response(serializer.data)
-
-    def put(self, request, pk, format=None):
-        """Update a payment"""
-        payment = self.get_object(pk)
-        serializer = PaymentSerializer(payment, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request, pk, format=None):
-        """Partially update a payment"""
-        payment = self.get_object(pk)
-        serializer = PaymentSerializer(payment, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk, format=None):
-        """Delete a payment"""
-        payment = self.get_object(pk)
-        payment.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-class ConfirmPaymentView(BaseAPIView):
-    """Confirm a payment"""
-    permission_classes = [IsAgentPermission]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Confirm a payment"""
-        try:
-            payment = get_object_or_404(Payment, pk=pk)
-
-            # Check if already confirmed
-            if payment.status == 'completed':
-                return self.success_response(message='Payment already confirmed')
-
-            # Verify payment status allows confirmation
-            if payment.status not in ['pending', 'processing']:
-                return self.error_response(
-                    f'Cannot confirm payment with status {payment.status}',
-                    'invalid_status',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Confirm the payment
-            success = payment.confirm_payment(user=request.user)
-
-            if success:
-                return self.success_response(message='Payment confirmed successfully')
-
-            return self.error_response('Failed to confirm payment', 'confirmation_failed')
-        except Http404:
-            return self.not_found('Payment not found')
-        except Exception as e:
-            logger.error(f"Error confirming payment: {str(e)}")
-            return self.error_response('An error occurred', 'confirmation_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class MyPaymentsView(BaseAPIView):
-    """List payments made or received by current user"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request, format=None):
-        """Get user's payments"""
-        user = request.user
-        payments = Payment.objects.filter(
-            Q(payer=user) |
-            Q(payee=user)
-        )
-
-        # Filter by type
-        payment_type = request.query_params.get('payment_type')
-        if payment_type:
-            payments = payments.filter(payment_type=payment_type)
-
-        # Filter by direction
-        direction = request.query_params.get('direction')
-        if direction == 'made':
-            payments = payments.filter(payer=user)
-        elif direction == 'received':
-            payments = payments.filter(payee=user)
-
-        # Handle pagination
-        page = self.paginate_queryset(payments)
-        if page is not None:
-            serializer = PaymentSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = PaymentSerializer(payments, many=True)
-        return Response(serializer.data)
-
-# Use MediaUploadView instead of BaseUploadView
-class UploadPaymentReceiptView(MediaUploadView):
-    """Upload receipt for a payment"""
-    entity_model = Payment
-    entity_type = 'payment'
-    media_type = 'document'
-    max_files = 1
-
-    def get_object(self, pk):
-        """Get payment with permission check"""
-        payment = get_object_or_404(Payment, pk=pk)
-
-        # Check permission
-        user = self.request.user
-        if user != payment.payer and not user.is_staff and not user.has_role(Role.AGENT):
-            raise PermissionDenied("You don't have permission to upload receipt for this payment")
-
-        return payment
-
-
+# -------------------------------------------------------------------------
 # Message Thread Views
-class MessageThreadListCreateView(BaseAPIView):
-    """List and create message threads"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [permissions.IsAuthenticated],
-    }
+# -------------------------------------------------------------------------
+
+class MessageThreadListCreateView(generics.ListCreateAPIView):
+    """
+    List all message threads or create a new thread.
+    """
+    serializer_class = MessageThreadSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['thread_type', 'status', 'is_private', 'is_system_thread']
+    search_fields = ['subject']
+    ordering_fields = ['last_message_at', 'created_at']
+    ordering = ['-last_message_at']
 
     def get_queryset(self):
-        """Get filtered message thread queryset"""
-        queryset = MessageThread.objects.all()
+        """
+        Return threads where the user is a participant
+        """
         user = self.request.user
-        params = self.request.query_params
 
-        # Filter for non-staff users
-        if not user.is_staff:
-            queryset = queryset.filter(
-                thread_participants__user=user,
-                thread_participants__is_active=True
-            )
+        # Admin users can see all threads
+        if user.has_role('admin'):
+            return MessageThread.objects.all()
 
-        # Apply filters
-        filters = {}
-        for field in ['thread_type', 'status']:
-            if params.get(field):
-                filters[field] = params.get(field)
+        # Users can see threads where they are a participant
+        return MessageThread.objects.filter(participants__user=user, participants__is_active=True)
 
-        # Boolean filters
-        for field in ['is_private', 'is_system_thread']:
-            if params.get(field) is not None:
-                filters[field] = params.get(field).lower() == 'true'
+    def perform_create(self, serializer):
+        """Set the creator to the current user when creating a thread"""
+        thread = serializer.save(creator=self.request.user)
 
-        if params.get('creator'):
-            filters['creator'] = params.get('creator')
-
-        if filters:
-            queryset = queryset.filter(**filters)
-
-        # Apply search
-        search = params.get('search')
-        if search:
-            queryset = queryset.filter(subject__icontains=search)
-
-        # Apply ordering
-        ordering = params.get('ordering')
-        if ordering and ordering.lstrip('-') in ['last_message_at', 'created_at']:
-            queryset = queryset.order_by(ordering)
-        else:
-            queryset = queryset.order_by('-last_message_at', '-created_at')
-
-        return queryset
-
-    def get(self, request, format=None):
-        """List message threads"""
-        queryset = self.get_queryset()
-
-        # Handle pagination
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = MessageThreadSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = MessageThreadSerializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def post(self, request, format=None):
-        """Create a message thread"""
-        serializer = MessageThreadSerializer(data=request.data)
-        if serializer.is_valid():
-            thread = serializer.save(creator=request.user)
-
-            # Add creator as participant
+        # Add creator as a participant if not already added
+        if not thread.participants.filter(user=self.request.user).exists():
             ThreadParticipant.objects.create(
                 thread=thread,
-                user=request.user,
+                user=self.request.user,
                 is_active=True
             )
 
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class MessageThreadDetailView(BaseAPIView):
-    """Retrieve, update and delete a message thread"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'put': [permissions.IsAuthenticated],
-        'patch': [permissions.IsAuthenticated],
-        'delete': [permissions.IsAdminUser],
-    }
+class MessageThreadDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a message thread.
+    """
+    queryset = MessageThread.objects.all()
+    serializer_class = MessageThreadSerializer
+    permission_classes = [IsAuthenticated, IsMessageParticipant]
 
-    def get_object(self, pk):
-        """Get message thread with permission check"""
-        thread = get_object_or_404(MessageThread, pk=pk)
-        self.check_object_permissions(self.request, thread)
 
-        # Additional permission check for updates
-        if self.request.method in ['PUT', 'PATCH']:
-            user = self.request.user
-            if (user != thread.creator and
-                not user.is_staff and
-                not ThreadParticipant.objects.filter(
-                    thread=thread,
-                    user=user,
-                    is_active=True,
-                    role__name__in=['admin', 'moderator']
-                ).exists()):
-                raise PermissionDenied("You don't have permission to update this thread")
+class MessageThreadEditView(generics.UpdateAPIView):
+    """
+    Update a message thread.
+    """
+    queryset = MessageThread.objects.all()
+    serializer_class = MessageThreadSerializer
+    permission_classes = [IsAuthenticated, IsMessageParticipant]
 
-        return thread
 
-    def get(self, request, pk, format=None):
-        """Retrieve a message thread"""
-        thread = self.get_object(pk)
-        serializer = MessageThreadSerializer(thread)
-        return Response(serializer.data)
+class MessageThreadDeleteView(generics.DestroyAPIView):
+    """
+    Delete a message thread.
+    """
+    queryset = MessageThread.objects.all()
+    serializer_class = MessageThreadSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
-    def put(self, request, pk, format=None):
-        """Update a message thread"""
-        thread = self.get_object(pk)
-        serializer = MessageThreadSerializer(thread, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    def patch(self, request, pk, format=None):
-        """Partially update a message thread"""
-        thread = self.get_object(pk)
-        serializer = MessageThreadSerializer(thread, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+class ThreadParticipantListView(generics.ListCreateAPIView):
+    """
+    List all participants in a thread or add a new participant.
+    """
+    serializer_class = ThreadParticipantSerializer
+    permission_classes = [IsAuthenticated, IsMessageParticipant]
+    pagination_class = StandardResultsSetPagination
 
-    def delete(self, request, pk, format=None):
-        """Delete a message thread"""
-        thread = self.get_object(pk)
-        thread.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    def get_queryset(self):
+        """Get participants for the specified thread"""
+        thread_id = self.kwargs.get('thread_id')
+        return ThreadParticipant.objects.filter(thread_id=thread_id)
 
-class ThreadBySlugView(BaseAPIView):
-    """Retrieve a message thread by slug"""
-    permission_classes = [permissions.IsAuthenticated]
+    def perform_create(self, serializer):
+        """Set the thread when creating a participant"""
+        thread = get_object_or_404(MessageThread, id=self.kwargs.get('thread_id'))
 
-    @debug_request
-    @cache_view(timeout=CACHE_SHORT, key_prefix='thread_slug', vary_on_user=True)
-    def get(self, request, slug, format=None):
-        """Get thread by slug"""
-        user = request.user
+        # Check if user has permission to add participants
+        if not self.request.user.has_role('admin'):
+            # Check if user is the creator of the thread
+            if thread.creator != self.request.user:
+                self.permission_denied(
+                    self.request,
+                    message=_('Only the thread creator or an admin can add participants.')
+                )
 
-        if user.is_staff:
-            queryset = MessageThread.objects.all()
-        else:
-            queryset = MessageThread.objects.filter(
-                thread_participants__user=user,
-                thread_participants__is_active=True
+        serializer.save(thread=thread)
+
+
+class ThreadParticipantDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a thread participant.
+    """
+    queryset = ThreadParticipant.objects.all()
+    serializer_class = ThreadParticipantSerializer
+    permission_classes = [IsAuthenticated, IsMessageParticipant]
+
+
+class ThreadParticipantEditView(generics.UpdateAPIView):
+    """
+    Update a thread participant.
+    """
+    queryset = ThreadParticipant.objects.all()
+    serializer_class = ThreadParticipantSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+
+class ThreadParticipantDeleteView(generics.DestroyAPIView):
+    """
+    Delete a thread participant.
+    """
+    queryset = ThreadParticipant.objects.all()
+    serializer_class = ThreadParticipantSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+
+class MessageListCreateView(generics.ListCreateAPIView):
+    """
+    List all messages in a thread or create a new message.
+    """
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated, IsMessageParticipant]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['message_type', 'status', 'is_system_message', 'is_important']
+    ordering_fields = ['sent_at']
+    ordering = ['sent_at']
+
+    def get_queryset(self):
+        """Get messages for the specified thread"""
+        thread_id = self.kwargs.get('thread_id')
+        thread = get_object_or_404(MessageThread, id=thread_id)
+
+        # Mark the thread as read for this user
+        participant = thread.participants.filter(user=self.request.user, is_active=True).first()
+        if participant:
+            participant.last_read_at = timezone.now()
+            participant.save(update_fields=['last_read_at'])
+
+        return Message.objects.filter(thread_id=thread_id)
+
+    def perform_create(self, serializer):
+        """Set the thread and sender when creating a message"""
+        thread = get_object_or_404(MessageThread, id=self.kwargs.get('thread_id'))
+
+        # Check if the thread is active
+        if thread.status != 'active':
+            self.permission_denied(
+                self.request,
+                message=_('Messages can only be sent in active threads.')
             )
 
-        thread = get_object_or_404(queryset, slug=slug)
-        serializer = MessageThreadSerializer(thread)
-        return Response(serializer.data)
-
-class AddThreadParticipantView(BaseAPIView):
-    """Add a participant to a thread"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Add participant to thread"""
-        thread = get_object_or_404(MessageThread, pk=pk)
-        user = request.user
-
-        # Check permission to add participants
-        if (user != thread.creator and
-            not user.is_staff and
-            not ThreadParticipant.objects.filter(
-                thread=thread,
-                user=user,
-                is_active=True,
-                role__name__in=['admin', 'moderator']
-            ).exists()):
-            return Response(
-                {'error': "You don't have permission to add participants"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Get user to add
-        user_id = request.data.get('user_id')
-        if not user_id:
-            return Response(
-                {'error': 'User ID is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            user_to_add = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response(
-                {'error': 'User not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Add participant
-        role = request.data.get('role', 'member')
-        participant = thread.add_participant(user_to_add, role=role)
-
-        return Response({'status': 'Participant added successfully'})
-
-class RemoveThreadParticipantView(BaseAPIView):
-    """Remove a participant from a thread"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Remove participant from thread"""
-        thread = get_object_or_404(MessageThread, pk=pk)
-        user = request.user
-
-        # Check permission to remove participants
-        if (user != thread.creator and
-            not user.is_staff and
-            not ThreadParticipant.objects.filter(
-                thread=thread,
-                user=user,
-                is_active=True,
-                role__name__in=['admin', 'moderator']
-            ).exists()):
-            return Response(
-                {'error': "You don't have permission to remove participants"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Get user to remove
-        user_id = request.data.get('user_id')
-        if not user_id:
-            return Response(
-                {'error': 'User ID is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            user_to_remove = CustomUser.objects.get(id=user_id)
-        except CustomUser.DoesNotExist:
-            return Response(
-                {'error': 'User not found'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
-        # Remove participant
-        success = thread.remove_participant(user_to_remove)
-
-        if success:
-            return Response({'status': 'Participant removed successfully'})
-        return Response(
-            {'error': 'Failed to remove participant'},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-
-class MarkThreadAsReadView(BaseAPIView):
-    """Mark all messages in a thread as read"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Mark thread as read"""
-        thread = get_object_or_404(MessageThread, pk=pk)
-        user = request.user
-
-        # Check if user is participant
-        participant = ThreadParticipant.objects.filter(
+        # Set sender and thread
+        serializer.save(
             thread=thread,
-            user=user,
-            is_active=True
-        ).first()
-
-        if not participant:
-            return Response(
-                {'error': 'You are not an active participant in this thread'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Mark thread as read
-        count = participant.mark_all_as_read()
-
-        return Response({'status': f'{count} messages marked as read'})
-
-class CloseThreadView(BaseAPIView):
-    """Close a thread"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Close a thread"""
-        thread = get_object_or_404(MessageThread, pk=pk)
-        user = request.user
-
-        # Check if already closed
-        if thread.status == 'closed':
-            return Response({'status': 'Thread is already closed'})
-
-        # Check permission to close
-        if (user != thread.creator and
-            not user.is_staff and
-            not ThreadParticipant.objects.filter(
-                thread=thread,
-                user=user,
-                is_active=True,
-                role__name__in=['admin', 'moderator']
-            ).exists()):
-            return Response(
-                {'error': "You don't have permission to close this thread"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Close thread
-        thread.status = 'closed'
-        thread.save(update_fields=['status', 'updated_at'])
-
-        return Response({'status': 'Thread closed successfully'})
-
-class ReopenThreadView(BaseAPIView):
-    """Reopen a closed thread"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Reopen a thread"""
-        thread = get_object_or_404(MessageThread, pk=pk)
-        user = request.user
-
-        # Check if already active
-        if thread.status == 'active':
-            return Response({'status': 'Thread is already active'})
-
-        # Check permission to reopen
-        if (user != thread.creator and
-            not user.is_staff and
-            not ThreadParticipant.objects.filter(
-                thread=thread,
-                user=user,
-                is_active=True,
-                role__name__in=['admin', 'moderator']
-            ).exists()):
-            return Response(
-                {'error': "You don't have permission to reopen this thread"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Reopen thread
-        thread.status = 'active'
-        thread.save(update_fields=['status', 'updated_at'])
-
-        return Response({'status': 'Thread reopened successfully'})
-
-class MyThreadsView(BaseAPIView):
-    """List threads the user is participating in"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request, format=None):
-        """Get user's threads"""
-        try:
-            user = request.user
-            threads = MessageThread.objects.filter(
-                thread_participants__user=user,
-                thread_participants__is_active=True
-            ).distinct()
-
-            # Filter by status
-            status_filter = request.query_params.get('status')
-            if status_filter:
-                threads = threads.filter(status=status_filter)
-
-            # Filter by unread
-            unread_only = request.query_params.get('unread', 'false').lower() == 'true'
-            if unread_only:
-                # Get participant records for current user
-                participant_subquery = ThreadParticipant.objects.filter(
-                    thread=OuterRef('pk'),
-                    user=user,
-                    is_active=True
-                )
-
-                # Annotate with user's last_read_at
-                threads = threads.annotate(
-                    user_last_read=Subquery(
-                        participant_subquery.values('last_read_at')[:1]
-                    )
-                )
-
-                threads = threads.annotate(
-                    has_unread=Exists(
-                        Message.objects.filter(
-                            thread=OuterRef('pk'),
-                            sent_at__gt=OuterRef('user_last_read')
-                        ).filter(~Q(sender=user))
-                    )
-                ).filter(has_unread=True)
-
-            # Handle pagination
-            page = self.paginate_queryset(threads)
-            if page is not None:
-                serializer = MessageThreadSerializer(page, many=True)
-                return self.get_paginated_response(serializer.data)
-
-            serializer = MessageThreadSerializer(threads, many=True)
-            return self.success_response(data=serializer.data)
-
-        except Exception as e:
-            logger.error(f"Error retrieving threads: {str(e)}")
-            return self.error_response(
-                error="An error occurred while retrieving threads",
-                error_code="retrieval_error",
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-
-# Message Views
-class MessageListCreateView(BaseAPIView):
-    """List and create messages"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [permissions.IsAuthenticated],
-    }
-
-    def get_queryset(self):
-        """Get filtered message queryset"""
-        queryset = Message.objects.all()
-        user = self.request.user
-        params = self.request.query_params
-
-        # Filter for non-staff users
-        if not user.is_staff:
-            # Get threads user is participating in
-            threads = MessageThread.objects.filter(
-                thread_participants__user=user,
-                thread_participants__is_active=True
-            )
-            queryset = queryset.filter(thread__in=threads)
-
-        # Apply filters
-        filters = {}
-
-        if params.get('thread_id'):
-            filters['thread_id'] = params.get('thread_id')
-
-        if params.get('thread'):
-            filters['thread'] = params.get('thread')
-
-        if params.get('sender'):
-            filters['sender'] = params.get('sender')
-
-        if params.get('message_type'):
-            filters['message_type'] = params.get('message_type')
-
-        if params.get('status'):
-            filters['status'] = params.get('status')
-
-        # Boolean filters
-        for field in ['is_system_message', 'is_important']:
-            if params.get(field) is not None:
-                filters[field] = params.get(field).lower() == 'true'
-
-        if filters:
-            queryset = queryset.filter(**filters)
-
-        # Apply search
-        search = params.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(subject__icontains=search) |
-                Q(content__icontains=search)
-            )
-
-        # Apply ordering
-        ordering = params.get('ordering')
-        if ordering and ordering.lstrip('-') in ['sent_at', 'delivered_at', 'read_at']:
-            queryset = queryset.order_by(ordering)
-        else:
-            queryset = queryset.order_by('-sent_at')
-
-        return queryset
-
-    def get(self, request, format=None):
-        """List messages"""
-        queryset = self.get_queryset()
-
-        # Handle pagination
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = MessageSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = MessageSerializer(queryset, many=True)
-        return Response(serializer.data)
-
-    @transaction.atomic
-    def post(self, request, format=None):
-        """Create a message"""
-        serializer = MessageSerializer(data=request.data)
-        if serializer.is_valid():
-            thread = serializer.validated_data.get('thread')
-            user = request.user
-
-            # Check if thread is closed
-            if thread.status != 'active':
-                return Response(
-                    {"error": f"Cannot post to a {thread.get_status_display()} thread"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Check if user is active participant
-            is_participant = ThreadParticipant.objects.filter(
-                thread=thread,
-                user=user,
-                is_active=True
-            ).exists()
-
-            if not is_participant and not user.is_staff:
-                return Response(
-                    {"error": "You're not a participant in this thread"},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
-            # Create message
-            message = serializer.save(sender=user)
-
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-class MessageDetailView(BaseAPIView):
-    """Retrieve, update and delete a message"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'put': [permissions.IsAuthenticated],
-        'patch': [permissions.IsAuthenticated],
-        'delete': [permissions.IsAdminUser],
-    }
-
-    def get_object(self, pk):
-        """Get message with permission check"""
-        message = get_object_or_404(Message, pk=pk)
-        self.check_object_permissions(self.request, message)
-
-        # Additional permission check for updates
-        if self.request.method in ['PUT', 'PATCH']:
-            user = self.request.user
-            if (user != message.sender and
-                user != message.thread.creator and
-                not user.is_staff):
-                raise PermissionDenied("You don't have permission to update this message")
-
-        return message
-
-    def get(self, request, pk, format=None):
-        """Retrieve a message"""
-        message = self.get_object(pk)
-        serializer = MessageSerializer(message)
-        return Response(serializer.data)
-
-    def put(self, request, pk, format=None):
-        """Update a message"""
-        message = self.get_object(pk)
-        serializer = MessageSerializer(message, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def patch(self, request, pk, format=None):
-        """Partially update a message"""
-        message = self.get_object(pk)
-        serializer = MessageSerializer(message, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, pk, format=None):
-        """Delete a message"""
-        message = self.get_object(pk)
-        message.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
-class MarkMessageAsReadView(BaseAPIView):
-    """Mark a message as read"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Mark message as read"""
-        message = get_object_or_404(Message, pk=pk)
-        user = request.user
-
-        # Verify user is a participant
-        is_participant = ThreadParticipant.objects.filter(
-            thread=message.thread,
-            user=user,
-            is_active=True
-        ).exists()
-
-        if not is_participant and not user.is_staff:
-            return Response(
-                {'error': "You are not a participant in this thread"},
-                status=status.HTTP_403_FORBIDDEN
-            )
-
-        # Don't mark own messages
-        if message.sender == user:
-            return Response({'status': 'No need to mark your own messages as read'})
-
-        # Mark as read
-        success = message.mark_as_read(reader=user)
-
-        if success:
-            return Response({'status': 'Message marked as read'})
-        return Response(
-            {'error': 'Failed to mark message as read'},
-            status=status.HTTP_400_BAD_REQUEST
+            sender=self.request.user,
+            sent_at=timezone.now()
         )
 
-class MyMessagesView(BaseAPIView):
-    """List messages sent by current user"""
-    permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request, format=None):
-        """Get user's messages"""
-        user = request.user
-        messages = Message.objects.filter(sender=user)
+class MessageDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a message.
+    """
+    queryset = Message.objects.all()
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated, IsMessageParticipant]
 
-        # Filter by thread if specified
-        thread_id = request.query_params.get('thread_id')
-        if thread_id:
-            messages = messages.filter(thread_id=thread_id)
+    def retrieve(self, request, *args, **kwargs):
+        """Override retrieve to mark message as read"""
+        instance = self.get_object()
 
-        # Handle pagination
-        page = self.paginate_queryset(messages)
-        if page is not None:
-            serializer = MessageSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+        # Mark as read if not already read
+        if instance.sender != request.user and instance.status != 'read':
+            instance.status = 'read'
+            instance.read_at = timezone.now()
+            instance.save(update_fields=['status', 'read_at'])
 
-        serializer = MessageSerializer(messages, many=True)
-        return Response(serializer.data)
+        return super().retrieve(request, *args, **kwargs)
 
 
+class MessageEditView(generics.UpdateAPIView):
+    """
+    Update a message.
+    """
+    queryset = Message.objects.all()
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
 
-class UploadMessageAttachmentView(BaseAPIView):
-    """Upload attachment to a message"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Upload attachment to message"""
-        try:
-            message = get_object_or_404(Message, pk=pk)
-
-            # Only sender can upload attachments
-            user = request.user
-            if user != message.sender and not user.is_staff:
-                return self.permission_denied("You can only upload attachments to your own messages")
-
-            # Check if thread is active
-            if message.thread.status != 'active':
-                return self.permission_denied("Cannot upload attachments to messages in closed threads")
-
-            # Check if files were provided
-            if 'file' not in request.FILES:
-                return self.error_response(
-                    'No file was provided',
-                    'no_file',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            file = request.FILES['file']
-
-            # Validate file size
-            max_size = 10 * 1024 * 1024  # 10MB
-            if file.size > max_size:
-                return self.error_response(
-                    f'File too large. Maximum size is 10 MB',
-                    'file_too_large',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Validate file type
-            allowed_extensions = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'txt']
-            ext = file.name.split('.')[-1].lower()
-            if ext not in allowed_extensions:
-                return self.error_response(
-                    f'Invalid file type. Allowed types: {", ".join(allowed_extensions)}',
-                    'invalid_file_type',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Save attachment
-            file_info = MediaHandler.save_file(
-                file,
-                'message',
-                message.pk,
-                'attachment'
-            )
-
-            # Add to message attachments
-            attachments = message.attachments or []
-            attachments.append(file_info)
-            message.attachments = attachments
-            message.save(update_fields=['attachments', 'updated_at'])
-
-            return self.success_response(
-                data={'attachment': file_info},
-                message='Attachment uploaded successfully',
-                status_code=status.HTTP_201_CREATED
-            )
-
-        except Http404:
-            return self.not_found('Message not found')
-        except PermissionDenied as e:
-            return self.permission_denied(str(e))
-        except ValueError as e:
-            return self.error_response(str(e), 'validation_error', status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.error(f"Error uploading attachment: {str(e)}")
-            return self.error_response('Failed to upload attachment', 'upload_error',
-                                      status.HTTP_500_INTERNAL_SERVER_ERROR)
+class MessageDeleteView(generics.DestroyAPIView):
+    """
+    Delete a message.
+    """
+    queryset = Message.objects.all()
+    serializer_class = MessageSerializer
+    permission_classes = [IsAuthenticated, IsAdminUser]
 
 
-# Transaction Views
-class TransactionListCreateView(BaseAPIView):
-    """List and create transactions"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [IsAgentPermission | permissions.IsAdminUser],
-    }
-
-    def get_queryset(self):
-        """Get filtered transaction queryset"""
-        queryset = Transaction.objects.all()
-        user = self.request.user
-        params = self.request.query_params
-
-        # Filter for non-staff/non-agent users
-        if not user.is_staff and not user.has_role(Role.AGENT):
-            queryset = queryset.filter(
-                Q(from_user=user) |
-                Q(to_user=user)
-            )
-
-        # Apply filters
-        filters = {}
-        for field in ['transaction_type', 'status', 'from_user', 'to_user',
-                     'payment', 'auction', 'contract']:
-            if params.get(field):
-                filters[field] = params.get(field)
-
-        if filters:
-            queryset = queryset.filter(**filters)
-
-        # Apply search
-        search = params.get('search')
-        if search:
-            queryset = queryset.filter(
-                Q(transaction_number__icontains=search) |
-                Q(description__icontains=search) |
-                Q(reference__icontains=search)
-            )
-
-        # Apply ordering
-        ordering = params.get('ordering')
-        if ordering and ordering.lstrip('-') in ['transaction_date', 'amount', 'created_at']:
-            queryset = queryset.order_by(ordering)
-        else:
-            queryset = queryset.order_by('-transaction_date')
-
-        return queryset
-
-    def get(self, request, format=None):
-        """List transactions"""
-        queryset = self.get_queryset()
-
-        # Handle pagination
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = TransactionSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = TransactionSerializer(queryset, many=True)
-        return self.success_response(data=serializer.data)
-
-    @transaction.atomic
-    def post(self, request, format=None):
-        """Create a transaction"""
-        serializer = TransactionSerializer(data=request.data)
-        if not serializer.is_valid():
-            return self.error_response(serializer.errors, 'validation_error')
-
-        try:
-            transaction = serializer.save()
-            return self.success_response(
-                data=serializer.data,
-                message='Transaction created successfully',
-                status_code=status.HTTP_201_CREATED
-            )
-        except Exception as e:
-            logger.error(f"Error creating transaction: {str(e)}")
-            return self.error_response('Failed to create transaction', 'creation_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class TransactionDetailView(BaseAPIView):
-    """Retrieve, update and delete a transaction"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'put': [permissions.IsAdminUser],
-        'patch': [permissions.IsAdminUser],
-        'delete': [permissions.IsAdminUser],
-    }
-
-    def get_object(self, pk):
-        """Get transaction with permission check"""
-        transaction = get_object_or_404(Transaction, pk=pk)
-        self.check_object_permissions(self.request, transaction)
-        return transaction
-
-    def get(self, request, pk, format=None):
-        """Retrieve a transaction"""
-        transaction = self.get_object(pk)
-        serializer = TransactionSerializer(transaction)
-        return self.success_response(data=serializer.data)
-
-    def put(self, request, pk, format=None):
-        """Update a transaction"""
-        transaction = self.get_object(pk)
-        serializer = TransactionSerializer(transaction, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return self.success_response(data=serializer.data, message='Transaction updated successfully')
-        return self.error_response(serializer.errors, 'validation_error')
-
-    def patch(self, request, pk, format=None):
-        """Partially update a transaction"""
-        transaction = self.get_object(pk)
-        serializer = TransactionSerializer(transaction, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return self.success_response(data=serializer.data, message='Transaction updated successfully')
-        return self.error_response(serializer.errors, 'validation_error')
-
-    def delete(self, request, pk, format=None):
-        """Delete a transaction"""
-        transaction = self.get_object(pk)
-        transaction.delete()
-        return self.success_response(message='Transaction deleted successfully')
-
-class MarkTransactionAsCompletedView(BaseAPIView):
-    """Mark a transaction as completed"""
-    permission_classes = [IsAgentPermission | permissions.IsAdminUser]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Mark transaction as completed"""
-        try:
-            transaction = get_object_or_404(Transaction, pk=pk)
-
-            # Check if already completed
-            if transaction.status == 'completed':
-                return self.success_response(message='Transaction already marked as completed')
-
-            # Verify transaction status allows completion
-            if transaction.status not in ['pending', 'processing']:
-                return self.error_response(
-                    f'Cannot complete transaction with status {transaction.status}',
-                    'invalid_status',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Mark as completed
-            success = transaction.mark_as_completed(processor=request.user)
-
-            if success:
-                return self.success_response(message='Transaction marked as completed successfully')
-
-            return self.error_response('Failed to mark transaction as completed', 'completion_failed')
-        except Http404:
-            return self.not_found('Transaction not found')
-        except Exception as e:
-            logger.error(f"Error marking transaction as completed: {str(e)}")
-            return self.error_response('An error occurred', 'completion_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class MarkTransactionAsFailedView(BaseAPIView):
-    """Mark a transaction as failed"""
-    permission_classes = [IsAgentPermission | permissions.IsAdminUser]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Mark transaction as failed with reason"""
-        try:
-            transaction = get_object_or_404(Transaction, pk=pk)
-
-            # Check if already failed
-            if transaction.status == 'failed':
-                return self.success_response(message='Transaction already marked as failed')
-
-            # Verify transaction status allows marking as failed
-            if transaction.status not in ['pending', 'processing']:
-                return self.error_response(
-                    f'Cannot mark transaction with status {transaction.status} as failed',
-                    'invalid_status',
-                    status.HTTP_400_BAD_REQUEST
-                )
-
-            # Get failure reason
-            reason = request.data.get('reason')
-            if not reason:
-                return self.error_response('Failure reason is required', 'missing_reason',
-                                         status.HTTP_400_BAD_REQUEST)
-
-            # Mark as failed
-            success = transaction.mark_as_failed(reason=reason)
-
-            if success:
-                return self.success_response(message='Transaction marked as failed successfully')
-
-            return self.error_response('Failed to mark transaction as failed', 'marking_failed')
-        except Http404:
-            return self.not_found('Transaction not found')
-        except Exception as e:
-            logger.error(f"Error marking transaction as failed: {str(e)}")
-            return self.error_response('An error occurred', 'marking_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class MyTransactionsView(BaseAPIView):
-    """List transactions the user is involved with"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request, format=None):
-        """Get user's transactions"""
-        user = request.user
-        transactions = Transaction.objects.filter(
-            Q(from_user=user) |
-            Q(to_user=user)
-        )
-
-        # Filter by type
-        transaction_type = request.query_params.get('transaction_type')
-        if transaction_type:
-            transactions = transactions.filter(transaction_type=transaction_type)
-
-        # Filter by direction
-        direction = request.query_params.get('direction')
-        if direction == 'incoming':
-            transactions = transactions.filter(to_user=user)
-        elif direction == 'outgoing':
-            transactions = transactions.filter(from_user=user)
-
-        # Filter by status
-        status_filter = request.query_params.get('status')
-        if status_filter:
-            transactions = transactions.filter(status=status_filter)
-
-        # Handle pagination
-        page = self.paginate_queryset(transactions)
-        if page is not None:
-            serializer = TransactionSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = TransactionSerializer(transactions, many=True)
-        return self.success_response(data=serializer.data)
-
+# -------------------------------------------------------------------------
 # Notification Views
-class NotificationListCreateView(BaseAPIView):
-    """List and create notifications"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'post': [permissions.IsAdminUser | IsAgentPermission],
-    }
+# -------------------------------------------------------------------------
+
+class NotificationListView(generics.ListAPIView):
+    """
+    List all notifications for the current user.
+    """
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['notification_type', 'is_read', 'is_sent', 'is_important']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
 
     def get_queryset(self):
-        """Get filtered notification queryset"""
-        queryset = Notification.objects.all()
-        user = self.request.user
-        params = self.request.query_params
+        """Get notifications for the current user"""
+        return Notification.objects.filter(recipient=self.request.user)
 
-        # Filter for non-staff users
-        if not user.is_staff:
-            queryset = queryset.filter(recipient=user)
 
-        # Filter by read status
-        is_read = params.get('is_read')
-        if is_read is not None:
-            is_read_bool = is_read.lower() == 'true'
-            queryset = queryset.filter(is_read=is_read_bool)
+class NotificationDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a notification.
+    """
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
 
-        # Filter by notification type
-        notification_type = params.get('notification_type')
-        if notification_type:
-            queryset = queryset.filter(notification_type=notification_type)
+    def get_queryset(self):
+        """Only allow access to own notifications"""
+        return Notification.objects.filter(recipient=self.request.user)
 
-        # Filter by channel
-        channel = params.get('channel')
-        if channel:
-            queryset = queryset.filter(channel=channel)
+    def retrieve(self, request, *args, **kwargs):
+        """Override retrieve to mark notification as read"""
+        instance = self.get_object()
 
-        # Apply ordering
-        ordering = params.get('ordering')
-        if ordering and ordering.lstrip('-') in ['created_at', 'sent_at', 'read_at']:
-            queryset = queryset.order_by(ordering)
-        else:
-            queryset = queryset.order_by('-created_at')
+        # Mark as read if not already read
+        if not instance.is_read:
+            instance.is_read = True
+            instance.read_at = timezone.now()
+            instance.save(update_fields=['is_read', 'read_at'])
 
-        return queryset
+        return super().retrieve(request, *args, **kwargs)
 
-    def get(self, request, format=None):
-        """List notifications"""
-        queryset = self.get_queryset()
 
-        # Handle pagination
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = NotificationSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+class NotificationEditView(generics.UpdateAPIView):
+    """
+    Update a notification.
+    """
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
 
-        serializer = NotificationSerializer(queryset, many=True)
-        return self.success_response(data=serializer.data)
+    def get_queryset(self):
+        """Only allow access to own notifications"""
+        return Notification.objects.filter(recipient=self.request.user)
 
-    @transaction.atomic
-    def post(self, request, format=None):
-        """Create a notification"""
-        serializer = NotificationSerializer(data=request.data)
-        if not serializer.is_valid():
-            return self.error_response(serializer.errors, 'validation_error')
 
-        try:
-            notification = serializer.save()
+class NotificationDeleteView(generics.DestroyAPIView):
+    """
+    Delete a notification.
+    """
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
 
-            # Set metadata if provided
-            if 'metadata' in request.data:
-                notification.metadata = request.data['metadata']
-                notification.save(update_fields=['metadata'])
+    def get_queryset(self):
+        """Only allow access to own notifications"""
+        return Notification.objects.filter(recipient=self.request.user)
 
-            return self.success_response(
-                data=serializer.data,
-                message='Notification created successfully',
-                status_code=status.HTTP_201_CREATED
-            )
-        except Exception as e:
-            logger.error(f"Error creating notification: {str(e)}")
-            return self.error_response('Failed to create notification', 'creation_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class NotificationDetailView(BaseAPIView):
-    """Retrieve, update and delete a notification"""
-    action_permission_map = {
-        'get': [permissions.IsAuthenticated],
-        'put': [permissions.IsAdminUser],
-        'patch': [permissions.IsAdminUser],
-        'delete': [permissions.IsAdminUser],
-    }
+# -------------------------------------------------------------------------
+# Property View Views
+# -------------------------------------------------------------------------
 
-    def get_object(self, pk):
-        """Get notification with permission check"""
-        user = self.request.user
+class PropertyViewListCreateView(generics.ListCreateAPIView):
+    """
+    List all property views for an auction or create a new property view.
+    """
+    serializer_class = PropertyViewSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['view_type']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
 
-        # Regular users can only access their own notifications
-        if user.is_staff:
-            queryset = Notification.objects.all()
-        else:
-            queryset = Notification.objects.filter(recipient=user)
+    def get_queryset(self):
+        """Get property views for the specified auction"""
+        auction_id = self.kwargs.get('auction_id')
+        return PropertyView.objects.filter(auction_id=auction_id)
 
-        notification = get_object_or_404(queryset, pk=pk)
-        self.check_object_permissions(self.request, notification)
-        return notification
+    def perform_create(self, serializer):
+        """Set the auction when creating a property view"""
+        auction = get_object_or_404(Auction, id=self.kwargs.get('auction_id'))
 
-    def get(self, request, pk, format=None):
-        """Retrieve a notification"""
-        notification = self.get_object(pk)
-        serializer = NotificationSerializer(notification)
-        return self.success_response(data=serializer.data)
-
-    def put(self, request, pk, format=None):
-        """Update a notification"""
-        notification = self.get_object(pk)
-        serializer = NotificationSerializer(notification, data=request.data)
-        if serializer.is_valid():
-            notification = serializer.save()
-
-            # Update metadata if provided
-            if 'metadata' in request.data:
-                notification.metadata = request.data['metadata']
-                notification.save(update_fields=['metadata'])
-
-            return self.success_response(data=serializer.data, message='Notification updated successfully')
-        return self.error_response(serializer.errors, 'validation_error')
-
-    def patch(self, request, pk, format=None):
-        """Partially update a notification"""
-        notification = self.get_object(pk)
-        serializer = NotificationSerializer(notification, data=request.data, partial=True)
-        if serializer.is_valid():
-            notification = serializer.save()
-
-            # Update metadata if provided
-            if 'metadata' in request.data:
-                # For partial updates, merge with existing metadata
-                current_metadata = notification.metadata or {}
-                if isinstance(request.data['metadata'], dict):
-                    current_metadata.update(request.data['metadata'])
-                    notification.metadata = current_metadata
-                    notification.save(update_fields=['metadata'])
-
-            return self.success_response(data=serializer.data, message='Notification updated successfully')
-        return self.error_response(serializer.errors, 'validation_error')
-
-    def delete(self, request, pk, format=None):
-        """Delete a notification"""
-        notification = self.get_object(pk)
-        notification.delete()
-        return self.success_response(message='Notification deleted successfully')
-
-class MarkNotificationAsReadView(BaseAPIView):
-    """Mark a notification as read"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, pk, format=None):
-        """Mark notification as read"""
-        try:
-            notification = get_object_or_404(Notification, pk=pk)
-            user = request.user
-
-            # Ensure user is the recipient
-            if notification.recipient != user and not user.is_staff:
-                return self.permission_denied('You are not the recipient of this notification')
-
-            # Check if already read
-            if notification.is_read:
-                return self.success_response(message='Notification already marked as read')
-
-            # Mark as read
-            success = notification.mark_as_read()
-
-            if success:
-                return self.success_response(message='Notification marked as read')
-
-            return self.error_response('Failed to mark notification as read', 'marking_failed')
-        except Http404:
-            return self.not_found('Notification not found')
-        except Exception as e:
-            logger.error(f"Error marking notification as read: {str(e)}")
-            return self.error_response('An error occurred', 'marking_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class MarkAllNotificationsAsReadView(BaseAPIView):
-    """Mark all notifications as read for the current user"""
-    permission_classes = [permissions.IsAuthenticated]
-
-    @transaction.atomic
-    def post(self, request, format=None):
-        """Mark all notifications as read"""
-        try:
-            user = request.user
-            count = Notification.objects.filter(
-                recipient=user,
-                is_read=False
-            ).update(
-                is_read=True,
-                read_at=timezone.now()
+        # Check if user has permission to add property views
+        if not (self.request.user.has_role('admin') or auction.related_property.owner == self.request.user):
+            self.permission_denied(
+                self.request,
+                message=_('You do not have permission to add property views to this auction.')
             )
 
-            return self.success_response(message=f'{count} notifications marked as read')
-        except Exception as e:
-            logger.error(f"Error marking all notifications as read: {str(e)}")
-            return self.error_response('Failed to mark notifications as read', 'bulk_marking_error',
-                                     status.HTTP_500_INTERNAL_SERVER_ERROR)
+        serializer.save(auction=auction)
 
-class MyNotificationsView(BaseAPIView):
-    """List notifications for the current user"""
-    permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request, format=None):
-        """Get user's notifications"""
-        user = request.user
-        notifications = Notification.objects.filter(recipient=user)
+class PropertyViewDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve a property view.
+    """
+    queryset = PropertyView.objects.all()
+    serializer_class = PropertyViewSerializer
+    permission_classes = [IsAuthenticated]
 
-        # Filter by read status
-        read_status = request.query_params.get('is_read')
-        if read_status is not None:
-            is_read = read_status.lower() == 'true'
-            notifications = notifications.filter(is_read=is_read)
 
-        # Filter by type
-        notification_type = request.query_params.get('notification_type')
-        if notification_type:
-            notifications = notifications.filter(notification_type=notification_type)
+class PropertyViewEditView(generics.UpdateAPIView):
+    """
+    Update a property view.
+    """
+    queryset = PropertyView.objects.all()
+    serializer_class = PropertyViewSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
 
-        # Filter by channel
-        channel = request.query_params.get('channel')
-        if channel:
-            notifications = notifications.filter(channel=channel)
+    def update(self, request, *args, **kwargs):
+        """Check if user has permission to update this property view"""
+        property_view = self.get_object()
+        auction = property_view.auction
 
-        # Apply ordering
-        ordering = request.query_params.get('ordering', '-created_at')
-        if ordering and ordering.lstrip('-') in ['created_at', 'sent_at', 'read_at']:
-            notifications = notifications.order_by(ordering)
+        if not (request.user.has_role('admin') or auction.related_property.owner == request.user):
+            return Response(
+                {'detail': _('You do not have permission to update this property view.')},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
-        # Handle pagination
-        page = self.paginate_queryset(notifications)
-        if page is not None:
-            serializer = NotificationSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
+        return super().update(request, *args, **kwargs)
 
-        serializer = NotificationSerializer(notifications, many=True)
-        return self.success_response(data=serializer.data)
+
+class PropertyViewDeleteView(generics.DestroyAPIView):
+    """
+    Delete a property view.
+    """
+    queryset = PropertyView.objects.all()
+    serializer_class = PropertyViewSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+
+    def destroy(self, request, *args, **kwargs):
+        """Check if user has permission to delete this property view"""
+        property_view = self.get_object()
+        auction = property_view.auction
+
+        if not (request.user.has_role('admin') or auction.related_property.owner == request.user):
+            return Response(
+                {'detail': _('You do not have permission to delete this property view.')},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        return super().destroy(request, *args, **kwargs)

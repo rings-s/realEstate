@@ -1,179 +1,167 @@
+<!--
+  LoginForm Component
+  Handles user login with Arabic language support
+-->
 <script>
-	import { onMount } from 'svelte';
+	import { createEventDispatcher } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { language, isRTL, textClass, uiStore } from '$lib/stores/ui';
 	import { auth } from '$lib/stores/auth';
-	import { uiStore, TOAST_TYPES } from '$lib/stores/ui';
-	import { rules } from '$lib/utils/validation';
+	import { t } from '$lib/config/translations';
+	import { User, Lock, Eye, EyeOff, Mail } from 'lucide-svelte';
+	import * as authService from '$lib/services/authService';
 
-	// Form components
-	import Button from '../common/Button.svelte';
-	import Input from '../common/Input.svelte';
-	import Alert from '../common/Alert.svelte';
+	const dispatch = createEventDispatcher();
 
-	// Props
-	export let redirectTo = '/dashboard';
-
-	// Form state
+	// Form data
 	let email = '';
 	let password = '';
 	let rememberMe = false;
+	let showPassword = false;
+
+	// Form state
 	let loading = false;
-	let error = null;
-	let emailError = '';
-	let passwordError = '';
-	let hasAttemptedLogin = false; // Track if user has attempted login
+	let error = '';
 
-	// Validation
-	function validateEmail() {
-		if (!hasAttemptedLogin && !email) return true; // Don't show error on initial load
-
-		emailError = rules.email(email) !== true ? rules.email(email) : '';
-		if (!email) emailError = rules.required(email);
-		return !emailError;
-	}
-
-	function validatePassword() {
-		if (!hasAttemptedLogin && !password) return true; // Don't show error on initial load
-
-		passwordError = !password ? rules.required(password) : '';
-		return !passwordError;
-	}
-
-	function validateForm() {
-		hasAttemptedLogin = true; // Mark that validation has been attempted
-		const isEmailValid = validateEmail();
-		const isPasswordValid = validatePassword();
-		return isEmailValid && isPasswordValid;
-	}
+	// Toggle password visibility
+	const togglePassword = () => {
+		showPassword = !showPassword;
+	};
 
 	// Handle form submission
 	async function handleSubmit() {
-		if (!validateForm()) return;
+		error = '';
+
+		// Validate form
+		if (!email) {
+			error = t('email_required', $language);
+			return;
+		}
+
+		if (!password) {
+			error = t('password_required', $language);
+			return;
+		}
 
 		loading = true;
-		error = null;
-		passwordError = '';
 
 		try {
-			await auth.login(email, password);
-			uiStore.addToast('تم تسجيل الدخول بنجاح', TOAST_TYPES.SUCCESS);
-			goto(redirectTo);
+			// Call login service
+			const response = await authService.login(email, password);
+
+			// Update auth store
+			if (response.user) {
+				auth.setUser(response.user, response.user.roles || []);
+
+				// Show success message
+				uiStore.showToast(
+					t('login_success', $language, { default: 'تم تسجيل الدخول بنجاح' }),
+					'success'
+				);
+
+				// Navigate to dashboard or home
+				goto('/dashboard');
+			} else {
+				throw new Error(t('login_error', $language, { default: 'حدث خطأ أثناء تسجيل الدخول' }));
+			}
 		} catch (err) {
 			console.error('Login error:', err);
-
-			// Check error type to display specific messages
-			if (
-				err.code === 'auth/wrong-password' ||
-				err.code === 'auth/invalid-credential' ||
-				err.message?.includes('password') ||
-				err.message?.includes('credential')
-			) {
-				// Show specific password error
-				passwordError = 'كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى';
-			} else if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-email') {
-				// Show specific email error
-				emailError = 'البريد الإلكتروني غير مسجل في النظام';
-			} else {
-				// General error
-				error = err.message || 'فشل تسجيل الدخول. الرجاء التحقق من بياناتك والمحاولة مرة أخرى.';
-			}
+			error =
+				err.message ||
+				t('invalid_credentials', $language, { default: 'بيانات الاعتماد غير صالحة' });
 		} finally {
 			loading = false;
 		}
 	}
-
-	// Handle "Enter" key press
-	function handleKeyPress(event) {
-		if (event.key === 'Enter' && !loading) {
-			handleSubmit();
-		}
-	}
-
-	onMount(() => {
-		// Focus email input on mount
-		const emailInput = document.getElementById('email-input');
-		if (emailInput) emailInput.focus();
-	});
 </script>
 
-<div class="w-full">
-	<form on:submit|preventDefault={handleSubmit} class="w-full">
-		{#if error}
-			<Alert
-				type="error"
-				message={error}
-				dismissible={true}
-				on:dismiss={() => (error = null)}
-				class="mb-4"
-			/>
-		{/if}
+<div class="card p-6 w-full max-w-md mx-auto">
+	<header class="text-center mb-6">
+		<h2 class="h2">{t('login', $language)}</h2>
+		<p class="text-surface-600-300-token">
+			{t('login_subtitle', $language, { default: 'تسجيل الدخول للوصول إلى حسابك' })}
+		</p>
+	</header>
 
-		<div class="mb-4">
-			<Input
-				id="email-input"
-				type="email"
-				label="البريد الإلكتروني"
-				placeholder="أدخل بريدك الإلكتروني"
-				value={email}
-				error={emailError}
-				on:input={(e) => {
-					email = e.target.value;
-					if (emailError) validateEmail();
-				}}
-				on:blur={validateEmail}
-				on:keypress={handleKeyPress}
-				required
-				dir="ltr"
-			/>
+	<!-- Error message -->
+	{#if error}
+		<div class="alert variant-filled-error mb-4">
+			<div>{error}</div>
 		</div>
+	{/if}
 
-		<div class="mb-4">
-			<Input
-				type="password"
-				label="كلمة المرور"
-				placeholder="أدخل كلمة المرور"
-				value={password}
-				error={passwordError}
-				on:input={(e) => {
-					password = e.target.value;
-					if (passwordError) passwordError = '';
-				}}
-				on:blur={() => hasAttemptedLogin && validatePassword()}
-				on:keypress={handleKeyPress}
-				required
-			/>
-		</div>
-
-		<div class="mb-6 flex items-center justify-between text-sm">
-			<label class="flex cursor-pointer items-center">
+	<form on:submit|preventDefault={handleSubmit} class={$textClass}>
+		<!-- Email Field -->
+		<label class="label">
+			<span>{t('email', $language)}</span>
+			<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+				<div class="input-group-shim">
+					<Mail class="w-5 h-5" />
+				</div>
 				<input
-					type="checkbox"
-					bind:checked={rememberMe}
-					class="form-checkbox text-primary-600 dark:text-primary-500 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700"
+					type="email"
+					bind:value={email}
+					placeholder={t('email_placeholder', $language, { default: 'أدخل بريدك الإلكتروني' })}
+					class="input"
+					dir={$isRTL ? 'rtl' : 'ltr'}
+					autocomplete="email"
+					required
 				/>
-				<span class="mr-2 text-gray-700 dark:text-gray-300">تذكرني</span>
+			</div>
+		</label>
+
+		<!-- Password Field -->
+		<label class="label mt-4">
+			<span>{t('password', $language)}</span>
+			<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
+				<div class="input-group-shim">
+					<Lock class="w-5 h-5" />
+				</div>
+				<input
+					type={showPassword ? 'text' : 'password'}
+					bind:value={password}
+					placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
+					class="input"
+					dir={$isRTL ? 'rtl' : 'ltr'}
+					autocomplete="current-password"
+					required
+				/>
+				<button type="button" class="input-group-shim" on:click={togglePassword}>
+					{#if showPassword}
+						<EyeOff class="w-5 h-5" />
+					{:else}
+						<Eye class="w-5 h-5" />
+					{/if}
+				</button>
+			</div>
+		</label>
+
+		<!-- Remember Me & Forgot Password -->
+		<div class="flex justify-between items-center mt-4">
+			<label class="flex items-center space-x-2 {$isRTL ? 'flex-row-reverse space-x-reverse' : ''}">
+				<input type="checkbox" bind:checked={rememberMe} class="checkbox" />
+				<span>{t('remember_me', $language)}</span>
 			</label>
 
-			<a
-				href="/password-reset"
-				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 font-medium transition-colors hover:underline"
-			>
-				نسيت كلمة المرور؟
-			</a>
+			<a href="/auth/reset-password" class="anchor">{t('forgot_password', $language)}</a>
 		</div>
 
-		<Button type="submit" variant="primary" fullWidth={true} disabled={loading} {loading}>
-			تسجيل الدخول
-		</Button>
-
-		<div class="mt-6 text-center text-sm">
-			<span class="text-gray-600 dark:text-gray-400">ليس لديك حساب؟</span>
-			<a
-				href="/register"
-				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 mr-2 font-semibold transition-colors hover:underline"
-			>
-				إنشاء حساب جديد
-			</a>
-		</div>
+		<!-- Submit Button -->
+		<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
+			{#if loading}
+				<span class="loading loading-spinner loading-sm"></span>
+				{t('logging_in', $language, { default: 'جاري تسجيل الدخول...' })}
+			{:else}
+				{t('login', $language)}
+			{/if}
+		</button>
 	</form>
+
+	<!-- Register Link -->
+	<div class="mt-6 text-center">
+		<p>
+			{t('no_account', $language, { default: 'ليس لديك حساب؟' })}
+			<a href="/auth/register" class="anchor">{t('register', $language)}</a>
+		</p>
+	</div>
 </div>

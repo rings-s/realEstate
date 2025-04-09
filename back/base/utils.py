@@ -1,382 +1,555 @@
-import logging
+import os
 import uuid
+import time
 import random
 import string
 from datetime import datetime, timedelta
-from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple, Union
-
-from django.conf import settings
-from django.core.files.storage import default_storage
-from django.core.files.base import ContentFile
-from django.core.exceptions import ValidationError
-from django.db import models, transaction
-from django.db.models import Q, Count, Sum, F, QuerySet
-from django.contrib.auth import get_user_model
+from io import BytesIO
+from PIL import Image
 from django.utils import timezone
-from django.utils.text import slugify
+from django.conf import settings
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
-
-from rest_framework import status
-from rest_framework.response import Response
-
-# Configure logger
-logger = logging.getLogger(__name__)
-User = get_user_model()
-
-# ============================================================================
-# Response Formatting
-# ============================================================================
-
-def create_response(
-    data: Any = None,
-    message: str = None,
-    error: str = None,
-    error_code: str = None,
-    status_code: int = status.HTTP_200_OK
-) -> Response:
-    """Create a standardized API response."""
-    response_data = {"status": "success" if not error else "error"}
-
-    if message:
-        response_data["message"] = message
-
-    if data is not None:
-        response_data["data"] = data
-
-    if error:
-        response_data["error"] = error
-
-    if error_code:
-        response_data["error_code"] = error_code
-
-    return Response(response_data, status=status_code)
+from django.utils.text import slugify
+from accounts.models import Role
 
 
-def paginate_queryset(queryset, request, view, serializer_class):
-    """Paginate a queryset and return serialized data."""
-    paginator = view.pagination_class()
-    page = paginator.paginate_queryset(queryset, request, view=view)
+# -------------------------------------------------------------------------
+# File and Image Handling Utilities
+# -------------------------------------------------------------------------
 
-    if page is not None:
-        serializer = serializer_class(page, many=True, context={'request': request})
-        return paginator.get_paginated_response(serializer.data)
+def generate_unique_filename(original_filename):
+    """
+    Generate a unique filename while preserving the original extension.
 
-    serializer = serializer_class(queryset, many=True, context={'request': request})
-    return Response(serializer.data)
+    Args:
+        original_filename (str): The original filename
+
+    Returns:
+        str: A unique filename with the same extension
+    """
+    ext = os.path.splitext(original_filename)[1].lower() if '.' in original_filename else ''
+    unique_name = f"{uuid.uuid4()}{ext}"
+    return unique_name
 
 
-# ============================================================================
-# Validation Utilities
-# ============================================================================
+def create_thumbnail(image_file, size=(200, 200), format='JPEG', quality=85):
+    """
+    Create a thumbnail from an image file.
 
-def validate_status_transition(
-    original_status: str,
-    new_status: str,
-    allowed_transitions: Dict[str, List[str]]
-) -> bool:
-    """Validate if a status transition is allowed."""
-    if original_status == new_status:
+    Args:
+        image_file: Django UploadedFile or path to image
+        size (tuple): Thumbnail dimensions (width, height)
+        format (str): Image format for the thumbnail
+        quality (int): Compression quality (1-100)
+
+    Returns:
+        ContentFile: Django ContentFile with the thumbnail
+    """
+    if not image_file:
+        return None
+
+    try:
+        img = Image.open(image_file)
+
+        # Convert to RGB if needed (for PNG with transparency)
+        if img.mode not in ('L', 'RGB', 'RGBA'):
+            img = img.convert('RGB')
+
+        # Create thumbnail
+        img.thumbnail(size, Image.LANCZOS)
+
+        # Save to BytesIO
+        thumb_io = BytesIO()
+        save_kwargs = {'format': format}
+        if format in ('JPEG', 'JPG'):
+            save_kwargs['quality'] = quality
+            save_kwargs['optimize'] = True
+
+        img.save(thumb_io, **save_kwargs)
+        thumb_io.seek(0)
+
+        return ContentFile(thumb_io.getvalue())
+    except Exception as e:
+        print(f"Error creating thumbnail: {str(e)}")
+        return None
+
+
+def get_file_size_in_kb(file_obj):
+    """
+    Get file size in KB from a file object.
+
+    Args:
+        file_obj: Django File or UploadedFile object
+
+    Returns:
+        int: File size in KB or 0 if file doesn't exist
+    """
+    if not file_obj:
+        return 0
+
+    try:
+        return file_obj.size // 1024
+    except (AttributeError, IOError):
+        return 0
+
+
+def validate_image_file(file_obj, max_size_mb=5, allowed_extensions=None):
+    """
+    Validate an image file for size and format.
+
+    Args:
+        file_obj: Django File or UploadedFile object
+        max_size_mb (int): Maximum file size in MB
+        allowed_extensions (list): List of allowed file extensions
+
+    Raises:
+        ValidationError: If validation fails
+
+    Returns:
+        bool: True if validation passes
+    """
+    if not file_obj:
         return True
 
-    if original_status not in allowed_transitions:
-        raise ValidationError(_(f"Invalid original status: {original_status}"))
+    # Validate size
+    max_size_bytes = max_size_mb * 1024 * 1024
+    if file_obj.size > max_size_bytes:
+        raise ValidationError(_('حجم الملف يتجاوز الحد المسموح به (%(max_size)s ميجابايت).') % {'max_size': max_size_mb})
 
-    if new_status not in allowed_transitions[original_status]:
-        allowed = ", ".join(allowed_transitions[original_status])
-        raise ValidationError(
-            _(f"Cannot transition from '{original_status}' to '{new_status}'. "
-              f"Allowed transitions: {allowed}")
-        )
+    # Validate extension
+    if allowed_extensions:
+        ext = os.path.splitext(file_obj.name)[1].lower().lstrip('.')
+        if ext not in allowed_extensions:
+            raise ValidationError(_('نوع الملف غير مدعوم. الأنواع المدعومة: %(ext_list)s.') % {'ext_list': ', '.join(allowed_extensions)})
 
     return True
 
 
-# ============================================================================
-# Slug and Unique ID Generation
-# ============================================================================
+# -------------------------------------------------------------------------
+# String and Text Utilities
+# -------------------------------------------------------------------------
 
-def arabic_slugify(text):
+def generate_random_code(length=6, chars=string.digits):
     """
-    Custom slugify function that preserves Arabic characters.
-    Replaces spaces and special characters with hyphens.
+    Generate a random code of specified length.
+
+    Args:
+        length (int): Length of the code
+        chars (str): Characters to use for the code
+
+    Returns:
+        str: Random code
     """
-    if not text:
+    return ''.join(random.choice(chars) for _ in range(length))
+
+
+def generate_slug(text, model_class, max_length=255):
+    """
+    Generate a unique slug for a model.
+
+    Args:
+        text (str): Text to slugify
+        model_class: Django model class
+        max_length (int): Maximum slug length
+
+    Returns:
+        str: Unique slug
+    """
+    original_slug = slugify(text)[:max_length]
+    slug = original_slug
+
+    # Check if slug already exists
+    counter = 1
+    while model_class.objects.filter(slug=slug).exists():
+        suffix = f"-{counter}"
+        slug = f"{original_slug[:max_length - len(suffix)]}{suffix}"
+        counter += 1
+
+    return slug
+
+
+def sanitize_html(html_content):
+    """
+    Sanitize HTML content to prevent XSS attacks.
+    Uses bleach library if available, or basic string replacement.
+
+    Args:
+        html_content (str): HTML content to sanitize
+
+    Returns:
+        str: Sanitized HTML content
+    """
+    try:
+        import bleach
+        allowed_tags = ['p', 'b', 'i', 'u', 'em', 'strong', 'a', 'br', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']
+        allowed_attrs = {'a': ['href', 'title', 'target']}
+        return bleach.clean(html_content, tags=allowed_tags, attributes=allowed_attrs, strip=True)
+    except ImportError:
+        # Basic sanitization if bleach is not available
+        replacements = [
+            ('<script', '&lt;script'),
+            ('javascript:', 'no-script:'),
+            ('onerror=', 'no-error='),
+            ('onclick=', 'no-click='),
+            ('onload=', 'no-load='),
+            ('onmouseover=', 'no-mouseover=')
+        ]
+        for old, new in replacements:
+            html_content = html_content.replace(old, new)
+        return html_content
+
+
+# -------------------------------------------------------------------------
+# Date and Time Utilities
+# -------------------------------------------------------------------------
+
+def format_datetime(dt, format_str="%Y-%m-%d %H:%M:%S"):
+    """
+    Format a datetime object as a string.
+
+    Args:
+        dt (datetime): Datetime object
+        format_str (str): Format string
+
+    Returns:
+        str: Formatted datetime string
+    """
+    if not dt:
         return ""
-    # Replace special characters with empty string
-    import re
-    text = re.sub(r'[^\u0600-\u06FF\u0750-\u077F\w\s-]', '', text)
-    # Replace spaces with hyphens
-    text = re.sub(r'\s+', '-', text).strip('-')
-    # Remove repeated hyphens
-    text = re.sub(r'-+', '-', text)
-    return text
+    return dt.strftime(format_str)
 
 
-def generate_unique_slug(title, model_class, slug_field='slug', max_retries=5):
-    """Generate a unique slug for a model instance."""
-    base_slug = arabic_slugify(title)
-    if not base_slug:
-        base_slug = str(uuid.uuid4())[:8]
-
-    timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
-
-    for attempt in range(max_retries):
-        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
-        unique_slug = f"{base_slug}-{timestamp}-{random_suffix}"
-
-        if not model_class.objects.filter(**{slug_field: unique_slug}).exists():
-            return unique_slug
-
-    raise ValueError(f"Unable to generate a unique slug after {max_retries} attempts")
-
-
-def generate_reference_number(prefix: str, model_class, ref_field: str) -> str:
-    """Generate a unique reference number (e.g., for contracts, payments)."""
-    date_part = timezone.now().strftime('%Y%m%d')
-
-    for _ in range(5):
-        random_part = ''.join([str(uuid.uuid4().hex)[:6].upper()])
-        reference = f"{prefix}-{date_part}-{random_part}"
-
-        if not model_class.objects.filter(**{ref_field: reference}).exists():
-            return reference
-
-    # Fallback to timestamp
-    timestamp = int(timezone.now().timestamp())
-    return f"{prefix}-{date_part}-{timestamp}"
-
-
-# ============================================================================
-# Media Handling
-# ============================================================================
-
-class MediaHandler:
+def get_time_remaining(end_date):
     """
-    Central media handling class for processing uploads across different models.
-    Provides standardized methods for validating, saving, and managing media files.
+    Calculate time remaining until end_date.
+
+    Args:
+        end_date (datetime): End date
+
+    Returns:
+        dict: Time remaining in days, hours, minutes, seconds and total_seconds
     """
-    # File type configurations
-    ALLOWED_EXTENSIONS = {
-        'image': ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-        'document': ['pdf', 'doc', 'docx', 'txt', 'rtf', 'xls', 'xlsx', 'csv'],
-        'video': ['mp4', 'webm', 'mov', 'avi']
-    }
-
-    # Maximum file sizes in bytes
-    MAX_SIZES = {
-        'image': 5 * 1024 * 1024,    # 5MB
-        'document': 10 * 1024 * 1024, # 10MB
-        'video': 50 * 1024 * 1024    # 50MB
-    }
-
-    @classmethod
-    def validate_file(cls, file, file_type='image'):
-        """
-        Validate file size and extension based on file type.
-        Returns (valid, error_message)
-        """
-        if not file:
-            return False, _("No file provided")
-
-        # Validate file extension
-        extension = file.name.split('.')[-1].lower()
-        allowed_exts = cls.ALLOWED_EXTENSIONS.get(file_type, [])
-        max_size = cls.MAX_SIZES.get(file_type, 5 * 1024 * 1024)
-
-        if not allowed_exts:
-            return False, _("Unsupported file type")
-
-        if extension not in allowed_exts:
-            return False, _(f"Invalid file format. Allowed formats: {', '.join(allowed_exts)}")
-
-        if file.size > max_size:
-            max_size_mb = max_size // (1024 * 1024)
-            return False, _(f"File too large. Maximum size: {max_size_mb}MB")
-
-        return True, None
-
-    @classmethod
-    def save_file(cls, file, entity_type, entity_id, file_type='image'):
-        """
-        Save a file and return the file path and metadata.
-        entity_type: 'property', 'auction', 'document', etc.
-        """
-        # Validate file
-        is_valid, error = cls.validate_file(file, file_type)
-        if not is_valid:
-            raise ValueError(error)
-
-        # Create unique filename
-        extension = file.name.split('.')[-1].lower()
-        filename = f"{uuid.uuid4().hex}.{extension}"
-
-        # Create path by date
-        date_path = timezone.now().strftime('%Y/%m/%d')
-
-        # Final path: media/entity_type/file_type/date/entity_id/filename
-        relative_path = f"media/{entity_type}/{file_type}/{date_path}/{entity_id}/{filename}"
-
-        # Save file
-        file_path = default_storage.save(relative_path, ContentFile(file.read()))
-        file_url = default_storage.url(file_path)
-
-        # Build file info
-        file_info = {
-            'id': str(uuid.uuid4()),  # Unique ID for the file
-            'url': file_url,
-            'path': file_path,
-            'name': file.name,
-            'size': file.size,
-            'content_type': file.content_type,
-            'extension': extension,
-            'uploaded_at': timezone.now().isoformat(),
-            'is_primary': False  # Default, can be updated later
+    if not end_date:
+        return {
+            'days': 0,
+            'hours': 0,
+            'minutes': 0,
+            'seconds': 0,
+            'total_seconds': 0
         }
 
-        return file_info
+    now = timezone.now()
 
-    @classmethod
-    def process_property_images(cls, property_obj, files):
-        """
-        Process multiple image uploads for a property.
-        Returns a list of processed image data.
-        """
-        if not property_obj or not property_obj.pk:
-            raise ValueError(_("Property must be saved before uploading images"))
+    if end_date <= now:
+        return {
+            'days': 0,
+            'hours': 0,
+            'minutes': 0,
+            'seconds': 0,
+            'total_seconds': 0
+        }
 
-        # Get current images
-        current_images = property_obj.images or []
-        new_images = []
+    time_left = end_date - now
+    days = time_left.days
+    hours, remainder = divmod(time_left.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
 
-        for file in files:
-            try:
-                # Validate and save each image
-                file_info = cls.save_file(file, 'property', property_obj.pk, 'image')
+    return {
+        'days': days,
+        'hours': hours,
+        'minutes': minutes,
+        'seconds': seconds,
+        'total_seconds': time_left.total_seconds()
+    }
 
-                # If this is the first image, mark it as primary
-                if not current_images and not new_images:
-                    file_info['is_primary'] = True
 
-                new_images.append(file_info)
-            except Exception as e:
-                logger.error(f"Error processing image {file.name}: {str(e)}")
+def is_date_in_range(date, start_date=None, end_date=None):
+    """
+    Check if a date is within a range.
 
-        # Combine with existing images
-        updated_images = current_images + new_images
+    Args:
+        date (datetime): Date to check
+        start_date (datetime, optional): Start date of range
+        end_date (datetime, optional): End date of range
 
-        # Update the property
-        property_obj.images = updated_images
-        property_obj.save(update_fields=['images', 'updated_at'])
+    Returns:
+        bool: True if date is in range
+    """
+    if not date:
+        return False
 
-        return new_images
+    if start_date and date < start_date:
+        return False
 
-    @classmethod
-    def set_primary_image(cls, property_obj, image_index):
-        """Set the primary image for a property by index."""
-        images = property_obj.images or []
+    if end_date and date > end_date:
+        return False
 
-        if not images or image_index >= len(images):
-            raise ValueError(_("Invalid image index"))
+    return True
 
-        # Reset all primary flags
-        for img in images:
-            img['is_primary'] = False
 
-        # Set the selected image as primary
-        images[image_index]['is_primary'] = True
+# -------------------------------------------------------------------------
+# Financial Utilities
+# -------------------------------------------------------------------------
 
-        # Update the property
-        property_obj.images = images
-        property_obj.save(update_fields=['images', 'updated_at'])
+def calculate_fee(amount, percentage):
+    """
+    Calculate a fee based on a percentage.
 
-        return images[image_index]
+    Args:
+        amount (float): Base amount
+        percentage (float): Fee percentage
 
-    @classmethod
-    def delete_image(cls, property_obj, image_index):
-        """Delete an image by index."""
-        images = property_obj.images or []
+    Returns:
+        float: Fee amount
+    """
+    if not amount or not percentage:
+        return 0
 
-        if not images or image_index >= len(images):
-            raise ValueError(_("Invalid image index"))
+    return (amount * percentage) / 100
 
-        # Get the image to delete
-        image = images[image_index]
 
-        # Check if we're deleting the primary image
-        was_primary = image.get('is_primary', False)
+def format_currency(amount, currency='SAR', locale='ar_SA'):
+    """
+    Format a currency amount according to locale.
 
-        # Remove from storage if possible
-        try:
-            if 'path' in image and default_storage.exists(image['path']):
-                default_storage.delete(image['path'])
-        except Exception as e:
-            logger.error(f"Error deleting file: {str(e)}")
+    Args:
+        amount (float): Amount to format
+        currency (str): Currency code
+        locale (str): Locale to use for formatting
 
-        # Remove from list
-        deleted_image = images.pop(image_index)
+    Returns:
+        str: Formatted currency string
+    """
+    if amount is None:
+        return ""
 
-        # If we deleted the primary image and have other images, set a new primary
-        if was_primary and images:
-            images[0]['is_primary'] = True
+    try:
+        import locale as locale_module
+        locale_module.setlocale(locale_module.LC_ALL, locale)
+        return locale_module.currency(amount, currency, grouping=True)
+    except (ImportError, locale_module.Error):
+        # Basic formatting if locale module fails
+        if locale.startswith('ar'):
+            return f"{amount:,.2f} {currency}"
+        else:
+            return f"{currency} {amount:,.2f}"
 
-        # Update the property
-        property_obj.images = images
-        property_obj.save(update_fields=['images', 'updated_at'])
 
-        return deleted_image
+def calculate_installments(total_amount, payment_count, interval_days=30):
+    """
+    Calculate installment amounts and dates.
 
-    @classmethod
-    def process_document_files(cls, document_obj, files):
-        """Process document file uploads."""
-        if not document_obj or not document_obj.pk:
-            raise ValueError(_("Document must be saved before uploading files"))
+    Args:
+        total_amount (float): Total amount to pay
+        payment_count (int): Number of installments
+        interval_days (int): Interval between payments in days
 
-        # Get current files
-        current_files = document_obj.files or []
-        new_files = []
+    Returns:
+        list: List of dictionaries with amount and due_date
+    """
+    if not total_amount or payment_count < 1:
+        return []
 
-        for file in files:
-            try:
-                # Validate and save document
-                file_info = cls.save_file(file, 'document', document_obj.pk, 'document')
-                new_files.append(file_info)
-            except Exception as e:
-                logger.error(f"Error processing document {file.name}: {str(e)}")
+    # Calculate per-payment amount, rounded to 2 decimal places
+    payment_amount = round(total_amount / payment_count, 2)
 
-        # Combine with existing documents
-        updated_files = current_files + new_files
+    # Calculate installments
+    installments = []
+    start_date = timezone.now()
 
-        # Update the document object
-        document_obj.files = updated_files
-        document_obj.save(update_fields=['files', 'updated_at'])
+    for i in range(payment_count):
+        due_date = start_date + timedelta(days=interval_days * (i + 1))
 
-        return new_files
+        # Last payment may need adjustment due to rounding
+        if i == payment_count - 1:
+            # Calculate the sum of all previous payments
+            prev_sum = payment_amount * (payment_count - 1)
+            # Adjust the last payment to make the total exact
+            amount = round(total_amount - prev_sum, 2)
+        else:
+            amount = payment_amount
 
-    @classmethod
-    def process_auction_images(cls, auction_obj, files):
-        """Process multiple image uploads for an auction."""
-        if not auction_obj or not auction_obj.pk:
-            raise ValueError(_("Auction must be saved before uploading images"))
+        installments.append({
+            'number': i + 1,
+            'amount': amount,
+            'due_date': due_date
+        })
 
-        # Get current images
-        current_images = auction_obj.images or []
-        new_images = []
+    return installments
 
-        for file in files:
-            try:
-                file_info = cls.save_file(file, 'auction', auction_obj.pk, 'image')
 
-                # If this is the first image, mark it as primary
-                if not current_images and not new_images:
-                    file_info['is_primary'] = True
+# -------------------------------------------------------------------------
+# Auction and Property Utilities
+# -------------------------------------------------------------------------
 
-                new_images.append(file_info)
-            except Exception as e:
-                logger.error(f"Error processing auction image {file.name}: {str(e)}")
+def check_auction_status(auction):
+    """
+    Check and update auction status based on dates.
 
-        updated_images = current_images + new_images
-        auction_obj.images = updated_images
-        auction_obj.save(update_fields=['images', 'updated_at'])
+    Args:
+        auction: Auction object
 
-        return new_images
+    Returns:
+        str: Current auction status
+    """
+    now = timezone.now()
+
+    # Skip if status is already finalized
+    if auction.status in ['completed', 'cancelled']:
+        return auction.status
+
+    # Update status based on current time
+    if auction.start_date > now:
+        new_status = 'scheduled'
+    elif auction.end_date < now:
+        new_status = 'ended'
+    else:
+        new_status = 'live'
+
+    # Update if status changed
+    if new_status != auction.status:
+        auction.status = new_status
+        auction.save(update_fields=['status'])
+
+    return auction.status
+
+
+def get_bid_increment_suggestions(current_bid, min_increment=100, count=3, factor=1.5):
+    """
+    Generate bid increment suggestions based on current bid.
+
+    Args:
+        current_bid (float): Current bid amount
+        min_increment (float): Minimum bid increment
+        count (int): Number of suggestions to generate
+        factor (float): Factor to multiply each suggestion
+
+    Returns:
+        list: List of suggested bid amounts
+    """
+    if not current_bid:
+        return []
+
+    suggestions = []
+    increment = max(min_increment, current_bid * 0.05)  # 5% of current bid or min_increment
+
+    for i in range(count):
+        suggestion = current_bid + increment * (factor ** i)
+        # Round to nearest 100
+        suggestion = round(suggestion / 100) * 100
+        suggestions.append(suggestion)
+
+    return suggestions
+
+
+def get_property_valuation(property_obj, method='average', external_valuations=None):
+    """
+    Calculate property valuation based on different methods.
+
+    Args:
+        property_obj: Property object
+        method (str): Valuation method ('average', 'max', 'min')
+        external_valuations (list): List of external valuation amounts
+
+    Returns:
+        float: Property valuation amount
+    """
+    if not property_obj:
+        return 0
+
+    # Use market value if available
+    if property_obj.market_value:
+        return property_obj.market_value
+
+    # Collect valuations including external ones
+    valuations = []
+
+    # Add auction values if available
+    for auction in property_obj.auctions.filter(status__in=['completed', 'ended']):
+        if auction.current_bid:
+            valuations.append(auction.current_bid)
+
+    # Add external valuations if provided
+    if external_valuations:
+        valuations.extend(external_valuations)
+
+    # Calculate based on method
+    if not valuations:
+        return 0
+
+    if method == 'average':
+        return sum(valuations) / len(valuations)
+    elif method == 'max':
+        return max(valuations)
+    elif method == 'min':
+        return min(valuations)
+    else:
+        return sum(valuations) / len(valuations)  # Default to average
+
+
+# -------------------------------------------------------------------------
+# Role and Permission Utilities
+# -------------------------------------------------------------------------
+
+def get_user_role_display(user):
+    """
+    Get displayable role names for a user.
+
+    Args:
+        user: User object
+
+    Returns:
+        list: List of role display names
+    """
+    if not user or not hasattr(user, 'roles'):
+        return []
+
+    return [role.get_name_display() for role in user.roles.all()]
+
+
+def get_user_permissions(user):
+    """
+    Get all permissions for a user based on their roles.
+
+    Args:
+        user: User object
+
+    Returns:
+        dict: Dictionary of permissions
+    """
+    if not user or not hasattr(user, 'roles'):
+        return {}
+
+    permissions = {}
+
+    # Combine permissions from all roles
+    for role in user.roles.all():
+        role_permissions = role.default_permissions
+        for perm_name, perm_value in role_permissions.items():
+            # If permission already exists, set it to True if any role has it as True
+            permissions[perm_name] = permissions.get(perm_name, False) or perm_value
+
+    return permissions
+
+
+def check_user_permission(user, permission_name):
+    """
+    Check if a user has a specific permission.
+
+    Args:
+        user: User object
+        permission_name (str): Name of the permission to check
+
+    Returns:
+        bool: True if user has the permission
+    """
+    # Admin users have all permissions
+    if user.has_role(Role.ADMIN):
+        return True
+
+    # Check user permissions from roles
+    permissions = get_user_permissions(user)
+    return permissions.get(permission_name, False)

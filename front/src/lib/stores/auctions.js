@@ -1,384 +1,471 @@
-import { writable, derived, get } from 'svelte/store';
-import auctionsService from '$lib/services/auctions';
-import bidsService from '$lib/services/bids';
+/**
+ * Auctions Store
+ * Manages state for auction listings and operations
+ */
 
-const createAuctionsStore = () => {
-	const initialState = {
-		auctions: [],
-		myAuctions: [],
-		activeAuctions: [],
-		currentAuction: null,
-		currentBids: [],
-		myBids: {},
-		isLoading: false,
-		error: null,
-		filters: {
-			status: null,
-			auction_type: null,
-			is_featured: null,
-			is_published: null,
-			search: null,
-			ordering: null
-		},
-		pagination: {
-			page: 1,
-			pageSize: 10,
-			totalItems: 0,
-			totalPages: 0
-		}
-	};
+import { writable, derived } from 'svelte/store';
+import * as auctionService from '$lib/services/auctionService';
 
+// Initial state
+const initialState = {
+	auctions: [],
+	currentAuction: null,
+	bids: [],
+	isLoading: false,
+	error: null,
+	filters: {
+		auction_type: '',
+		status: '',
+		is_published: '',
+		is_featured: '',
+		is_private: '',
+		search: '',
+		ordering: '-start_date'
+	},
+	pagination: {
+		page: 1,
+		pageSize: 10,
+		totalItems: 0,
+		totalPages: 0
+	}
+};
+
+// Create the auctions store
+function createAuctionsStore() {
 	const { subscribe, set, update } = writable(initialState);
 
 	return {
 		subscribe,
 
-		// Load auctions with optional filters
+		/**
+		 * Reset store to initial state
+		 */
+		reset: () => set(initialState),
+
+		/**
+		 * Set loading state
+		 * @param {boolean} isLoading - Loading state
+		 */
+		setLoading: (isLoading) => {
+			update((state) => ({
+				...state,
+				isLoading,
+				error: isLoading ? null : state.error
+			}));
+		},
+
+		/**
+		 * Set error message
+		 * @param {string} error - Error message
+		 */
+		setError: (error) => {
+			update((state) => ({
+				...state,
+				error,
+				isLoading: false
+			}));
+		},
+
+		/**
+		 * Load auctions with filters
+		 * @param {Object} filters - Filter parameters
+		 * @param {number} page - Page number
+		 * @param {number} pageSize - Page size
+		 */
 		loadAuctions: async (filters = {}, page = 1, pageSize = 10) => {
 			update((state) => ({
 				...state,
 				isLoading: true,
-				error: null,
-				filters: { ...state.filters, ...filters },
-				pagination: { ...state.pagination, page, pageSize }
+				error: null
 			}));
 
 			try {
-				const queryParams = {
-					...filters,
+				// Merge current filters with new filters
+				const mergedFilters = {
+					...state.filters,
+					...filters
+				};
+
+				// Prepare params for API call
+				const params = {
+					...mergedFilters,
 					page,
 					page_size: pageSize
 				};
 
-				const response = await auctionsService.getAuctions(queryParams);
-
-				update((state) => ({
-					...state,
-					auctions: response.results,
-					isLoading: false,
-					pagination: {
-						page,
-						pageSize,
-						totalItems: response.count,
-						totalPages: Math.ceil(response.count / pageSize)
+				// Clean empty filters
+				Object.keys(params).forEach((key) => {
+					if (params[key] === '' || params[key] === null || params[key] === undefined) {
+						delete params[key];
 					}
-				}));
-			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
-			}
-		},
-
-		// Load auction details by slug
-		loadAuctionBySlug: async (slug) => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
-
-			try {
-				const response = await auctionsService.getAuctionBySlug(slug);
-				update((state) => ({ ...state, currentAuction: response, isLoading: false }));
-
-				// Load bids for this auction
-				auctionsStore.loadBids(response.id);
-
-				return response;
-			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
-				throw error;
-			}
-		},
-
-		// Load active auctions
-		loadActiveAuctions: async () => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
-
-			try {
-				const response = await auctionsService.getAuctions({ status: 'active' });
-				update((state) => ({ ...state, activeAuctions: response.results, isLoading: false }));
-				return response.results;
-			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
-				throw error;
-			}
-		},
-
-		// Load user's own auctions
-		loadMyAuctions: async () => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
-
-			try {
-				const response = await auctionsService.getMyAuctions();
-				update((state) => ({ ...state, myAuctions: response, isLoading: false }));
-				return response;
-			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
-				throw error;
-			}
-		},
-
-		// Load bids for an auction
-		loadBids: async (auctionId) => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
-
-			try {
-				const response = await bidsService.getBidsByAuction(auctionId);
-				update((state) => ({ ...state, currentBids: response.results, isLoading: false }));
-				return response.results;
-			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
-				throw error;
-			}
-		},
-
-		// Load user's own bids
-		loadMyBids: async (auctionId = null) => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
-
-			try {
-				const response = await bidsService.getMyBids(auctionId);
-
-				if (auctionId) {
-					// Store bids for specific auction
-					update((state) => ({
-						...state,
-						myBids: {
-							...state.myBids,
-							[auctionId]: response
-						},
-						isLoading: false
-					}));
-				} else {
-					// Group bids by auction ID
-					const bidsByAuction = {};
-					response.forEach((bid) => {
-						if (!bidsByAuction[bid.auction]) {
-							bidsByAuction[bid.auction] = [];
-						}
-						bidsByAuction[bid.auction].push(bid);
-					});
-
-					update((state) => ({
-						...state,
-						myBids: bidsByAuction,
-						isLoading: false
-					}));
-				}
-
-				return response;
-			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
-				throw error;
-			}
-		},
-
-		// Place a bid
-		placeBid: async (auctionId, bidAmount, maxBidAmount = null) => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
-
-			try {
-				const response = await bidsService.placeBid(auctionId, bidAmount, maxBidAmount);
-
-				// Update bids for this auction
-				auctionsStore.loadBids(auctionId);
-
-				// Update my bids
-				auctionsStore.loadMyBids(auctionId);
-
-				// If this is the current auction, update its current bid
-				update((state) => {
-					if (state.currentAuction && state.currentAuction.id === auctionId) {
-						return {
-							...state,
-							currentAuction: {
-								...state.currentAuction,
-								current_bid: bidAmount
-							},
-							isLoading: false
-						};
-					}
-					return { ...state, isLoading: false };
 				});
 
-				return response;
-			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
-				throw error;
-			}
-		},
+				const response = await auctionService.getAuctions(params);
 
-		// Create a new auction
-		createAuction: async (auctionData) => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
-
-			try {
-				const response = await auctionsService.createAuction(auctionData);
-
-				// Add to myAuctions list
 				update((state) => ({
 					...state,
-					myAuctions: [response, ...state.myAuctions],
+					auctions: response.results || [],
+					pagination: {
+						page: page,
+						pageSize: pageSize,
+						totalItems: response.count || 0,
+						totalPages: Math.ceil((response.count || 0) / pageSize)
+					},
+					filters: mergedFilters,
 					isLoading: false
 				}));
 
 				return response;
 			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
+				console.error('Error loading auctions:', error);
+
+				update((state) => ({
+					...state,
+					isLoading: false,
+					error: error.message || 'فشل في تحميل المزادات'
+				}));
+
 				throw error;
 			}
 		},
 
-		// Update an existing auction
-		updateAuction: async (id, auctionData) => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
+		/**
+		 * Load a single auction by slug
+		 * @param {string} slug - Auction slug
+		 */
+		loadAuction: async (slug) => {
+			update((state) => ({
+				...state,
+				isLoading: true,
+				error: null
+			}));
 
 			try {
-				const response = await auctionsService.updateAuction(id, auctionData);
+				const auction = await auctionService.getAuctionBySlug(slug);
 
-				// Update in both lists if present
-				update((state) => {
-					const updatedAuctions = state.auctions.map((a) => (a.id === id ? response : a));
+				update((state) => ({
+					...state,
+					currentAuction: auction,
+					isLoading: false
+				}));
 
-					const updatedMyAuctions = state.myAuctions.map((a) => (a.id === id ? response : a));
+				return auction;
+			} catch (error) {
+				console.error('Error loading auction:', error);
 
-					const updatedActiveAuctions = state.activeAuctions.map((a) =>
-						a.id === id ? response : a
-					);
+				update((state) => ({
+					...state,
+					isLoading: false,
+					error: error.message || 'فشل في تحميل تفاصيل المزاد'
+				}));
 
-					return {
-						...state,
-						auctions: updatedAuctions,
-						myAuctions: updatedMyAuctions,
-						activeAuctions: updatedActiveAuctions,
-						currentAuction: state.currentAuction?.id === id ? response : state.currentAuction,
-						isLoading: false
-					};
-				});
+				throw error;
+			}
+		},
+
+		/**
+		 * Load bids for an auction
+		 * @param {string} auctionId - Auction ID
+		 * @param {Object} params - Query parameters
+		 */
+		loadBids: async (auctionId, params = {}) => {
+			update((state) => ({
+				...state,
+				isLoading: true,
+				error: null
+			}));
+
+			try {
+				const response = await auctionService.getAuctionBids(auctionId, params);
+
+				update((state) => ({
+					...state,
+					bids: response.results || [],
+					isLoading: false
+				}));
 
 				return response;
 			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
+				console.error('Error loading bids:', error);
+
+				update((state) => ({
+					...state,
+					isLoading: false,
+					error: error.message || 'فشل في تحميل المزايدات'
+				}));
+
 				throw error;
 			}
 		},
 
-		// Extend auction
-		extendAuction: async (id, minutes) => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
+		/**
+		 * Create a new auction
+		 * @param {Object} auctionData - Auction data
+		 */
+		createAuction: async (auctionData) => {
+			update((state) => ({
+				...state,
+				isLoading: true,
+				error: null
+			}));
 
 			try {
-				const response = await auctionsService.extendAuction(id, minutes);
+				const newAuction = await auctionService.createAuction(auctionData);
 
-				// Reload auction details to get updated end time
-				if (get({ subscribe }).currentAuction?.id === id) {
-					auctionsStore.loadAuctionBySlug(get({ subscribe }).currentAuction.slug);
-				}
+				update((state) => ({
+					...state,
+					currentAuction: newAuction,
+					isLoading: false
+				}));
 
-				return response;
+				return newAuction;
 			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
+				console.error('Error creating auction:', error);
+
+				update((state) => ({
+					...state,
+					isLoading: false,
+					error: error.message || 'فشل في إنشاء المزاد'
+				}));
+
 				throw error;
 			}
 		},
 
-		// Close auction
-		closeAuction: async (id, reason) => {
-			update((state) => ({ ...state, isLoading: true, error: null }));
+		/**
+		 * Update an auction
+		 * @param {string} slug - Auction slug
+		 * @param {Object} auctionData - Updated auction data
+		 * @param {boolean} partial - Whether to use PATCH (partial update)
+		 */
+		updateAuction: async (slug, auctionData, partial = true) => {
+			update((state) => ({
+				...state,
+				isLoading: true,
+				error: null
+			}));
 
 			try {
-				const response = await auctionsService.closeAuction(id, reason);
+				const updatedAuction = await auctionService.updateAuction(slug, auctionData, partial);
 
-				// Update auction status in lists
+				update((state) => ({
+					...state,
+					currentAuction: updatedAuction,
+					isLoading: false
+				}));
+
+				return updatedAuction;
+			} catch (error) {
+				console.error('Error updating auction:', error);
+
+				update((state) => ({
+					...state,
+					isLoading: false,
+					error: error.message || 'فشل في تحديث المزاد'
+				}));
+
+				throw error;
+			}
+		},
+
+		/**
+		 * Delete an auction
+		 * @param {string} slug - Auction slug
+		 */
+		deleteAuction: async (slug) => {
+			update((state) => ({
+				...state,
+				isLoading: true,
+				error: null
+			}));
+
+			try {
+				await auctionService.deleteAuction(slug);
+
+				update((state) => ({
+					...state,
+					currentAuction: null,
+					isLoading: false
+				}));
+
+				return true;
+			} catch (error) {
+				console.error('Error deleting auction:', error);
+
+				update((state) => ({
+					...state,
+					isLoading: false,
+					error: error.message || 'فشل في حذف المزاد'
+				}));
+
+				throw error;
+			}
+		},
+
+		/**
+		 * Place a bid on an auction
+		 * @param {string} auctionId - Auction ID
+		 * @param {number} bidAmount - Bid amount
+		 * @param {boolean} isAutoBid - Whether this is an auto bid
+		 * @param {number} maxAutoBid - Maximum auto bid amount
+		 * @param {string} notes - Bid notes
+		 */
+		placeBid: async (auctionId, bidAmount, isAutoBid = false, maxAutoBid = null, notes = '') => {
+			update((state) => ({
+				...state,
+				isLoading: true,
+				error: null
+			}));
+
+			try {
+				const bid = await auctionService.placeBid(
+					auctionId,
+					bidAmount,
+					isAutoBid,
+					maxAutoBid,
+					notes
+				);
+
+				// Update current auction if this bid is for it
 				update((state) => {
-					const updateStatus = (a) => {
-						if (a.id === id) {
-							return { ...a, status: 'closed', end_reason: reason };
+					let updatedState = { ...state, isLoading: false };
+
+					if (updatedState.currentAuction && updatedState.currentAuction.id === auctionId) {
+						updatedState.currentAuction = {
+							...updatedState.currentAuction,
+							current_bid: bidAmount,
+							bid_count: (updatedState.currentAuction.bid_count || 0) + 1
+						};
+
+						// Add new bid to bids array if we have it loaded
+						if (updatedState.bids.length > 0) {
+							updatedState.bids = [bid, ...updatedState.bids];
 						}
-						return a;
-					};
+					}
 
-					return {
-						...state,
-						auctions: state.auctions.map(updateStatus),
-						myAuctions: state.myAuctions.map(updateStatus),
-						activeAuctions: state.activeAuctions.filter((a) => a.id !== id),
-						currentAuction:
-							state.currentAuction?.id === id
-								? { ...state.currentAuction, status: 'closed', end_reason: reason }
-								: state.currentAuction,
-						isLoading: false
-					};
+					return updatedState;
 				});
 
-				return response;
+				return bid;
 			} catch (error) {
-				update((state) => ({ ...state, isLoading: false, error }));
+				console.error('Error placing bid:', error);
+
+				update((state) => ({
+					...state,
+					isLoading: false,
+					error: error.message || 'فشل في تقديم المزايدة'
+				}));
+
 				throw error;
 			}
 		},
 
-		// Clear current auction
-		clearCurrentAuction: () => {
+		/**
+		 * Get bid suggestions for an auction
+		 * @param {string} auctionId - Auction ID
+		 */
+		getBidSuggestions: async (auctionId) => {
+			try {
+				return await auctionService.getBidSuggestions(auctionId);
+			} catch (error) {
+				console.error('Error getting bid suggestions:', error);
+				throw error;
+			}
+		},
+
+		/**
+		 * Upload auction image
+		 * @param {string} auctionId - Auction ID
+		 * @param {File} imageFile - Image file
+		 * @param {Object} metadata - Image metadata
+		 */
+		uploadImage: async (auctionId, imageFile, metadata = {}) => {
+			try {
+				const response = await auctionService.uploadAuctionImage(auctionId, imageFile, metadata);
+
+				// Update the current auction images if viewing that auction
+				update((state) => {
+					if (state.currentAuction && state.currentAuction.id === auctionId) {
+						const updatedImages = [...(state.currentAuction.images || []), response];
+						return {
+							...state,
+							currentAuction: {
+								...state.currentAuction,
+								images: updatedImages
+							}
+						};
+					}
+					return state;
+				});
+
+				return response;
+			} catch (error) {
+				console.error('Error uploading auction image:', error);
+				throw error;
+			}
+		},
+
+		/**
+		 * Update filters and reload auctions
+		 * @param {Object} newFilters - New filter values
+		 */
+		updateFilters: async (newFilters) => {
 			update((state) => ({
 				...state,
-				currentAuction: null,
-				currentBids: []
-			}));
-		},
-
-		// Update filters
-		setFilters: (filters) => {
-			update((state) => ({
-				...state,
-				filters: { ...state.filters, ...filters }
+				filters: {
+					...state.filters,
+					...newFilters
+				},
+				pagination: {
+					...state.pagination,
+					page: 1 // Reset to first page on filter change
+				}
 			}));
 
-			// Reload auctions with new filters
-			const storeState = get({ subscribe });
-			return auctionsStore.loadAuctions(
-				storeState.filters,
-				1, // Reset to first page when filters change
-				storeState.pagination.pageSize
-			);
+			// Get the updated filters from the store
+			let updatedFilters;
+			update((state) => {
+				updatedFilters = state.filters;
+				return state;
+			});
+
+			// Reload auctions with updated filters
+			return auctions.loadAuctions(updatedFilters, 1, initialState.pagination.pageSize);
 		},
 
-		// Reset filters
-		resetFilters: () => {
-			const defaultFilters = {
-				status: null,
-				auction_type: null,
-				is_featured: null,
-				is_published: null,
-				search: null,
-				ordering: null
-			};
+		/**
+		 * Change page and reload auctions
+		 * @param {number} page - Page number
+		 */
+		changePage: async (page) => {
+			let currentFilters, pageSize;
 
-			update((state) => ({ ...state, filters: defaultFilters }));
+			update((state) => {
+				currentFilters = state.filters;
+				pageSize = state.pagination.pageSize;
 
-			// Reload auctions with reset filters
-			const storeState = get({ subscribe });
-			return auctionsStore.loadAuctions({}, 1, storeState.pagination.pageSize);
-		},
+				return {
+					...state,
+					pagination: {
+						...state.pagination,
+						page
+					}
+				};
+			});
 
-		// Clear error state
-		clearError: () => {
-			update((state) => ({ ...state, error: null }));
+			return auctions.loadAuctions(currentFilters, page, pageSize);
 		}
 	};
-};
+}
 
-// Create the store
-export const auctionsStore = createAuctionsStore();
+// Create and export the store
+export const auctions = createAuctionsStore();
 
-// Derived stores
-export const auctions = derived(auctionsStore, ($store) => $store.auctions);
-export const myAuctions = derived(auctionsStore, ($store) => $store.myAuctions);
-export const activeAuctions = derived(auctionsStore, ($store) => $store.activeAuctions);
-export const currentAuction = derived(auctionsStore, ($store) => $store.currentAuction);
-export const currentBids = derived(auctionsStore, ($store) => $store.currentBids);
-export const myBids = derived(auctionsStore, ($store) => $store.myBids);
-export const auctionsLoading = derived(auctionsStore, ($store) => $store.isLoading);
-export const auctionsError = derived(auctionsStore, ($store) => $store.error);
-export const auctionFilters = derived(auctionsStore, ($store) => $store.filters);
-export const auctionPagination = derived(auctionsStore, ($store) => $store.pagination);
-
-// Derived store for getting my bids for a specific auction
-export const getMyBidsForAuction = (auctionId) =>
-	derived(myBids, ($myBids) => $myBids[auctionId] || []);
+// Derived stores for convenient access
+export const auctionsList = derived(auctions, ($auctions) => $auctions.auctions);
+export const currentAuction = derived(auctions, ($auctions) => $auctions.currentAuction);
+export const bidsList = derived(auctions, ($auctions) => $auctions.bids);
+export const isLoading = derived(auctions, ($auctions) => $auctions.isLoading);
+export const error = derived(auctions, ($auctions) => $auctions.error);
+export const filters = derived(auctions, ($auctions) => $auctions.filters);
+export const pagination = derived(auctions, ($auctions) => $auctions.pagination);

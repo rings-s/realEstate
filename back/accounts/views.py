@@ -32,10 +32,9 @@ from .utils import (
     debug_request
 )
 
-# Assuming these models would be in a base or auctions app
-# Change references as needed for your project structure
+# Importing models from base app
 from base.decorators import role_required
-from base.models import Transaction, Auction, Document, Contract, Bid, Property, PropertyView
+from base.models import Auction, Document, Contract, Bid, Property, PropertyView
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -662,68 +661,46 @@ def role_dashboard(request):
         # Admin dashboard
         if Role.ADMIN in user_roles:
             dashboard_data['admin'] = {
-                'active_auctions': Auction.objects.filter(status='ACTIVE').count(),
+                'active_auctions': Auction.objects.filter(status='live').count(),
                 'total_users': User.objects.count(),
-                'recent_transactions': Transaction.objects.order_by('-created_at')[:5].values(
-                    'id', 'amount', 'status', 'created_at', 'property__title'
-                ),
                 'pending_approvals': Document.objects.filter(
-                    verification_status=False
-                ).count(),
-                'disputed_transactions': Transaction.objects.filter(
-                    status='DISPUTED'
+                    verification_status='pending'
                 ).count(),
             }
 
         # Seller dashboard
         if Role.SELLER in user_roles:
             dashboard_data['seller'] = {
-                'active_auctions': Auction.objects.filter(seller=user, status='ACTIVE').count(),
-                'sold_properties': Transaction.objects.filter(property__seller=user, status='COMPLETED').count(),
-                'pending_contracts': Contract.objects.filter(seller=user, status='PENDING_SELLER').count(),
+                'active_auctions': Auction.objects.filter(related_property__owner=user, status='live').count(),
+                'pending_contracts': Contract.objects.filter(seller=user, status='pending').count(),
                 'property_views': PropertyView.objects.filter(
-                    property__seller=user
-                ).count(),
-                'pending_property_viewings': PropertyView.objects.filter(
-                    property__seller=user,
-                    status='REQUESTED'
+                    auction__related_property__owner=user
                 ).count(),
             }
 
         # Buyer dashboard
         if Role.BUYER in user_roles:
             dashboard_data['buyer'] = {
-                'active_bids': Bid.objects.filter(bidder=user, auction__status='ACTIVE').count(),
-                'won_auctions': Transaction.objects.filter(winner=user).count(),
-                'pending_contracts': Contract.objects.filter(buyer=user, status='PENDING_BUYER').count(),
-                'saved_properties': Property.objects.filter(
-                    saved_by=user
-                ).count(),
+                'active_bids': Bid.objects.filter(bidder=user, auction__status='live').count(),
+                'pending_contracts': Contract.objects.filter(buyer=user, status='pending').count(),
                 'scheduled_viewings': PropertyView.objects.filter(
-                    requester=user,
-                    status='CONFIRMED'
-                ).count(),
+                    auction__bids__bidder=user
+                ).distinct().count(),
             }
 
         # Inspector dashboard
         if Role.INSPECTOR in user_roles:
             pending_inspections = Property.objects.filter(
-                auction__status='ACTIVE',
-                documents__document_type='INSPECTION',
-                documents__verification_status=False
+                auctions__status='live',
+                documents__document_type='report',
+                documents__verification_status='pending'
             ).distinct().count()
 
             dashboard_data['inspector'] = {
                 'pending_inspections': pending_inspections,
                 'completed_inspections': Document.objects.filter(
-                    document_type='INSPECTION',
+                    document_type='report',
                     verified_by=user
-                ).count(),
-                'upcoming_inspections': PropertyView.objects.filter(
-                    inspector=user,
-                    type='INSPECTION',
-                    status='CONFIRMED',
-                    scheduled_date__gte=timezone.now()
                 ).count(),
             }
 
@@ -731,16 +708,12 @@ def role_dashboard(request):
         if Role.LEGAL in user_roles:
             dashboard_data['legal'] = {
                 'pending_reviews': Contract.objects.filter(
-                    Q(seller_legal_rep=user, status='PENDING_SELLER') |
-                    Q(buyer_legal_rep=user, status='PENDING_BUYER')
-                ).count(),
-                'active_disputes': Transaction.objects.filter(status='DISPUTED').count(),
-                'contracts_drafted': Contract.objects.filter(
-                    created_by=user
+                    Q(seller=user, status='pending') |
+                    Q(buyer=user, status='pending')
                 ).count(),
                 'pending_title_verifications': Document.objects.filter(
-                    document_type='TITLE',
-                    verification_status=False
+                    document_type='deed',
+                    verification_status='pending'
                 ).count(),
             }
 
@@ -748,25 +721,11 @@ def role_dashboard(request):
         if Role.AGENT in user_roles:
             dashboard_data['agent'] = {
                 'active_listings': Property.objects.filter(
-                    listed_by=user,
-                    status='ACTIVE'
+                    is_published=True,
+                    status='available'
                 ).count(),
-                'sold_properties': Transaction.objects.filter(
-                    property__listed_by=user,
-                    status='COMPLETED'
-                ).count(),
-                'client_count': User.objects.filter(
-                    Q(properties_selling__listed_by=user) |
-                    Q(bids__auction__property__listed_by=user)
-                ).distinct().count(),
                 'pending_viewings': PropertyView.objects.filter(
-                    property__listed_by=user,
-                    status='REQUESTED'
-                ).count(),
-                'scheduled_viewings': PropertyView.objects.filter(
-                    property__listed_by=user,
-                    status='CONFIRMED',
-                    scheduled_date__gte=timezone.now()
+                    auction__related_property__owner=user
                 ).count(),
             }
 

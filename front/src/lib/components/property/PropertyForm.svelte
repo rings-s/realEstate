@@ -1,11 +1,30 @@
+<!--
+  Property Form Component with Leaflet Integration
+  Handles creating and editing property listings
+-->
 <script>
+	import { onMount, afterUpdate } from 'svelte';
 	import { t } from '$lib/config/translations';
 	import { language, isRTL, addToast } from '$lib/stores/ui';
 	import { PROPERTY_TYPES, PROPERTY_STATUS } from '$lib/config/constants';
 	import { createEventDispatcher } from 'svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
-	import { Building, MapPin, Star, Tag, Info, Plus, Trash2, X } from 'lucide-svelte';
-	import propertiesService from '$lib/services/properties';
+	import {
+		Building,
+		MapPin,
+		Star,
+		Tag,
+		Info,
+		Plus,
+		Trash2,
+		X,
+		Locate,
+		MapPinOff
+	} from 'lucide-svelte';
+	import { formatPropertyData } from '$lib/services/propertyService';
+
+	// Import Leaflet - these would be added to your app
+	import L from 'leaflet';
 
 	const dispatch = createEventDispatcher();
 
@@ -33,7 +52,15 @@
 		title: '',
 		property_type: 'residential',
 		status: 'available',
-		location: {},
+		location: {
+			latitude: null,
+			longitude: null,
+			city: '',
+			address: '',
+			postal_code: '',
+			state: '',
+			country: 'المملكة العربية السعودية'
+		},
 		address: '',
 		city: '',
 		state: '',
@@ -67,13 +94,28 @@
 	let imageError = null;
 	let submitAttempted = false;
 
+	// Leaflet map variables
+	let mapContainer;
+	let map;
+	let marker;
+	let isLocating = false;
+	let locationError = null;
+
 	// Initialize form with existing property data
 	$: if (property) {
 		formData = {
 			title: property.title || '',
 			property_type: property.property_type || 'residential',
 			status: property.status || 'available',
-			location: property.location || {},
+			location: property.location || {
+				latitude: null,
+				longitude: null,
+				city: '',
+				address: '',
+				postal_code: '',
+				state: '',
+				country: 'المملكة العربية السعودية'
+			},
 			address: property.address || '',
 			city: property.city || '',
 			state: property.state || '',
@@ -120,6 +162,157 @@
 		formData.city.trim() &&
 		formData.description.trim();
 
+	// Update location when address fields change
+	$: {
+		formData.location.address = formData.address;
+		formData.location.city = formData.city;
+		formData.location.state = formData.state;
+		formData.location.postal_code = formData.postal_code;
+		formData.location.country = formData.country;
+	}
+
+	// Update map when location coordinates change
+	$: if (map && formData.location.latitude && formData.location.longitude) {
+		updateMapPosition(formData.location.latitude, formData.location.longitude);
+	}
+
+	// Initialize Leaflet map
+	function initMap() {
+		if (!mapContainer) return;
+
+		// Create map if it doesn't exist
+		if (!map) {
+			map = L.map(mapContainer).setView([24.774265, 46.738586], 13); // Default to Riyadh, Saudi Arabia
+
+			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+				attribution:
+					'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+			}).addTo(map);
+
+			// Add click handler to set location
+			map.on('click', function (e) {
+				setLocation(e.latlng.lat, e.latlng.lng);
+			});
+
+			// Add scale control
+			L.control.scale().addTo(map);
+		}
+
+		// Add marker if property has location
+		if (formData.location.latitude && formData.location.longitude) {
+			updateMapPosition(formData.location.latitude, formData.location.longitude);
+		}
+	}
+
+	// Update marker position on map
+	function updateMapPosition(lat, lng) {
+		if (!map) return;
+
+		const newLatLng = [lat, lng];
+
+		// Create marker if it doesn't exist
+		if (!marker) {
+			marker = L.marker(newLatLng).addTo(map);
+		} else {
+			marker.setLatLng(newLatLng);
+		}
+
+		// Center map on marker
+		map.setView(newLatLng, 15);
+	}
+
+	// Set location in form data
+	function setLocation(lat, lng) {
+		formData.location.latitude = lat;
+		formData.location.longitude = lng;
+		updateMapPosition(lat, lng);
+	}
+
+	// Get current location using browser geolocation
+	function detectLocation() {
+		if (!navigator.geolocation) {
+			locationError = t('geolocation_not_supported', $language, {
+				default: 'الموقع الجغرافي غير مدعوم في متصفحك'
+			});
+			return;
+		}
+
+		isLocating = true;
+		locationError = null;
+
+		navigator.geolocation.getCurrentPosition(
+			(position) => {
+				setLocation(position.coords.latitude, position.coords.longitude);
+				isLocating = false;
+
+				// Try to get address from coordinates (reverse geocoding)
+				reverseGeocode(position.coords.latitude, position.coords.longitude);
+			},
+			(error) => {
+				isLocating = false;
+				switch (error.code) {
+					case error.PERMISSION_DENIED:
+						locationError = t('location_permission_denied', $language, {
+							default: 'تم رفض إذن الوصول إلى الموقع'
+						});
+						break;
+					case error.POSITION_UNAVAILABLE:
+						locationError = t('location_unavailable', $language, {
+							default: 'معلومات الموقع غير متوفرة'
+						});
+						break;
+					case error.TIMEOUT:
+						locationError = t('location_timeout', $language, {
+							default: 'انتهت مهلة طلب الموقع'
+						});
+						break;
+					default:
+						locationError = t('location_error', $language, {
+							default: 'حدث خطأ أثناء تحديد الموقع'
+						});
+				}
+			},
+			{
+				enableHighAccuracy: true,
+				timeout: 5000,
+				maximumAge: 0
+			}
+		);
+	}
+
+	// Clear location data
+	function clearLocation() {
+		formData.location.latitude = null;
+		formData.location.longitude = null;
+
+		if (marker && map) {
+			map.removeLayer(marker);
+			marker = null;
+		}
+	}
+
+	// Perform reverse geocoding to get address from coordinates
+	async function reverseGeocode(lat, lng) {
+		try {
+			const response = await fetch(
+				`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ar`
+			);
+			const data = await response.json();
+
+			if (data && data.address) {
+				// Fill address fields from geocoding result
+				formData.address = data.display_name || '';
+				formData.city = data.address.city || data.address.town || data.address.village || '';
+				formData.state = data.address.state || '';
+				formData.postal_code = data.address.postcode || '';
+				formData.country = data.address.country || 'المملكة العربية السعودية';
+			}
+		} catch (error) {
+			console.error('Reverse geocoding error:', error);
+			// Don't show error to user, just log it
+		}
+	}
+
 	// Validate required fields
 	function validate() {
 		submitAttempted = true;
@@ -152,31 +345,13 @@
 				minimum_bid: formData.minimum_bid ? parseFloat(formData.minimum_bid) : null
 			};
 
-			// If we have a property ID, update it; otherwise create a new one
-			let result;
-			if (property && property.id) {
-				result = await propertiesService.updateProperty(property.id, propertyData);
-			} else {
-				result = await propertiesService.createProperty(propertyData);
-			}
+			// Format data for API
+			const formattedData = formatPropertyData(propertyData);
 
-			// Upload any new images that weren't auto-uploaded
-			if (!autoUpload) {
-				await uploadPendingImages(result.id);
-			}
-
-			// Success
-			addToast(
-				t(property ? 'property_updated' : 'property_created', $language, {
-					default: property ? 'تم تحديث العقار بنجاح' : 'تم إنشاء العقار بنجاح'
-				}),
-				'success'
-			);
-
-			// Notify parent component
-			dispatch('success', result);
+			// Submit data to parent component
+			dispatch('submit', formattedData);
 		} catch (err) {
-			console.error('Error saving property:', err);
+			console.error('Error preparing property data:', err);
 			error = err.message || t('save_error', $language, { default: 'حدث خطأ أثناء حفظ العقار' });
 			dispatch('error', err);
 		} finally {
@@ -265,15 +440,8 @@
 			formData.append('is_primary', image.is_primary);
 			formData.append('caption', image.caption);
 
-			// Upload the image
-			const result = await propertiesService.uploadPropertyImage(propertyId, formData);
-
-			// Update the image with the server response
-			images[imageIndex].id = result.id;
-			images[imageIndex].url = result.image_url || result.image;
-			images[imageIndex].uploaded = true;
-			images[imageIndex].progress = 100;
-			images = [...images];
+			// Dispatch upload event to parent component
+			dispatch('uploadImage', { propertyId, formData, imageIndex });
 		} catch (err) {
 			console.error('Error uploading image:', err);
 			imageError = t('image_upload_error', $language, {
@@ -291,23 +459,14 @@
 		}
 	}
 
-	// Upload all pending images
-	async function uploadPendingImages(propertyId) {
-		const pendingImages = images.filter((img) => !img.uploaded && img.file);
-
-		for (const image of pendingImages) {
-			await uploadImage(image, propertyId);
-		}
-	}
-
 	// Remove an image
 	async function removeImage(index) {
 		const image = images[index];
 
 		try {
-			// If image is already uploaded, delete it from server
+			// If image is already uploaded, notify parent
 			if (image.id && image.uploaded) {
-				await propertiesService.deletePropertyImage(image.id);
+				dispatch('removeImage', { imageId: image.id });
 			}
 
 			// Remove from UI
@@ -320,7 +479,7 @@
 
 				// Update on server if needed
 				if (images[0].id && images[0].uploaded) {
-					await propertiesService.updatePropertyImage(images[0].id, { is_primary: true });
+					dispatch('setPrimaryImage', { imageId: images[0].id });
 				}
 
 				images = [...images];
@@ -342,10 +501,10 @@
 			});
 			images = [...images];
 
-			// If the image is uploaded, update on server
+			// If the image is uploaded, notify parent
 			const image = images[index];
 			if (image.id && image.uploaded) {
-				await propertiesService.updatePropertyImage(image.id, { is_primary: true });
+				dispatch('setPrimaryImage', { imageId: image.id });
 			}
 		} catch (err) {
 			console.error('Error setting primary image:', err);
@@ -385,6 +544,27 @@
 
 	// Get current year for year_built validation
 	const currentYear = new Date().getFullYear();
+
+	// Initialize map on mount
+	onMount(() => {
+		initMap();
+
+		return () => {
+			// Cleanup map on component unmount
+			if (map) {
+				map.remove();
+				map = null;
+				marker = null;
+			}
+		};
+	});
+
+	// Resize map when container dimensions change
+	afterUpdate(() => {
+		if (map) {
+			map.invalidateSize();
+		}
+	});
 </script>
 
 <form
@@ -477,12 +657,81 @@
 		</div>
 	</div>
 
-	<!-- Location Section -->
+	<!-- Location Section with Map -->
 	<div class="card p-4">
 		<h2 class="h3 mb-4 flex items-center">
 			<MapPin class="w-6 h-6 {$isRTL ? 'ml-2' : 'mr-2'}" />
 			{t('location', $language, { default: 'الموقع' })}
 		</h2>
+
+		<!-- Map Container -->
+		<div class="mb-4">
+			<div class="flex justify-between items-center mb-2">
+				<h3 class="h4">{t('map_location', $language, { default: 'تحديد الموقع على الخريطة' })}</h3>
+				<div class="flex gap-2">
+					<button
+						type="button"
+						class="btn btn-sm variant-filled-primary"
+						on:click={detectLocation}
+						disabled={isLocating}
+					>
+						<Locate class="w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />
+						{isLocating
+							? t('locating', $language, { default: 'جاري التحديد...' })
+							: t('detect_location', $language, { default: 'تحديد موقعي' })}
+					</button>
+					<button
+						type="button"
+						class="btn btn-sm variant-ghost-error"
+						on:click={clearLocation}
+						disabled={!formData.location.latitude}
+					>
+						<MapPinOff class="w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />
+						{t('clear_location', $language, { default: 'مسح الموقع' })}
+					</button>
+				</div>
+			</div>
+
+			{#if locationError}
+				<Alert type="warning" message={locationError} class="mb-2" />
+			{/if}
+
+			<div
+				bind:this={mapContainer}
+				class="w-full h-64 border border-surface-300-600-token rounded-lg"
+			></div>
+
+			<p class="text-sm text-surface-500-400-token mt-1">
+				{t('map_instructions', $language, {
+					default: 'انقر على الخريطة لتحديد موقع العقار أو أدخل الإحداثيات يدوياً'
+				})}
+			</p>
+		</div>
+
+		<!-- Latitude and Longitude Fields -->
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+			<label class="label">
+				<span>{t('latitude', $language, { default: 'خط العرض' })}</span>
+				<input
+					type="number"
+					class="input"
+					bind:value={formData.location.latitude}
+					step="any"
+					placeholder={t('latitude_placeholder', $language, { default: 'مثال: 24.774265' })}
+				/>
+			</label>
+
+			<label class="label">
+				<span>{t('longitude', $language, { default: 'خط الطول' })}</span>
+				<input
+					type="number"
+					class="input"
+					bind:value={formData.location.longitude}
+					step="any"
+					placeholder={t('longitude_placeholder', $language, { default: 'مثال: 46.738586' })}
+				/>
+			</label>
+		</div>
 
 		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 			<!-- Address -->
@@ -1067,5 +1316,11 @@
 		100% {
 			transform: rotate(360deg);
 		}
+	}
+
+	/* Ensure Leaflet styles are included */
+	:global(.leaflet-container) {
+		height: 100%;
+		width: 100%;
 	}
 </style>

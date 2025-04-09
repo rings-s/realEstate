@@ -206,68 +206,189 @@
 
 <!-- Apply directional styles if RTL -->
 <svelte:head>
-	{#if $isRTL}
-		<style>
-			/* Adjust paddings and margins for RTL */
-			[dir='rtl'] .ml-4 {
-				margin-right: 1rem;
-				margin-left: 0;
-			}
-			[dir='rtl'] .mr-4 {
-				margin-left: 1rem;
-				margin-right: 0;
-			}
-			[dir='rtl'] .pl-4 {
-				padding-right: 1rem;
-				padding-left: 0;
-			}
-			[dir='rtl'] .pr-4 {
-				padding-left: 1rem;
-				padding-right: 0;
-			}
-		</style>
-	{/if}
+	<style>
+		body {
+			font-family:
+				'Inter',
+				'Segoe UI',
+				system-ui,
+				-apple-system,
+				sans-serif;
+		}
+
+		/* Base RTL adjustments */
+		[dir='rtl'] .mr-1,
+		[dir='rtl'] .mr-2,
+		[dir='rtl'] .mr-3,
+		[dir='rtl'] .mr-4 {
+			margin-right: 0 !important;
+		}
+		[dir='rtl'] .ml-1,
+		[dir='rtl'] .ml-2,
+		[dir='rtl'] .ml-3,
+		[dir='rtl'] .ml-4 {
+			margin-left: 0 !important;
+		}
+
+		[dir='rtl'] .mr-1 {
+			margin-left: 0.25rem !important;
+		}
+		[dir='rtl'] .mr-2 {
+			margin-left: 0.5rem !important;
+		}
+		[dir='rtl'] .mr-3 {
+			margin-left: 0.75rem !important;
+		}
+		[dir='rtl'] .mr-4 {
+			margin-left: 1rem !important;
+		}
+
+		[dir='rtl'] .ml-1 {
+			margin-right: 0.25rem !important;
+		}
+		[dir='rtl'] .ml-2 {
+			margin-right: 0.5rem !important;
+		}
+		[dir='rtl'] .ml-3 {
+			margin-right: 0.75rem !important;
+		}
+		[dir='rtl'] .ml-4 {
+			margin-right: 1rem !important;
+		}
+
+		/* Padding adjustments */
+		[dir='rtl'] .pr-1,
+		[dir='rtl'] .pr-2,
+		[dir='rtl'] .pr-3,
+		[dir='rtl'] .pr-4 {
+			padding-right: 0 !important;
+		}
+		[dir='rtl'] .pl-1,
+		[dir='rtl'] .pl-2,
+		[dir='rtl'] .pl-3,
+		[dir='rtl'] .pl-4 {
+			padding-left: 0 !important;
+		}
+
+		[dir='rtl'] .pr-1 {
+			padding-left: 0.25rem !important;
+		}
+		[dir='rtl'] .pr-2 {
+			padding-left: 0.5rem !important;
+		}
+		[dir='rtl'] .pr-3 {
+			padding-left: 0.75rem !important;
+		}
+		[dir='rtl'] .pr-4 {
+			padding-left: 1rem !important;
+		}
+
+		[dir='rtl'] .pl-1 {
+			padding-right: 0.25rem !important;
+		}
+		[dir='rtl'] .pl-2 {
+			padding-right: 0.5rem !important;
+		}
+		[dir='rtl'] .pl-3 {
+			padding-right: 0.75rem !important;
+		}
+		[dir='rtl'] .pl-4 {
+			padding-right: 1rem !important;
+		}
+
+		/* Enhance typography */
+		h1,
+		h2,
+		h3,
+		h4,
+		h5,
+		h6 {
+			letter-spacing: -0.025em;
+		}
+
+		/* Better spacing for forms */
+		.input,
+		.select,
+		.textarea {
+			font-size: 0.875rem;
+		}
+
+		/* Enhance buttons */
+		.btn {
+			font-weight: 500;
+		}
+
+		/* Shadow improvements */
+		.card {
+			--tw-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+			--tw-shadow-colored:
+				0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -1px var(--tw-shadow-color);
+		}
+
+		/* Enhance dark mode */
+		[data-theme='dark'] .card {
+			--tw-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+			--tw-shadow-colored:
+				0 4px 6px -1px var(--tw-shadow-color), 0 2px 4px -1px var(--tw-shadow-color);
+		}
+
+		/* Better transitions */
+		.btn,
+		.card,
+		.input,
+		.select,
+		.textarea,
+		.card-hover,
+		.btn-icon,
+		.avatar {
+			transition: all 0.2s ease-in-out;
+		}
+	</style>
 </svelte:head>
 
 {#if $pageLoading}
 	<!-- Loading overlay -->
 	<div
-		class="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/50 backdrop-blur-sm"
+		class="fixed inset-0 z-50 flex items-center justify-center bg-surface-900/30 backdrop-blur-sm"
+		transition:fade={{ duration: 200 }}
 	>
-		<div class="card p-8 shadow-xl">
+		<div class="card p-6 shadow-xl">
 			<div class="flex flex-col items-center gap-4">
-				<div class="spinner-circle-secondary w-12 h-12"></div>
-				<p>{t('loading', $language, { default: 'جاري التحميل...' })}</p>
+				<div class="spinner-circle w-10 h-10"></div>
+				<p class="text-sm">{t('loading', $language, { default: 'جاري التحميل...' })}</p>
 			</div>
 		</div>
 	</div>
 {:else}
 	<!-- Main layout -->
-	<div class="flex h-screen overflow-hidden bg-surface-50-900-token">
-		<!-- Sidebar (visible based on isSidebarOpen for mobile, always visible on desktop for dashboard) -->
-		<Sidebar dashboard={isDashboard} />
+	<div class="flex h-screen flex-col overflow-hidden bg-surface-50-900-token">
+		<!-- Header at top -->
+		<Header minimal={isDashboard} />
 
-		<!-- Main content -->
-		<div class="flex flex-col flex-1 w-full overflow-hidden">
-			<!-- Header -->
-			<Header minimal={isDashboard} />
+		<!-- Content with optional sidebar -->
+		<div class="flex flex-1 overflow-hidden">
+			<!-- Sidebar (visible based on isSidebarOpen for mobile, always visible on desktop for dashboard) -->
+			<Sidebar dashboard={isDashboard} />
 
-			<!-- Content area -->
-			<main class="flex-1 overflow-y-auto">
-				<!-- Page content -->
-				<div class="container mx-auto p-4 mb-auto min-h-[calc(100vh-10rem)]">
-					<slot />
-				</div>
+			<!-- Main content -->
+			<div class="flex flex-col flex-1 w-full overflow-hidden">
+				<!-- Content area -->
+				<main class="flex-1 overflow-y-auto">
+					<!-- Page content -->
+					<div class="container mx-auto p-4 mb-auto min-h-[calc(100vh-14rem)]">
+						<slot />
+					</div>
 
-				<!-- Footer -->
-				<Footer minimal={isDashboard} />
-			</main>
+					<!-- Footer -->
+					<Footer minimal={isDashboard} />
+				</main>
+			</div>
 		</div>
 	</div>
 
 	<!-- Toast notification -->
 	{#if $toast.isVisible}
-		<div class="toast" class:toast-end={!$isRTL} class:toast-start={$isRTL}>
+		<div class="toast {$isRTL ? 'toast-start' : 'toast-end'}">
 			<div
 				class="alert {$toast.type === 'error'
 					? 'variant-filled-error'
@@ -282,8 +403,8 @@
 					{#if $toast.type === 'error'}
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							width="24"
-							height="24"
+							width="20"
+							height="20"
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
@@ -296,8 +417,8 @@
 					{:else if $toast.type === 'success'}
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							width="24"
-							height="24"
+							width="20"
+							height="20"
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
@@ -311,8 +432,8 @@
 					{:else if $toast.type === 'warning'}
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							width="24"
-							height="24"
+							width="20"
+							height="20"
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
@@ -331,8 +452,8 @@
 					{:else}
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							width="24"
-							height="24"
+							width="20"
+							height="20"
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
@@ -343,14 +464,17 @@
 							></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg
 						>
 					{/if}
-					<div class="flex-1 {$isRTL ? 'text-right' : 'text-left'}">
+					<div class="flex-1 {$isRTL ? 'text-right' : 'text-left'} text-sm">
 						<p>{$toast.message}</p>
 					</div>
-					<button class="btn btn-sm btn-icon variant-ghost" on:click={() => uiStore.hideToast()}>
+					<button
+						class="btn btn-sm btn-icon variant-ghost h-6 w-6"
+						on:click={() => uiStore.hideToast()}
+					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							width="20"
-							height="20"
+							width="16"
+							height="16"
 							viewBox="0 0 24 24"
 							fill="none"
 							stroke="currentColor"
@@ -366,3 +490,19 @@
 		</div>
 	{/if}
 {/if}
+
+<style>
+	/* Loading spinner animation */
+	.spinner-circle {
+		border: 3px solid rgba(128, 128, 128, 0.2);
+		border-top-color: currentColor;
+		border-radius: 50%;
+		animation: spinner-circle 0.8s linear infinite;
+	}
+
+	@keyframes spinner-circle {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+</style>

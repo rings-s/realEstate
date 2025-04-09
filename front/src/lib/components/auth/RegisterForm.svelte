@@ -6,6 +6,7 @@
 	import { User, Mail, Lock, Eye, EyeOff, Phone, Calendar, Users } from 'lucide-svelte';
 	import * as authService from '$lib/services/authService';
 	import { ROLES } from '$lib/utils/permissions';
+	import { fade } from 'svelte/transition';
 
 	const dispatch = createEventDispatcher();
 
@@ -147,25 +148,25 @@
 	}
 </script>
 
-<div class="card p-6 w-full max-w-lg mx-auto">
-	<header class="text-center mb-6">
-		<h2 class="h2">{t('register', $language)}</h2>
-		<p class="text-surface-600-300-token">
+<div class="card p-5 w-full max-w-md mx-auto shadow-lg">
+	<header class="text-center mb-5">
+		<h2 class="text-2xl font-bold">{t('register', $language)}</h2>
+		<p class="text-surface-600-300-token text-sm mt-1">
 			{t('register_subtitle', $language, { default: 'إنشاء حساب جديد للوصول إلى المنصة' })}
 		</p>
 	</header>
 
 	<!-- Error message -->
 	{#if error}
-		<div class="alert variant-filled-error mb-4">
-			<div>{error}</div>
+		<div class="alert variant-filled-error mb-4" transition:fade={{ duration: 200 }}>
+			<div class="text-sm">{error}</div>
 		</div>
 	{/if}
 
 	<!-- Success message -->
 	{#if success}
-		<div class="alert variant-filled-success mb-4">
-			<div>
+		<div class="alert variant-filled-success mb-4" transition:fade={{ duration: 200 }}>
+			<div class="text-sm">
 				{t('verification_sent', $language, {
 					default: 'تم إرسال رمز التحقق إلى بريدك الإلكتروني.'
 				})}
@@ -175,19 +176,19 @@
 
 	<form on:submit|preventDefault={handleSubmit} class={$textClass}>
 		<!-- Name Fields (2 columns) -->
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
 			<!-- First Name -->
 			<label class="label">
-				<span>{t('first_name', $language)}</span>
+				<span class="text-sm font-medium">{t('first_name', $language)}</span>
 				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-					<div class="input-group-shim">
-						<User class="w-5 h-5" />
+					<div class="input-group-shim flex items-center justify-center">
+						<User class="w-4 h-4" />
 					</div>
 					<input
 						type="text"
 						bind:value={first_name}
 						placeholder={t('first_name_placeholder', $language, { default: 'الاسم الأول' })}
-						class="input {validationErrors.first_name ? 'input-error' : ''}"
+						class="input h-9 text-sm {validationErrors.first_name ? 'input-error' : ''}"
 						dir={$isRTL ? 'rtl' : 'ltr'}
 						required
 					/>
@@ -196,16 +197,16 @@
 
 			<!-- Last Name -->
 			<label class="label">
-				<span>{t('last_name', $language)}</span>
+				<span class="text-sm font-medium">{t('last_name', $language)}</span>
 				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-					<div class="input-group-shim">
-						<User class="w-5 h-5" />
+					<div class="input-group-shim flex items-center justify-center">
+						<User class="w-4 h-4" />
 					</div>
 					<input
 						type="text"
 						bind:value={last_name}
 						placeholder={t('last_name_placeholder', $language, { default: 'اسم العائلة' })}
-						class="input {validationErrors.last_name ? 'input-error' : ''}"
+						class="input h-9 text-sm {validationErrors.last_name ? 'input-error' : ''}"
 						dir={$isRTL ? 'rtl' : 'ltr'}
 						required
 					/>
@@ -214,17 +215,17 @@
 		</div>
 
 		<!-- Email Field -->
-		<label class="label mt-4">
-			<span>{t('email', $language)}</span>
+		<label class="label mt-3">
+			<span class="text-sm font-medium">{t('email', $language)}</span>
 			<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-				<div class="input-group-shim">
-					<Mail class="w-5 h-5" />
+				<div class="input-group-shim flex items-center justify-center">
+					<Mail class="w-4 h-4" />
 				</div>
 				<input
 					type="email"
 					bind:value={email}
 					placeholder={t('email_placeholder', $language, { default: 'أدخل بريدك الإلكتروني' })}
-					class="input {validationErrors.email ? 'input-error' : ''}"
+					class="input h-9 text-sm {validationErrors.email ? 'input-error' : ''}"
 					dir={$isRTL ? 'rtl' : 'ltr'}
 					autocomplete="email"
 					required
@@ -232,80 +233,21 @@
 			</div>
 		</label>
 
-		<!-- Phone Number -->
-		<label class="label mt-4">
-			<span>{t('phone_number', $language)}</span>
-			<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-				<div class="input-group-shim">
-					<Phone class="w-5 h-5" />
-				</div>
-				<input
-					type="tel"
-					bind:value={phone_number}
-					placeholder={t('phone_placeholder', $language, { default: 'رقم الهاتف (اختياري)' })}
-					class="input {validationErrors.phone_number ? 'input-error' : ''}"
-					dir={$isRTL ? 'rtl' : 'ltr'}
-					autocomplete="tel"
-				/>
-			</div>
-			{#if validationErrors.phone_number}
-				<div class="text-sm text-error-500 mt-1">
-					{t('invalid_phone', $language, { default: 'يجب أن يكون رقم الهاتف بصيغة صحيحة' })}
-				</div>
-			{/if}
-		</label>
-
-		<!-- Date of Birth -->
-		<label class="label mt-4">
-			<span>{t('date_of_birth', $language)}</span>
-			<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-				<div class="input-group-shim">
-					<Calendar class="w-5 h-5" />
-				</div>
-				<input
-					type="date"
-					bind:value={date_of_birth}
-					class="input {validationErrors.date_of_birth ? 'input-error' : ''}"
-					dir={$isRTL ? 'rtl' : 'ltr'}
-				/>
-			</div>
-		</label>
-
-		<!-- Role Selection -->
-		<label class="label mt-4">
-			<span>{t('role', $language)}</span>
-			<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-				<div class="input-group-shim">
-					<Users class="w-5 h-5" />
-				</div>
-				<select
-					bind:value={role}
-					class="select {validationErrors.role ? 'input-error' : ''}"
-					dir={$isRTL ? 'rtl' : 'ltr'}
-					required
-				>
-					<option value={ROLES.BUYER}>{t('buyer', $language)}</option>
-					<option value={ROLES.SELLER}>{t('seller', $language)}</option>
-					<option value={ROLES.AGENT}>{t('agent', $language)}</option>
-				</select>
-			</div>
-		</label>
-
-		<!-- Password Fields -->
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+		<!-- Password Fields (2 columns) -->
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
 			<!-- Password -->
 			<label class="label">
-				<span>{t('password', $language)}</span>
+				<span class="text-sm font-medium">{t('password', $language)}</span>
 				<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
-					<div class="input-group-shim">
-						<Lock class="w-5 h-5" />
+					<div class="input-group-shim flex items-center justify-center">
+						<Lock class="w-4 h-4" />
 					</div>
 					{#if showPassword}
 						<input
 							type="text"
 							bind:value={password}
 							placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
-							class="input {validationErrors.password ? 'input-error' : ''}"
+							class="input h-9 text-sm {validationErrors.password ? 'input-error' : ''}"
 							dir={$isRTL ? 'rtl' : 'ltr'}
 							required
 							minlength="8"
@@ -315,22 +257,26 @@
 							type="password"
 							bind:value={password}
 							placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
-							class="input {validationErrors.password ? 'input-error' : ''}"
+							class="input h-9 text-sm {validationErrors.password ? 'input-error' : ''}"
 							dir={$isRTL ? 'rtl' : 'ltr'}
 							required
 							minlength="8"
 						/>
 					{/if}
-					<button type="button" class="input-group-shim" on:click={togglePassword}>
+					<button
+						type="button"
+						class="input-group-shim flex items-center justify-center"
+						on:click={togglePassword}
+					>
 						{#if showPassword}
-							<EyeOff class="w-5 h-5" />
+							<EyeOff class="w-4 h-4" />
 						{:else}
-							<Eye class="w-5 h-5" />
+							<Eye class="w-4 h-4" />
 						{/if}
 					</button>
 				</div>
 				{#if validationErrors.password}
-					<div class="text-sm text-error-500 mt-1">
+					<div class="text-xs text-error-500 mt-1">
 						{t('password_requirements', $language, {
 							default: 'يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل'
 						})}
@@ -340,10 +286,10 @@
 
 			<!-- Confirm Password -->
 			<label class="label">
-				<span>{t('confirm_password', $language)}</span>
+				<span class="text-sm font-medium">{t('confirm_password', $language)}</span>
 				<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
-					<div class="input-group-shim">
-						<Lock class="w-5 h-5" />
+					<div class="input-group-shim flex items-center justify-center">
+						<Lock class="w-4 h-4" />
 					</div>
 					{#if showConfirmPassword}
 						<input
@@ -352,7 +298,7 @@
 							placeholder={t('confirm_password_placeholder', $language, {
 								default: 'تأكيد كلمة المرور'
 							})}
-							class="input {validationErrors.confirm_password ? 'input-error' : ''}"
+							class="input h-9 text-sm {validationErrors.confirm_password ? 'input-error' : ''}"
 							dir={$isRTL ? 'rtl' : 'ltr'}
 							required
 						/>
@@ -363,21 +309,25 @@
 							placeholder={t('confirm_password_placeholder', $language, {
 								default: 'تأكيد كلمة المرور'
 							})}
-							class="input {validationErrors.confirm_password ? 'input-error' : ''}"
+							class="input h-9 text-sm {validationErrors.confirm_password ? 'input-error' : ''}"
 							dir={$isRTL ? 'rtl' : 'ltr'}
 							required
 						/>
 					{/if}
-					<button type="button" class="input-group-shim" on:click={toggleConfirmPassword}>
+					<button
+						type="button"
+						class="input-group-shim flex items-center justify-center"
+						on:click={toggleConfirmPassword}
+					>
 						{#if showConfirmPassword}
-							<EyeOff class="w-5 h-5" />
+							<EyeOff class="w-4 h-4" />
 						{:else}
-							<Eye class="w-5 h-5" />
+							<Eye class="w-4 h-4" />
 						{/if}
 					</button>
 				</div>
 				{#if validationErrors.confirm_password}
-					<div class="text-sm text-error-500 mt-1">
+					<div class="text-xs text-error-500 mt-1">
 						{t('passwords_not_match', $language, {
 							default: 'كلمات المرور غير متطابقة'
 						})}
@@ -386,27 +336,89 @@
 			</label>
 		</div>
 
+		<!-- Optional Fields -->
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+			<!-- Phone Number -->
+			<label class="label">
+				<span class="text-sm font-medium">{t('phone_number', $language)}</span>
+				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+					<div class="input-group-shim flex items-center justify-center">
+						<Phone class="w-4 h-4" />
+					</div>
+					<input
+						type="tel"
+						bind:value={phone_number}
+						placeholder={t('phone_placeholder', $language, { default: 'رقم الهاتف (اختياري)' })}
+						class="input h-9 text-sm {validationErrors.phone_number ? 'input-error' : ''}"
+						dir={$isRTL ? 'rtl' : 'ltr'}
+						autocomplete="tel"
+					/>
+				</div>
+				{#if validationErrors.phone_number}
+					<div class="text-xs text-error-500 mt-1">
+						{t('invalid_phone', $language, { default: 'يجب أن يكون رقم الهاتف بصيغة صحيحة' })}
+					</div>
+				{/if}
+			</label>
+
+			<!-- Role Selection -->
+			<label class="label">
+				<span class="text-sm font-medium">{t('role', $language)}</span>
+				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+					<div class="input-group-shim flex items-center justify-center">
+						<Users class="w-4 h-4" />
+					</div>
+					<select
+						bind:value={role}
+						class="select h-9 text-sm {validationErrors.role ? 'input-error' : ''}"
+						dir={$isRTL ? 'rtl' : 'ltr'}
+						required
+					>
+						<option value={ROLES.BUYER}>{t('buyer', $language)}</option>
+						<option value={ROLES.SELLER}>{t('seller', $language)}</option>
+						<option value={ROLES.AGENT}>{t('agent', $language)}</option>
+					</select>
+				</div>
+			</label>
+		</div>
+
+		<!-- Date of Birth (optional) -->
+		<label class="label mt-3">
+			<span class="text-sm font-medium">{t('date_of_birth', $language)}</span>
+			<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+				<div class="input-group-shim flex items-center justify-center">
+					<Calendar class="w-4 h-4" />
+				</div>
+				<input
+					type="date"
+					bind:value={date_of_birth}
+					class="input h-9 text-sm {validationErrors.date_of_birth ? 'input-error' : ''}"
+					dir={$isRTL ? 'rtl' : 'ltr'}
+				/>
+			</div>
+		</label>
+
 		<!-- Terms and Conditions -->
 		<label
-			class="flex items-center mt-6 space-x-2 {$isRTL ? 'flex-row-reverse space-x-reverse' : ''}"
+			class="flex items-center mt-4 space-x-2 {$isRTL ? 'flex-row-reverse space-x-reverse' : ''}"
 		>
 			<input
 				type="checkbox"
 				bind:checked={agreeTerms}
-				class="checkbox {validationErrors.agreeTerms ? 'input-error' : ''}"
+				class="checkbox {validationErrors.agreeTerms ? 'checkbox-error' : ''}"
 				required
 			/>
-			<span>
+			<span class="text-sm">
 				{t('agree_terms', $language, { default: 'أوافق على' })}
 				<a href="/terms" class="anchor">{t('terms_and_conditions', $language)}</a>
 			</span>
 		</label>
 
 		<!-- Submit Button -->
-		<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
+		<button type="submit" class="btn variant-filled-primary w-full h-10 mt-5" disabled={loading}>
 			{#if loading}
-				<span class="spinner-circle-secondary w-5 h-5"></span>
-				<span class="ml-2">{t('registering', $language, { default: 'جاري التسجيل...' })}</span>
+				<span class="loading-spinner h-4 w-4 mr-2"></span>
+				<span>{t('registering', $language, { default: 'جاري التسجيل...' })}</span>
 			{:else}
 				{t('register', $language)}
 			{/if}
@@ -414,10 +426,25 @@
 	</form>
 
 	<!-- Login Link -->
-	<div class="mt-6 text-center">
-		<p>
+	<div class="mt-5 text-center">
+		<p class="text-sm">
 			{t('have_account', $language, { default: 'لديك حساب بالفعل؟' })}
 			<a href="/auth/login" class="anchor">{t('login', $language)}</a>
 		</p>
 	</div>
 </div>
+
+<style>
+	.loading-spinner {
+		border: 2px solid rgba(255, 255, 255, 0.2);
+		border-top-color: currentColor;
+		border-radius: 50%;
+		animation: loading-spinner 0.8s linear infinite;
+	}
+
+	@keyframes loading-spinner {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+</style>

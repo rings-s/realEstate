@@ -10,18 +10,20 @@
 </script>
 
 <footer
-	class="{minimal ? 'py-3' : 'py-6'} border-t border-surface-300-600-token bg-surface-100-800-token"
+	class="{minimal
+		? 'py-2 mt-auto'
+		: 'py-6'} border-t border-surface-300-600-token bg-surface-100-800-token"
 >
 	<div class="container mx-auto px-4">
 		{#if !minimal}
 			<!-- Full Footer with navigation -->
-			<div class="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
+			<div class="grid grid-cols-1 md:grid-cols-4 gap-y-6 gap-x-8 mb-6 text-sm">
 				<!-- Column 1: About -->
 				<div class={$textClass}>
-					<h3 class="font-bold text-lg mb-3">
+					<h3 class="font-bold mb-3">
 						{t('app_name', $language, { default: 'منصة مزادات العقارات' })}
 					</h3>
-					<p class="text-surface-600-300-token mb-4">
+					<p class="text-surface-600-300-token mb-4 text-sm">
 						{t('footer_about', $language, {
 							default: 'منصة متخصصة في مزادات العقارات تجمع البائعين والمشترين في مكان واحد.'
 						})}
@@ -30,7 +32,7 @@
 					<!-- Theme & Language Toggles -->
 					<div class="flex items-center gap-3 mt-4">
 						<button
-							class="btn btn-sm variant-ghost-surface"
+							class="btn btn-sm variant-ghost-surface h-8"
 							on:click={toggleTheme}
 							aria-label={$theme === 'dark'
 								? t('light_mode', $language)
@@ -42,7 +44,7 @@
 						</button>
 
 						<button
-							class="btn btn-sm variant-ghost-surface"
+							class="btn btn-sm variant-ghost-surface h-8"
 							on:click={toggleLanguage}
 							aria-label={$language === 'ar' ? 'English' : 'العربية'}
 						>
@@ -53,57 +55,70 @@
 
 				<!-- Column 2: Quick Links -->
 				<div class={$textClass}>
-					<h3 class="font-bold text-lg mb-3">
+					<h3 class="font-bold mb-3">
 						{t('quick_links', $language, { default: 'روابط سريعة' })}
 					</h3>
 					<ul class="space-y-2">
-						<li><a href="/" class="hover:underline">{t('home', $language)}</a></li>
-						<li><a href="/properties" class="hover:underline">{t('properties', $language)}</a></li>
-						<li><a href="/auctions" class="hover:underline">{t('auctions', $language)}</a></li>
-						<li><a href="/dashboard" class="hover:underline">{t('dashboard', $language)}</a></li>
+						<li><a href="/" class="hover:underline text-sm">{t('home', $language)}</a></li>
+						<li>
+							<a href="/properties" class="hover:underline text-sm">{t('properties', $language)}</a>
+						</li>
+						<li>
+							<a href="/auctions" class="hover:underline text-sm">{t('auctions', $language)}</a>
+						</li>
+						<li>
+							<a href="/dashboard" class="hover:underline text-sm">{t('dashboard', $language)}</a>
+						</li>
 					</ul>
 				</div>
 
 				<!-- Column 3: User Links -->
 				<div class={$textClass}>
-					<h3 class="font-bold text-lg mb-3">
+					<h3 class="font-bold mb-3">
 						{t('user_account', $language, { default: 'حساب المستخدم' })}
 					</h3>
 					<ul class="space-y-2">
-						<li><a href="/auth/login" class="hover:underline">{t('login', $language)}</a></li>
-						<li><a href="/auth/register" class="hover:underline">{t('register', $language)}</a></li>
 						<li>
-							<a href="/auth/reset-password" class="hover:underline"
+							<a href="/auth/login" class="hover:underline text-sm">{t('login', $language)}</a>
+						</li>
+						<li>
+							<a href="/auth/register" class="hover:underline text-sm">{t('register', $language)}</a
+							>
+						</li>
+						<li>
+							<a href="/auth/reset-password" class="hover:underline text-sm"
 								>{t('reset_password', $language)}</a
 							>
 						</li>
 						<li>
-							<a href="/dashboard/profile" class="hover:underline">{t('profile', $language)}</a>
+							<a href="/dashboard/profile" class="hover:underline text-sm"
+								>{t('profile', $language)}</a
+							>
 						</li>
 					</ul>
 				</div>
 
 				<!-- Column 4: Support -->
 				<div class={$textClass}>
-					<h3 class="font-bold text-lg mb-3">{t('support', $language, { default: 'الدعم' })}</h3>
+					<h3 class="font-bold mb-3">{t('support', $language, { default: 'الدعم' })}</h3>
 					<ul class="space-y-2">
 						<li>
-							<a href="/about" class="hover:underline"
+							<a href="/about" class="hover:underline text-sm"
 								>{t('about_us', $language, { default: 'من نحن' })}</a
 							>
 						</li>
 						<li>
-							<a href="/contact" class="hover:underline"
+							<a href="/contact" class="hover:underline text-sm"
 								>{t('contact_us', $language, { default: 'اتصل بنا' })}</a
 							>
 						</li>
 						<li>
-							<a href="/faq" class="hover:underline"
+							<a href="/faq" class="hover:underline text-sm"
 								>{t('faq', $language, { default: 'الأسئلة الشائعة' })}</a
 							>
 						</li>
 						<li>
-							<a href="/terms" class="hover:underline"
+							<a href="/terms" class="hover:underline text-sm"
 								>{t('terms', $language, { default: 'الشروط والأحكام' })}</a
 							>
 						</li>
@@ -113,9 +128,11 @@
 		{/if}
 
 		<!-- Copyright - Always shown -->
-		<div class="border-t border-surface-300-600-token pt-4 {minimal ? '' : 'mt-4'}">
-			<div class="flex flex-col md:flex-row justify-between items-center gap-4">
-				<p class="text-center md:text-{$isRTL ? 'right' : 'left'} text-surface-600-300-token">
+		<div class="border-t border-surface-300-600-token pt-3 {minimal ? '' : 'mt-4'}">
+			<div class="flex flex-col md:flex-row justify-between items-center gap-2">
+				<p
+					class="text-center md:text-{$isRTL ? 'right' : 'left'} text-surface-600-300-token text-xs"
+				>
 					&copy; {currentYear}
 					{t('app_name', $language, { default: 'منصة مزادات العقارات' })}.
 					{t('all_rights_reserved', $language, { default: 'جميع الحقوق محفوظة' })}.
@@ -123,9 +140,9 @@
 
 				{#if minimal}
 					<!-- Minimal footer has language & theme toggle in the right side -->
-					<div class="flex items-center gap-3">
+					<div class="flex items-center gap-1">
 						<button
-							class="btn btn-sm btn-icon variant-ghost-surface"
+							class="btn btn-sm btn-icon variant-ghost-surface h-8 w-8 aspect-square"
 							on:click={toggleTheme}
 							aria-label={$theme === 'dark'
 								? t('light_mode', $language)
@@ -134,8 +151,8 @@
 							{#if $theme === 'dark'}
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
-									width="20"
-									height="20"
+									width="16"
+									height="16"
 									viewBox="0 0 24 24"
 									fill="none"
 									stroke="currentColor"
@@ -163,8 +180,8 @@
 							{:else}
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
-									width="20"
-									height="20"
+									width="16"
+									height="16"
 									viewBox="0 0 24 24"
 									fill="none"
 									stroke="currentColor"
@@ -177,14 +194,14 @@
 						</button>
 
 						<button
-							class="btn btn-sm btn-icon variant-ghost-surface"
+							class="btn btn-sm btn-icon variant-ghost-surface h-8 w-8 aspect-square"
 							on:click={toggleLanguage}
 							aria-label={$language === 'ar' ? 'English' : 'العربية'}
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
-								width="20"
-								height="20"
+								width="16"
+								height="16"
 								viewBox="0 0 24 24"
 								fill="none"
 								stroke="currentColor"
@@ -200,12 +217,16 @@
 					</div>
 				{:else}
 					<!-- Social media links for full footer -->
-					<div class="flex items-center gap-4">
-						<a href="#" class="btn btn-sm btn-icon variant-ghost-surface" aria-label="Facebook">
+					<div class="flex items-center gap-2">
+						<a
+							href="#"
+							class="btn btn-sm btn-icon variant-ghost-surface h-8 w-8 aspect-square"
+							aria-label="Facebook"
+						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
-								width="20"
-								height="20"
+								width="16"
+								height="16"
 								viewBox="0 0 24 24"
 								fill="none"
 								stroke="currentColor"
@@ -216,11 +237,15 @@
 								></path></svg
 							>
 						</a>
-						<a href="#" class="btn btn-sm btn-icon variant-ghost-surface" aria-label="Twitter">
+						<a
+							href="#"
+							class="btn btn-sm btn-icon variant-ghost-surface h-8 w-8 aspect-square"
+							aria-label="Twitter"
+						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
-								width="20"
-								height="20"
+								width="16"
+								height="16"
 								viewBox="0 0 24 24"
 								fill="none"
 								stroke="currentColor"
@@ -232,11 +257,15 @@
 								></path></svg
 							>
 						</a>
-						<a href="#" class="btn btn-sm btn-icon variant-ghost-surface" aria-label="Instagram">
+						<a
+							href="#"
+							class="btn btn-sm btn-icon variant-ghost-surface h-8 w-8 aspect-square"
+							aria-label="Instagram"
+						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
-								width="20"
-								height="20"
+								width="16"
+								height="16"
 								viewBox="0 0 24 24"
 								fill="none"
 								stroke="currentColor"
@@ -246,23 +275,6 @@
 								><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path
 									d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"
 								></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg
-							>
-						</a>
-						<a href="#" class="btn btn-sm btn-icon variant-ghost-surface" aria-label="LinkedIn">
-							<svg
-								xmlns="http://www.w3.org/2000/svg"
-								width="20"
-								height="20"
-								viewBox="0 0 24 24"
-								fill="none"
-								stroke="currentColor"
-								stroke-width="2"
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								><path
-									d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"
-								></path><rect x="2" y="9" width="4" height="12"></rect><circle cx="4" cy="4" r="2"
-								></circle></svg
 							>
 						</a>
 					</div>

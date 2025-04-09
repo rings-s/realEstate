@@ -1,14 +1,10 @@
-<!--
-  ResetPasswordForm Component
-  Handles password reset with verification code
--->
 <script>
 	import { createEventDispatcher } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { language, isRTL, textClass, uiStore } from '$lib/stores/ui';
-	import { auth } from '$lib/stores/auth';
+	import { isAuthenticated, currentUser } from '$lib/stores/auth';
 	import { t } from '$lib/config/translations';
 	import { Mail, Key, Eye, EyeOff, RefreshCw, CheckCircle } from 'lucide-svelte';
 	import * as authService from '$lib/services/authService';
@@ -64,6 +60,7 @@
 		try {
 			await authService.requestPasswordReset(email);
 			step = 2; // Move to verify code step
+
 			uiStore.showToast(
 				t('reset_code_sent', $language, {
 					default: 'تم إرسال رمز إعادة تعيين كلمة المرور. يرجى التحقق من بريدك الإلكتروني.'
@@ -72,9 +69,17 @@
 			);
 		} catch (err) {
 			console.error('Reset request error:', err);
-			error =
-				err.message ||
-				t('reset_request_failed', $language, { default: 'فشل طلب إعادة تعيين كلمة المرور' });
+
+			// Handle rate limiting errors
+			if (err.message && err.message.includes('rate_limit')) {
+				error = t('rate_limit_exceeded', $language, {
+					default: 'الرجاء الانتظار 5 دقائق قبل طلب رمز آخر'
+				});
+			} else {
+				error =
+					err.message ||
+					t('reset_request_failed', $language, { default: 'فشل طلب إعادة تعيين كلمة المرور' });
+			}
 		} finally {
 			loading = false;
 		}
@@ -98,9 +103,17 @@
 			step = 3; // Move to new password step
 		} catch (err) {
 			console.error('Code verification error:', err);
-			error =
-				err.message ||
-				t('invalid_code', $language, { default: 'رمز إعادة التعيين غير صالح أو منتهي الصلاحية' });
+
+			// Handle specific error messages
+			if (err.message && err.message.includes('reset_code_expired')) {
+				error = t('reset_code_expired', $language, {
+					default: 'انتهت صلاحية رمز إعادة التعيين'
+				});
+			} else {
+				error =
+					err.message ||
+					t('invalid_code', $language, { default: 'رمز إعادة التعيين غير صالح أو منتهي الصلاحية' });
+			}
 		} finally {
 			loading = false;
 		}
@@ -138,7 +151,8 @@
 
 			// Update auth store if user data is returned
 			if (response.user) {
-				auth.setUser(response.user, response.user.roles || []);
+				isAuthenticated.set(true);
+				currentUser.set(response.user);
 			}
 
 			// Show success message
@@ -154,9 +168,21 @@
 			}, 2000);
 		} catch (err) {
 			console.error('Password reset error:', err);
-			error =
-				err.message ||
-				t('password_reset_failed', $language, { default: 'فشل إعادة تعيين كلمة المرور' });
+
+			// Handle Django validation errors
+			if (err.message && err.message.includes('invalid_password')) {
+				error = t('password_requirements', $language, {
+					default: 'كلمة المرور غير قوية بما فيه الكفاية. يجب أن تحتوي على أحرف وأرقام ورموز.'
+				});
+			} else if (err.message && err.message.includes('invalid_code')) {
+				error = t('invalid_code', $language, {
+					default: 'رمز إعادة التعيين غير صالح أو منتهي الصلاحية'
+				});
+			} else {
+				error =
+					err.message ||
+					t('password_reset_failed', $language, { default: 'فشل إعادة تعيين كلمة المرور' });
+			}
 		} finally {
 			loading = false;
 		}
@@ -265,8 +291,8 @@
 			<!-- Submit Button -->
 			<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
 				{#if loading}
-					<span class="loading loading-spinner loading-sm"></span>
-					{t('sending', $language, { default: 'جاري الإرسال...' })}
+					<span class="spinner-circle-secondary w-5 h-5"></span>
+					<span class="ml-2">{t('sending', $language, { default: 'جاري الإرسال...' })}</span>
 				{:else}
 					{t('send_reset_code', $language, { default: 'إرسال رمز إعادة التعيين' })}
 				{/if}
@@ -311,6 +337,7 @@
 						required
 						maxlength="6"
 						pattern="[0-9]{6}"
+						inputmode="numeric"
 					/>
 				</div>
 			</label>
@@ -318,8 +345,8 @@
 			<!-- Submit Button -->
 			<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
 				{#if loading}
-					<span class="loading loading-spinner loading-sm"></span>
-					{t('verifying', $language, { default: 'جاري التحقق...' })}
+					<span class="spinner-circle-secondary w-5 h-5"></span>
+					<span class="ml-2">{t('verifying', $language, { default: 'جاري التحقق...' })}</span>
 				{:else}
 					{t('verify_code', $language, { default: 'التحقق من الرمز' })}
 				{/if}
@@ -429,8 +456,9 @@
 			<!-- Submit Button -->
 			<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
 				{#if loading}
-					<span class="loading loading-spinner loading-sm"></span>
-					{t('resetting', $language, { default: 'جاري إعادة التعيين...' })}
+					<span class="spinner-circle-secondary w-5 h-5"></span>
+					<span class="ml-2">{t('resetting', $language, { default: 'جاري إعادة التعيين...' })}</span
+					>
 				{:else}
 					{t('reset_password', $language)}
 				{/if}

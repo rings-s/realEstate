@@ -8,7 +8,7 @@ import { browser } from '$app/environment';
 
 // Initial state
 const initialState = {
-	theme: 'light',
+	theme: 'light', // Skeleton UI v2 theme (light/dark)
 	language: 'ar', // Default to Arabic
 	direction: 'rtl', // Default to RTL for Arabic
 	notifications: [],
@@ -58,8 +58,8 @@ function createUIStore() {
 		subscribe,
 
 		/**
-		 * Set theme (light/dark)
-		 * @param {string} theme - Theme name
+		 * Set theme (light/dark) for Skeleton UI v2
+		 * @param {string} theme - Theme name (light/dark)
 		 */
 		setTheme: (theme) => {
 			update((state) => {
@@ -68,6 +68,20 @@ function createUIStore() {
 					document.documentElement.setAttribute('data-theme', theme);
 				}
 				return { ...state, theme };
+			});
+		},
+
+		/**
+		 * Toggle between light and dark theme
+		 */
+		toggleTheme: () => {
+			update((state) => {
+				const newTheme = state.theme === 'dark' ? 'light' : 'dark';
+				if (browser) {
+					localStorage.setItem('theme', newTheme);
+					document.documentElement.setAttribute('data-theme', newTheme);
+				}
+				return { ...state, theme: newTheme };
 			});
 		},
 
@@ -93,6 +107,30 @@ function createUIStore() {
 					};
 				}
 				return state;
+			});
+		},
+
+		/**
+		 * Toggle language between Arabic and English
+		 */
+		toggleLanguage: () => {
+			update((state) => {
+				const newLanguage = state.language === 'ar' ? 'en' : 'ar';
+				const newDirection = newLanguage === 'ar' ? 'rtl' : 'ltr';
+
+				if (browser) {
+					localStorage.setItem('language', newLanguage);
+					document.documentElement.setAttribute('lang', newLanguage);
+
+					document.documentElement.setAttribute('dir', newDirection);
+					localStorage.setItem('direction', newDirection);
+				}
+
+				return {
+					...state,
+					language: newLanguage,
+					direction: newDirection
+				};
 			});
 		},
 
@@ -264,7 +302,7 @@ function createUIStore() {
 			if (!browser) return;
 
 			update((state) => {
-				// Apply theme to document
+				// Apply theme to document (Skeleton UI v2 uses data-theme)
 				document.documentElement.setAttribute('data-theme', state.theme);
 
 				// Apply language to document
@@ -314,3 +352,9 @@ export const addToast = (message, type = 'info', timeout = 3000) =>
 
 // Export toggleSidebar function
 export const toggleSidebar = (isOpen) => uiStore.toggleSidebar(isOpen);
+
+// Export toggleTheme function
+export const toggleTheme = () => uiStore.toggleTheme();
+
+// Export toggleLanguage function
+export const toggleLanguage = () => uiStore.toggleLanguage();

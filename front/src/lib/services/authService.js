@@ -3,8 +3,7 @@
  * Handles user authentication, registration, and token management
  */
 
-import { ENDPOINTS } from '$lib/config/api';
-import { get, post } from '$lib/utils/api';
+import { API_URL, ENDPOINTS } from '$lib/config/api';
 import { setTokens, clearTokens, getRefreshToken } from '$lib/utils/tokenManager';
 
 /**
@@ -20,7 +19,26 @@ import { setTokens, clearTokens, getRefreshToken } from '$lib/utils/tokenManager
  * @returns {Promise<Object>} Registration response
  */
 export const register = async (userData) => {
-	return post(ENDPOINTS.AUTH.REGISTER, userData, {}, false);
+	try {
+		const response = await fetch(`${API_URL}/accounts/register/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(userData)
+		});
+
+		const data = await response.json();
+
+		if (!response.ok) {
+			throw new Error(data.error || 'Registration failed');
+		}
+
+		return data;
+	} catch (error) {
+		console.error('Registration error:', error);
+		throw error;
+	}
 };
 
 /**
@@ -30,21 +48,36 @@ export const register = async (userData) => {
  * @returns {Promise<Object>} Verification response with tokens
  */
 export const verifyEmail = async (email, verificationCode) => {
-	const response = await post(
-		ENDPOINTS.AUTH.VERIFY_EMAIL,
-		{ email, verification_code: verificationCode },
-		{},
-		false
-	);
-
-	if (response && response.refresh && response.access) {
-		setTokens({
-			access: response.access,
-			refresh: response.refresh
+	try {
+		const response = await fetch(`${API_URL}/accounts/verify-email/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				email,
+				verification_code: verificationCode
+			})
 		});
-	}
 
-	return response;
+		const data = await response.json();
+
+		if (!response.ok) {
+			throw new Error(data.error || 'Email verification failed');
+		}
+
+		if (data.refresh && data.access) {
+			setTokens({
+				access: data.access,
+				refresh: data.refresh
+			});
+		}
+
+		return data;
+	} catch (error) {
+		console.error('Email verification error:', error);
+		throw error;
+	}
 };
 
 /**
@@ -53,7 +86,26 @@ export const verifyEmail = async (email, verificationCode) => {
  * @returns {Promise<Object>} Response
  */
 export const resendVerification = async (email) => {
-	return post(ENDPOINTS.AUTH.RESEND_VERIFICATION, { email }, {}, false);
+	try {
+		const response = await fetch(`${API_URL}/accounts/resend-verification/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ email })
+		});
+
+		const data = await response.json();
+
+		if (!response.ok) {
+			throw new Error(data.error || 'Failed to resend verification');
+		}
+
+		return data;
+	} catch (error) {
+		console.error('Resend verification error:', error);
+		throw error;
+	}
 };
 
 /**
@@ -63,16 +115,40 @@ export const resendVerification = async (email) => {
  * @returns {Promise<Object>} Login response with tokens and user data
  */
 export const login = async (email, password) => {
-	const response = await post(ENDPOINTS.AUTH.LOGIN, { email, password }, {}, false);
-
-	if (response && response.refresh && response.access) {
-		setTokens({
-			access: response.access,
-			refresh: response.refresh
+	try {
+		const response = await fetch(`${API_URL}/accounts/login/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ email, password })
 		});
-	}
 
-	return response;
+		const data = await response.json();
+
+		if (!response.ok) {
+			// Try to provide a better error message based on backend response
+			if (data.error_code === 'email_not_verified') {
+				throw new Error('email_not_verified');
+			} else if (data.error_code === 'account_disabled') {
+				throw new Error('account_disabled');
+			} else {
+				throw new Error(data.error || 'Login failed');
+			}
+		}
+
+		if (data.access && data.refresh && data.user) {
+			setTokens({
+				access: data.access,
+				refresh: data.refresh
+			});
+		}
+
+		return data;
+	} catch (error) {
+		console.error('Login error:', error);
+		throw error;
+	}
 };
 
 /**
@@ -80,21 +156,39 @@ export const login = async (email, password) => {
  * @returns {Promise<Object>} Logout response
  */
 export const logout = async () => {
-	const refreshToken = getRefreshToken();
-
-	if (!refreshToken) {
-		clearTokens();
-		return { status: 'success', message: 'Logged out' };
-	}
-
 	try {
-		const response = await post(ENDPOINTS.AUTH.LOGOUT, { refresh: refreshToken }, {}, true);
+		const refreshToken = getRefreshToken();
 
+		if (!refreshToken) {
+			clearTokens();
+			return { status: 'success', message: 'Logged out' };
+		}
+
+		const accessToken = localStorage.getItem('access_token');
+
+		const response = await fetch(`${API_URL}/accounts/logout/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${accessToken}`
+			},
+			body: JSON.stringify({ refresh: refreshToken })
+		});
+
+		// Clear tokens regardless of server response
 		clearTokens();
-		return response;
+
+		// Try to parse response but don't worry if it fails
+		try {
+			const data = await response.json();
+			return data;
+		} catch (e) {
+			return { status: 'success', message: 'Logged out' };
+		}
 	} catch (error) {
 		// Clear tokens even if API request fails
 		clearTokens();
+		console.error('Logout error:', error);
 		throw error;
 	}
 };
@@ -105,7 +199,26 @@ export const logout = async () => {
  * @returns {Promise<Object>} Reset request response
  */
 export const requestPasswordReset = async (email) => {
-	return post(ENDPOINTS.AUTH.REQUEST_RESET, { email }, {}, false);
+	try {
+		const response = await fetch(`${API_URL}/accounts/password/reset/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ email })
+		});
+
+		const data = await response.json();
+
+		if (!response.ok) {
+			throw new Error(data.error || 'Password reset request failed');
+		}
+
+		return data;
+	} catch (error) {
+		console.error('Password reset request error:', error);
+		throw error;
+	}
 };
 
 /**
@@ -115,7 +228,29 @@ export const requestPasswordReset = async (email) => {
  * @returns {Promise<Object>} Verification response
  */
 export const verifyResetCode = async (email, resetCode) => {
-	return post(ENDPOINTS.AUTH.VERIFY_RESET_CODE, { email, reset_code: resetCode }, {}, false);
+	try {
+		const response = await fetch(`${API_URL}/accounts/password/reset/verify/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				email,
+				reset_code: resetCode
+			})
+		});
+
+		const data = await response.json();
+
+		if (!response.ok) {
+			throw new Error(data.error || 'Invalid reset code');
+		}
+
+		return data;
+	} catch (error) {
+		console.error('Reset code verification error:', error);
+		throw error;
+	}
 };
 
 /**
@@ -127,26 +262,38 @@ export const verifyResetCode = async (email, resetCode) => {
  * @returns {Promise<Object>} Reset response with tokens
  */
 export const resetPassword = async (email, resetCode, newPassword, confirmPassword) => {
-	const response = await post(
-		ENDPOINTS.AUTH.RESET_PASSWORD,
-		{
-			email,
-			reset_code: resetCode,
-			new_password: newPassword,
-			confirm_password: confirmPassword
-		},
-		{},
-		false
-	);
-
-	if (response && response.refresh && response.access) {
-		setTokens({
-			access: response.access,
-			refresh: response.refresh
+	try {
+		const response = await fetch(`${API_URL}/accounts/password/reset/confirm/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				email,
+				reset_code: resetCode,
+				new_password: newPassword,
+				confirm_password: confirmPassword
+			})
 		});
-	}
 
-	return response;
+		const data = await response.json();
+
+		if (!response.ok) {
+			throw new Error(data.error || 'Password reset failed');
+		}
+
+		if (data.access && data.refresh) {
+			setTokens({
+				access: data.access,
+				refresh: data.refresh
+			});
+		}
+
+		return data;
+	} catch (error) {
+		console.error('Password reset error:', error);
+		throw error;
+	}
 };
 
 /**
@@ -154,34 +301,178 @@ export const resetPassword = async (email, resetCode, newPassword, confirmPasswo
  * @param {string} currentPassword - Current password
  * @param {string} newPassword - New password
  * @param {string} confirmPassword - Confirm new password
- * @returns {Promise<Object>} Change password response
+ * @returns {Promise<Object>} Password change response
  */
 export const changePassword = async (currentPassword, newPassword, confirmPassword) => {
-	const response = await post(
-		ENDPOINTS.AUTH.CHANGE_PASSWORD,
-		{
-			current_password: currentPassword,
-			new_password: newPassword,
-			confirm_password: confirmPassword
-		},
-		{},
-		true
-	);
+	try {
+		const accessToken = localStorage.getItem('access_token');
 
-	if (response && response.refresh && response.access) {
-		setTokens({
-			access: response.access,
-			refresh: response.refresh
+		const response = await fetch(`${API_URL}/accounts/password/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${accessToken}`
+			},
+			body: JSON.stringify({
+				current_password: currentPassword,
+				new_password: newPassword,
+				confirm_password: confirmPassword
+			})
 		});
-	}
 
-	return response;
+		const data = await response.json();
+
+		if (!response.ok) {
+			throw new Error(data.error || 'Password change failed');
+		}
+
+		if (data.access && data.refresh) {
+			setTokens({
+				access: data.access,
+				refresh: data.refresh
+			});
+		}
+
+		return data;
+	} catch (error) {
+		console.error('Password change error:', error);
+		throw error;
+	}
 };
 
 /**
  * Verify the validity of the current token
- * @returns {Promise<Object>} Token verification response
+ * @returns {Promise<boolean>} Token validity
  */
 export const verifyToken = async () => {
-	return post(ENDPOINTS.AUTH.VERIFY_TOKEN, {}, {}, true);
+	try {
+		const accessToken = localStorage.getItem('access_token');
+
+		if (!accessToken) {
+			return false;
+		}
+
+		const response = await fetch(`${API_URL}/accounts/token/verify/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${accessToken}`
+			}
+		});
+
+		if (!response.ok) {
+			return false;
+		}
+
+		const data = await response.json();
+		return data.status === 'success';
+	} catch (error) {
+		console.error('Token verification error:', error);
+		return false;
+	}
+};
+
+/**
+ * Get user profile
+ * @returns {Promise<Object>} User profile data
+ */
+export const getUserProfile = async () => {
+	try {
+		const accessToken = localStorage.getItem('access_token');
+
+		if (!accessToken) {
+			throw new Error('Not authenticated');
+		}
+
+		const response = await fetch(`${API_URL}/accounts/profile/`, {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${accessToken}`
+			}
+		});
+
+		const data = await response.json();
+
+		if (!response.ok) {
+			throw new Error(data.error || 'Failed to get user profile');
+		}
+
+		return data.user;
+	} catch (error) {
+		console.error('Profile fetch error:', error);
+		throw error;
+	}
+};
+
+/**
+ * Update user profile
+ * @param {Object} profileData - User profile data
+ * @returns {Promise<Object>} Updated user profile
+ */
+export const updateProfile = async (profileData) => {
+	try {
+		const accessToken = localStorage.getItem('access_token');
+
+		if (!accessToken) {
+			throw new Error('Not authenticated');
+		}
+
+		const response = await fetch(`${API_URL}/accounts/profile/`, {
+			method: 'PATCH',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${accessToken}`
+			},
+			body: JSON.stringify(profileData)
+		});
+
+		const data = await response.json();
+
+		if (!response.ok) {
+			throw new Error(data.error || 'Failed to update profile');
+		}
+
+		return data.user;
+	} catch (error) {
+		console.error('Profile update error:', error);
+		throw error;
+	}
+};
+
+/**
+ * Upload user avatar
+ * @param {File} file - Avatar image file
+ * @returns {Promise<Object>} Upload response
+ */
+export const uploadAvatar = async (file) => {
+	try {
+		const accessToken = localStorage.getItem('access_token');
+
+		if (!accessToken) {
+			throw new Error('Not authenticated');
+		}
+
+		const formData = new FormData();
+		formData.append('avatar', file);
+
+		const response = await fetch(`${API_URL}/accounts/profile/avatar/`, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${accessToken}`
+			},
+			body: formData
+		});
+
+		const data = await response.json();
+
+		if (!response.ok) {
+			throw new Error(data.error || 'Failed to upload avatar');
+		}
+
+		return data;
+	} catch (error) {
+		console.error('Avatar upload error:', error);
+		throw error;
+	}
 };

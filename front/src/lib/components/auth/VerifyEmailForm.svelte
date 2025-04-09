@@ -1,14 +1,10 @@
-<!--
-  VerifyEmailForm Component
-  Handles email verification with verification code
--->
 <script>
 	import { createEventDispatcher } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { language, isRTL, textClass, uiStore } from '$lib/stores/ui';
-	import { auth } from '$lib/stores/auth';
+	import { isAuthenticated, currentUser } from '$lib/stores/auth';
 	import { t } from '$lib/config/translations';
 	import { Mail, CheckCircle, RefreshCw } from 'lucide-svelte';
 	import * as authService from '$lib/services/authService';
@@ -56,7 +52,8 @@
 
 			// Update auth store
 			if (response.user) {
-				auth.setUser(response.user, response.user.roles || []);
+				isAuthenticated.set(true);
+				currentUser.set(response.user);
 
 				// Show success message
 				success = true;
@@ -65,7 +62,7 @@
 					'success'
 				);
 
-				// Navigate to dashboard or home after a short delay
+				// Navigate to dashboard after a short delay
 				setTimeout(() => {
 					goto('/dashboard');
 				}, 2000);
@@ -78,9 +75,21 @@
 			}
 		} catch (err) {
 			console.error('Verification error:', err);
-			error =
-				err.message ||
-				t('invalid_code', $language, { default: 'رمز التحقق غير صالح أو منتهي الصلاحية' });
+
+			// Parse error messages from backend
+			if (err.message && err.message.includes('invalid_code')) {
+				error = t('invalid_verification_code', $language, {
+					default: 'رمز التحقق غير صالح أو منتهي الصلاحية'
+				});
+			} else if (err.message && err.message.includes('verification_code_expired')) {
+				error = t('verification_code_expired', $language, {
+					default: 'انتهت صلاحية رمز التحقق. يرجى طلب رمز جديد.'
+				});
+			} else {
+				error =
+					err.message ||
+					t('invalid_code', $language, { default: 'رمز التحقق غير صالح أو منتهي الصلاحية' });
+			}
 		} finally {
 			loading = false;
 		}
@@ -100,14 +109,23 @@
 
 		try {
 			await authService.resendVerification(email);
+
 			uiStore.showToast(
 				t('verification_resent', $language, { default: 'تم إعادة إرسال رمز التحقق' }),
 				'success'
 			);
 		} catch (err) {
 			console.error('Resend error:', err);
-			error =
-				err.message || t('resend_failed', $language, { default: 'فشل إعادة إرسال رمز التحقق' });
+
+			// Handle rate limiting errors
+			if (err.message && err.message.includes('rate_limit')) {
+				error = t('rate_limit_exceeded', $language, {
+					default: 'تم تجاوز الحد الأقصى للمحاولات. يرجى الانتظار قبل المحاولة مرة أخرى.'
+				});
+			} else {
+				error =
+					err.message || t('resend_failed', $language, { default: 'فشل إعادة إرسال رمز التحقق' });
+			}
 		} finally {
 			resending = false;
 		}
@@ -178,14 +196,15 @@
 				required
 				maxlength="6"
 				pattern="[0-9]{6}"
+				inputmode="numeric"
 			/>
 		</label>
 
 		<!-- Submit Button -->
 		<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
 			{#if loading}
-				<span class="loading loading-spinner loading-sm"></span>
-				{t('verifying', $language, { default: 'جاري التحقق...' })}
+				<span class="spinner-circle-secondary w-5 h-5"></span>
+				<span class="ml-2">{t('verifying', $language, { default: 'جاري التحقق...' })}</span>
 			{:else}
 				{t('verify_email', $language)}
 			{/if}
@@ -201,8 +220,9 @@
 				disabled={resending}
 			>
 				{#if resending}
-					<span class="loading loading-spinner loading-sm"></span>
-					{t('resending', $language, { default: 'جاري إعادة الإرسال...' })}
+					<span class="spinner-circle-secondary w-4 h-4"></span>
+					<span class="ml-2">{t('resending', $language, { default: 'جاري إعادة الإرسال...' })}</span
+					>
 				{:else}
 					<RefreshCw class="w-4 h-4 {$isRTL ? 'ml-2' : 'mr-2'}" />
 					{t('resend_code', $language)}

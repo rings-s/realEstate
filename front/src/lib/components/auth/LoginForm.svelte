@@ -1,15 +1,11 @@
-<!--
-  LoginForm Component
-  Handles user login with Arabic language support
--->
 <script>
 	import { createEventDispatcher } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { language, isRTL, textClass, uiStore } from '$lib/stores/ui';
-	import { auth } from '$lib/stores/auth';
 	import { t } from '$lib/config/translations';
 	import { User, Lock, Eye, EyeOff, Mail } from 'lucide-svelte';
 	import * as authService from '$lib/services/authService';
+	import { isAuthenticated, currentUser } from '$lib/stores/auth';
 
 	const dispatch = createEventDispatcher();
 
@@ -49,9 +45,10 @@
 			// Call login service
 			const response = await authService.login(email, password);
 
-			// Update auth store
+			// Update auth store with user data
 			if (response.user) {
-				auth.setUser(response.user, response.user.roles || []);
+				isAuthenticated.set(true);
+				currentUser.set(response.user);
 
 				// Show success message
 				uiStore.showToast(
@@ -59,16 +56,45 @@
 					'success'
 				);
 
-				// Navigate to dashboard or home
+				// Navigate to dashboard
 				goto('/dashboard');
 			} else {
 				throw new Error(t('login_error', $language, { default: 'حدث خطأ أثناء تسجيل الدخول' }));
 			}
 		} catch (err) {
 			console.error('Login error:', err);
-			error =
-				err.message ||
-				t('invalid_credentials', $language, { default: 'بيانات الاعتماد غير صالحة' });
+
+			// Handle different error types
+			if (err.message && err.message.includes('email_not_verified')) {
+				error = t('email_not_verified', $language, {
+					default: 'البريد الإلكتروني غير مُوثق. يرجى التحقق من بريدك الإلكتروني لرمز التحقق.'
+				});
+
+				// Offer to resend verification email
+				const resendLink = document.createElement('a');
+				resendLink.href = `/auth/verify-email?email=${encodeURIComponent(email)}`;
+				resendLink.textContent = t('resend_verification', $language, {
+					default: 'إعادة إرسال رمز التحقق'
+				});
+				resendLink.className = 'anchor ml-2';
+
+				// Add the link to the error message
+				setTimeout(() => {
+					const errorElement = document.querySelector('.error-message');
+					if (errorElement) {
+						errorElement.appendChild(document.createTextNode(' '));
+						errorElement.appendChild(resendLink);
+					}
+				}, 0);
+			} else if (err.message && err.message.includes('account_disabled')) {
+				error = t('account_disabled', $language, {
+					default: 'تم تعطيل الحساب. يرجى الاتصال بالدعم.'
+				});
+			} else {
+				error =
+					err.message ||
+					t('invalid_credentials', $language, { default: 'بيانات الاعتماد غير صالحة' });
+			}
 		} finally {
 			loading = false;
 		}
@@ -86,7 +112,7 @@
 	<!-- Error message -->
 	{#if error}
 		<div class="alert variant-filled-error mb-4">
-			<div>{error}</div>
+			<div class="error-message">{error}</div>
 		</div>
 	{/if}
 
@@ -161,8 +187,8 @@
 		<!-- Submit Button -->
 		<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
 			{#if loading}
-				<span class="loading loading-spinner loading-sm"></span>
-				{t('logging_in', $language, { default: 'جاري تسجيل الدخول...' })}
+				<span class="spinner-circle-secondary loading loading-spinner loading-sm"></span>
+				<span class="ml-2">{t('logging_in', $language, { default: 'جاري تسجيل الدخول...' })}</span>
 			{:else}
 				{t('login', $language)}
 			{/if}

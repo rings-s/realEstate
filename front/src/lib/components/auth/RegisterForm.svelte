@@ -1,7 +1,3 @@
-<!--
-  RegisterForm Component
-  Handles user registration with Arabic language support
--->
 <script>
 	import { createEventDispatcher } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -30,6 +26,7 @@
 	let loading = false;
 	let error = '';
 	let success = false;
+	let validationErrors = {};
 
 	// Toggle password visibility
 	const togglePassword = () => {
@@ -44,42 +41,74 @@
 	async function handleSubmit() {
 		error = '';
 		success = false;
+		validationErrors = {};
 
 		// Form validation
-		if (!email || !password || !confirm_password || !first_name || !last_name || !role) {
+		const requiredFields = {
+			email,
+			password,
+			confirm_password,
+			first_name,
+			last_name,
+			role
+		};
+
+		// Check required fields
+		let missingFields = [];
+		for (const [field, value] of Object.entries(requiredFields)) {
+			if (!value) {
+				missingFields.push(field);
+			}
+		}
+
+		if (missingFields.length > 0) {
 			error = t('fill_required_fields', $language, { default: 'يرجى ملء جميع الحقول المطلوبة' });
+			validationErrors = missingFields.reduce((acc, field) => {
+				acc[field] = true;
+				return acc;
+			}, {});
 			return;
 		}
 
+		// Password validation
 		if (password !== confirm_password) {
 			error = t('passwords_not_match', $language);
+			validationErrors.confirm_password = true;
 			return;
 		}
 
 		if (password.length < 8) {
 			error = t('password_too_short', $language);
+			validationErrors.password = true;
 			return;
 		}
 
+		// Terms validation
 		if (!agreeTerms) {
 			error = t('terms_required', $language, { default: 'يجب الموافقة على الشروط والأحكام' });
+			validationErrors.agreeTerms = true;
 			return;
 		}
 
 		loading = true;
 
 		try {
-			// Call register service
-			const response = await authService.register({
+			// Prepare data object for registration
+			const userData = {
 				email,
 				password,
 				confirm_password,
 				first_name,
 				last_name,
-				phone_number,
-				role,
-				date_of_birth: date_of_birth || undefined
-			});
+				role
+			};
+
+			// Add optional fields if provided
+			if (phone_number) userData.phone_number = phone_number;
+			if (date_of_birth) userData.date_of_birth = date_of_birth;
+
+			// Call register service
+			await authService.register(userData);
 
 			// Show success message
 			success = true;
@@ -94,9 +123,24 @@
 			goto(`/auth/verify-email?email=${encodeURIComponent(email)}`);
 		} catch (err) {
 			console.error('Registration error:', err);
-			error =
-				err.message ||
-				t('registration_failed', $language, { default: 'فشل التسجيل. يرجى المحاولة مرة أخرى.' });
+
+			// Handle validation errors from the backend
+			if (err.details && typeof err.details === 'object') {
+				validationErrors = err.details;
+
+				// Create a readable error message from validation errors
+				const errorMessages = [];
+				for (const [field, message] of Object.entries(err.details)) {
+					const fieldName = t(field, $language, { default: field });
+					errorMessages.push(`${fieldName}: ${message}`);
+				}
+
+				error = errorMessages.join('. ');
+			} else {
+				error =
+					err.message ||
+					t('registration_failed', $language, { default: 'فشل التسجيل. يرجى المحاولة مرة أخرى.' });
+			}
 		} finally {
 			loading = false;
 		}
@@ -143,7 +187,7 @@
 						type="text"
 						bind:value={first_name}
 						placeholder={t('first_name_placeholder', $language, { default: 'الاسم الأول' })}
-						class="input"
+						class="input {validationErrors.first_name ? 'input-error' : ''}"
 						dir={$isRTL ? 'rtl' : 'ltr'}
 						required
 					/>
@@ -161,7 +205,7 @@
 						type="text"
 						bind:value={last_name}
 						placeholder={t('last_name_placeholder', $language, { default: 'اسم العائلة' })}
-						class="input"
+						class="input {validationErrors.last_name ? 'input-error' : ''}"
 						dir={$isRTL ? 'rtl' : 'ltr'}
 						required
 					/>
@@ -180,7 +224,7 @@
 					type="email"
 					bind:value={email}
 					placeholder={t('email_placeholder', $language, { default: 'أدخل بريدك الإلكتروني' })}
-					class="input"
+					class="input {validationErrors.email ? 'input-error' : ''}"
 					dir={$isRTL ? 'rtl' : 'ltr'}
 					autocomplete="email"
 					required
@@ -199,11 +243,16 @@
 					type="tel"
 					bind:value={phone_number}
 					placeholder={t('phone_placeholder', $language, { default: 'رقم الهاتف (اختياري)' })}
-					class="input"
+					class="input {validationErrors.phone_number ? 'input-error' : ''}"
 					dir={$isRTL ? 'rtl' : 'ltr'}
 					autocomplete="tel"
 				/>
 			</div>
+			{#if validationErrors.phone_number}
+				<div class="text-sm text-error-500 mt-1">
+					{t('invalid_phone', $language, { default: 'يجب أن يكون رقم الهاتف بصيغة صحيحة' })}
+				</div>
+			{/if}
 		</label>
 
 		<!-- Date of Birth -->
@@ -213,7 +262,12 @@
 				<div class="input-group-shim">
 					<Calendar class="w-5 h-5" />
 				</div>
-				<input type="date" bind:value={date_of_birth} class="input" dir={$isRTL ? 'rtl' : 'ltr'} />
+				<input
+					type="date"
+					bind:value={date_of_birth}
+					class="input {validationErrors.date_of_birth ? 'input-error' : ''}"
+					dir={$isRTL ? 'rtl' : 'ltr'}
+				/>
 			</div>
 		</label>
 
@@ -224,7 +278,12 @@
 				<div class="input-group-shim">
 					<Users class="w-5 h-5" />
 				</div>
-				<select bind:value={role} class="select" dir={$isRTL ? 'rtl' : 'ltr'} required>
+				<select
+					bind:value={role}
+					class="select {validationErrors.role ? 'input-error' : ''}"
+					dir={$isRTL ? 'rtl' : 'ltr'}
+					required
+				>
 					<option value={ROLES.BUYER}>{t('buyer', $language)}</option>
 					<option value={ROLES.SELLER}>{t('seller', $language)}</option>
 					<option value={ROLES.AGENT}>{t('agent', $language)}</option>
@@ -246,18 +305,20 @@
 							type="text"
 							bind:value={password}
 							placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
-							class="input"
+							class="input {validationErrors.password ? 'input-error' : ''}"
 							dir={$isRTL ? 'rtl' : 'ltr'}
 							required
+							minlength="8"
 						/>
 					{:else}
 						<input
 							type="password"
 							bind:value={password}
 							placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
-							class="input"
+							class="input {validationErrors.password ? 'input-error' : ''}"
 							dir={$isRTL ? 'rtl' : 'ltr'}
 							required
+							minlength="8"
 						/>
 					{/if}
 					<button type="button" class="input-group-shim" on:click={togglePassword}>
@@ -268,6 +329,13 @@
 						{/if}
 					</button>
 				</div>
+				{#if validationErrors.password}
+					<div class="text-sm text-error-500 mt-1">
+						{t('password_requirements', $language, {
+							default: 'يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل'
+						})}
+					</div>
+				{/if}
 			</label>
 
 			<!-- Confirm Password -->
@@ -284,7 +352,7 @@
 							placeholder={t('confirm_password_placeholder', $language, {
 								default: 'تأكيد كلمة المرور'
 							})}
-							class="input"
+							class="input {validationErrors.confirm_password ? 'input-error' : ''}"
 							dir={$isRTL ? 'rtl' : 'ltr'}
 							required
 						/>
@@ -295,7 +363,7 @@
 							placeholder={t('confirm_password_placeholder', $language, {
 								default: 'تأكيد كلمة المرور'
 							})}
-							class="input"
+							class="input {validationErrors.confirm_password ? 'input-error' : ''}"
 							dir={$isRTL ? 'rtl' : 'ltr'}
 							required
 						/>
@@ -308,6 +376,13 @@
 						{/if}
 					</button>
 				</div>
+				{#if validationErrors.confirm_password}
+					<div class="text-sm text-error-500 mt-1">
+						{t('passwords_not_match', $language, {
+							default: 'كلمات المرور غير متطابقة'
+						})}
+					</div>
+				{/if}
 			</label>
 		</div>
 
@@ -315,7 +390,12 @@
 		<label
 			class="flex items-center mt-6 space-x-2 {$isRTL ? 'flex-row-reverse space-x-reverse' : ''}"
 		>
-			<input type="checkbox" bind:checked={agreeTerms} class="checkbox" required />
+			<input
+				type="checkbox"
+				bind:checked={agreeTerms}
+				class="checkbox {validationErrors.agreeTerms ? 'input-error' : ''}"
+				required
+			/>
 			<span>
 				{t('agree_terms', $language, { default: 'أوافق على' })}
 				<a href="/terms" class="anchor">{t('terms_and_conditions', $language)}</a>
@@ -325,8 +405,8 @@
 		<!-- Submit Button -->
 		<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
 			{#if loading}
-				<span class="loading loading-spinner loading-sm"></span>
-				{t('registering', $language, { default: 'جاري التسجيل...' })}
+				<span class="spinner-circle-secondary w-5 h-5"></span>
+				<span class="ml-2">{t('registering', $language, { default: 'جاري التسجيل...' })}</span>
 			{:else}
 				{t('register', $language)}
 			{/if}

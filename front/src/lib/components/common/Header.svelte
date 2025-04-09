@@ -1,451 +1,212 @@
 <script>
-	import { t } from '$lib/config/translations';
-	import { language, isRTL, darkMode, toggleSidebar, uiStore } from '$lib/stores/ui';
-	import { page } from '$app/stores';
-	import { isAuthenticated, currentUser } from '$lib/stores/auth';
-	import { unreadCount as unreadNotifications } from '$lib/stores/notifications';
-	import { fade } from 'svelte/transition';
+	import { Moon, Sun, Globe, Menu, User, Bell, LogOut } from 'lucide-svelte';
 	import {
-		Menu,
-		X,
-		Home,
-		Building,
-		Gavel,
-		User,
-		Sun,
-		Moon,
-		Bell,
-		Menu as MenuIcon
-	} from 'lucide-svelte';
-	import Avatar from './Avatar.svelte';
-	import { onMount, afterUpdate } from 'svelte';
-	import notificationsStore from '$lib/stores/notifications';
-	import { browser } from '$app/environment';
+		theme,
+		language,
+		isRTL,
+		toggleTheme,
+		toggleLanguage,
+		toggleSidebar,
+		textClass
+	} from '$lib/stores/ui';
+	import { goto } from '$app/navigation';
+	import { t } from '$lib/config/translations';
+	import { isAuthenticated, currentUser, logout } from '$lib/stores/auth';
 
-	/**
-	 * Props
-	 */
-	// Whether to show full header or simple version
+	// Prop to control header display (minimal for dashboard)
 	export let minimal = false;
-	// Additional classes
-	export let classes = '';
-	// Logo path
-	export let logoPath = '/placeholder.png';
-	// Mobile breakpoint
-	export let breakpoint = 'lg';
 
-	// Local state
-	let isMenuOpen = false;
-	let isProfileOpen = false;
-	let isScrolled = false;
-	let stopPolling;
-
-	// Toggle dark mode
-	function toggleTheme() {
-		darkMode.update((value) => {
-			const newValue = !value;
-			if (browser) {
-				localStorage.setItem('darkMode', newValue ? 'true' : 'false');
-				document.documentElement.classList.toggle('dark', newValue);
-			}
-			return newValue;
-		});
-	}
-
-	// Toggle language between Arabic and English
-	function toggleLanguage() {
-		language.update((value) => {
-			const newValue = value === 'ar' ? 'en' : 'ar';
-			if (browser) {
-				localStorage.setItem('language', newValue);
-				document.documentElement.setAttribute('lang', newValue);
-
-				// Set direction based on language
-				const newDirection = newValue === 'ar' ? 'rtl' : 'ltr';
-				document.documentElement.setAttribute('dir', newDirection);
-				localStorage.setItem('direction', newDirection);
-			}
-			return newValue;
-		});
-	}
-
-	// Toggle mobile menu
-	function toggleMenu() {
-		isMenuOpen = !isMenuOpen;
-	}
+	// Dropdown states
+	let profileDropdownOpen = false;
+	let notificationsDropdownOpen = false;
 
 	// Toggle profile dropdown
-	function toggleProfile() {
-		isProfileOpen = !isProfileOpen;
-		// Close menu when opening profile
-		if (isProfileOpen) {
-			isMenuOpen = false;
-		}
+	function toggleProfileDropdown() {
+		profileDropdownOpen = !profileDropdownOpen;
+		if (profileDropdownOpen) notificationsDropdownOpen = false;
 	}
 
-	// Close all menus
-	function closeMenus() {
-		isMenuOpen = false;
-		isProfileOpen = false;
+	// Toggle notifications dropdown
+	function toggleNotificationsDropdown() {
+		notificationsDropdownOpen = !notificationsDropdownOpen;
+		if (notificationsDropdownOpen) profileDropdownOpen = false;
 	}
 
-	// Handle scroll event to add shadow to header
-	function handleScroll() {
-		isScrolled = window.scrollY > 10;
+	// Handle logout
+	async function handleLogout() {
+		await logout();
+		goto('/auth/login');
 	}
 
-	// Determine if a nav link is active
-	$: getIsActive = (href) => {
-		if (href === '/') {
-			return $page.url.pathname === '/';
+	// Close dropdowns when clicking outside
+	function handleClickOutside(event) {
+		if (profileDropdownOpen && !event.target.closest('#profile-dropdown')) {
+			profileDropdownOpen = false;
 		}
-		return $page.url.pathname.startsWith(href);
-	};
-
-	onMount(() => {
-		// Add scroll listener
-		window.addEventListener('scroll', handleScroll);
-
-		// Start polling for notifications if authenticated
-		if ($isAuthenticated) {
-			stopPolling = notificationsStore.startPolling(30000);
-			notificationsStore.getUnreadCount();
+		if (notificationsDropdownOpen && !event.target.closest('#notifications-dropdown')) {
+			notificationsDropdownOpen = false;
 		}
-
-		// Initial scroll check
-		handleScroll();
-
-		// Initialize dark mode from localStorage if available
-		if (browser) {
-			const savedDarkMode = localStorage.getItem('darkMode');
-			if (savedDarkMode) {
-				const isDark = savedDarkMode === 'true';
-				darkMode.set(isDark);
-				document.documentElement.classList.toggle('dark', isDark);
-			}
-
-			// Initialize language from localStorage if available
-			const savedLanguage = localStorage.getItem('language');
-			if (savedLanguage) {
-				language.set(savedLanguage);
-				document.documentElement.setAttribute('lang', savedLanguage);
-
-				// Set direction based on language
-				const direction = savedLanguage === 'ar' ? 'rtl' : 'ltr';
-				document.documentElement.setAttribute('dir', direction);
-			}
-		}
-
-		// Cleanup on unmount
-		return () => {
-			window.removeEventListener('scroll', handleScroll);
-			if (stopPolling) stopPolling();
-		};
-	});
-
-	// Update document when dark mode changes
-	$: if (browser && $darkMode !== undefined) {
-		document.documentElement.classList.toggle('dark', $darkMode);
-	}
-
-	// Update document when language changes
-	$: if (browser && $language) {
-		document.documentElement.setAttribute('lang', $language);
-		// Update direction based on language
-		const direction = $language === 'ar' ? 'rtl' : 'ltr';
-		document.documentElement.setAttribute('dir', direction);
 	}
 </script>
 
-<header
-	class="sticky top-0 z-40 w-full {isScrolled
-		? 'shadow-lg'
-		: ''} bg-surface-100-800-token {classes}"
->
-	<div class="container mx-auto p-4">
-		<div class="flex items-center justify-between">
-			<!-- Left section: Logo + Mobile menu toggle -->
-			<div class="flex items-center">
-				<!-- Mobile menu toggle -->
-				<button
-					class="btn btn-sm btn-icon {breakpoint}:hidden variant-ghost-surface mr-2"
-					aria-label={t('menu', $language, { default: 'القائمة' })}
-					on:click={toggleSidebar}
-				>
-					<MenuIcon class="w-5 h-5" />
-				</button>
+<svelte:window on:click={handleClickOutside} />
 
-				<!-- Logo -->
-				<a
-					href="/"
-					class="flex items-center gap-2"
-					aria-label={t('app_name', $language, { default: 'منصة مزادات العقارات' })}
-				>
-					<img
-						src={logoPath}
-						alt={t('app_name', $language, { default: 'منصة مزادات العقارات' })}
-						class="h-8"
-						onError={(e) => {
-							e.target.style.display = 'none';
-						}}
-					/>
-					{#if !minimal}
-						<span class="font-bold text-lg hidden sm:block">
-							{t('app_name', $language, { default: 'منصة مزادات العقارات' })}
-						</span>
-					{/if}
-				</a>
-			</div>
-
-			<!-- Center section: Main navigation (desktop) -->
-			{#if !minimal}
-				<nav class="hidden {breakpoint}:flex items-center gap-2 {$isRTL ? 'mr-4' : 'ml-4'}">
-					<a
-						href="/"
-						class="btn btn-sm {getIsActive('/')
-							? 'variant-filled-primary'
-							: 'variant-ghost-surface'}"
-						aria-current={getIsActive('/') ? 'page' : undefined}
-					>
-						<Home class="w-4 h-4 {$isRTL ? 'ml-2' : 'mr-2'}" />
-						<span>{t('home', $language, { default: 'الرئيسية' })}</span>
-					</a>
-					<a
-						href="/properties"
-						class="btn btn-sm {getIsActive('/properties')
-							? 'variant-filled-primary'
-							: 'variant-ghost-surface'}"
-						aria-current={getIsActive('/properties') ? 'page' : undefined}
-					>
-						<Building class="w-4 h-4 {$isRTL ? 'ml-2' : 'mr-2'}" />
-						<span>{t('properties', $language, { default: 'العقارات' })}</span>
-					</a>
-					<a
-						href="/auctions"
-						class="btn btn-sm {getIsActive('/auctions')
-							? 'variant-filled-primary'
-							: 'variant-ghost-surface'}"
-						aria-current={getIsActive('/auctions') ? 'page' : undefined}
-					>
-						<Gavel class="w-4 h-4 {$isRTL ? 'ml-2' : 'mr-2'}" />
-						<span>{t('auctions', $language, { default: 'المزادات' })}</span>
-					</a>
-				</nav>
-			{/if}
-
-			<!-- Right section: User menu, notifications, theme toggle, language toggle -->
-			<div class="flex items-center gap-1 sm:gap-2">
-				<!-- Theme toggle -->
-				<button
-					class="btn btn-sm btn-icon variant-ghost-surface"
-					aria-label={$darkMode
-						? t('light_mode', $language, { default: 'الوضع النهاري' })
-						: t('dark_mode', $language, { default: 'الوضع الليلي' })}
-					on:click={toggleTheme}
-				>
-					{#if $darkMode}
-						<Sun class="w-5 h-5" />
-					{:else}
-						<Moon class="w-5 h-5" />
-					{/if}
-				</button>
-
-				<!-- Language toggle -->
-				<button
-					class="btn btn-sm variant-ghost-surface"
-					aria-label={$language === 'ar' ? 'English' : 'العربية'}
-					on:click={toggleLanguage}
-				>
-					{$language === 'ar' ? 'EN' : 'عربي'}
-				</button>
-
-				<!-- Notifications (if authenticated) -->
-				{#if $isAuthenticated}
-					<a
-						href="/notifications"
-						class="btn btn-sm btn-icon variant-ghost-surface relative"
-						aria-label={t('notifications', $language, { default: 'الإشعارات' })}
-					>
-						<Bell class="w-5 h-5" />
-						{#if $unreadNotifications > 0}
-							<span
-								class="absolute -top-1 {$isRTL
-									? 'left-0'
-									: 'right-0'} badge-icon variant-filled-error"
-								>{$unreadNotifications > 9 ? '9+' : $unreadNotifications}</span
-							>
-						{/if}
-					</a>
-				{/if}
-
-				<!-- User menu (if authenticated) -->
-				{#if $isAuthenticated}
-					<div class="relative">
-						<button
-							class="btn btn-sm variant-ghost-surface flex items-center gap-2"
-							aria-label={t('account', $language, { default: 'الحساب' })}
-							aria-expanded={isProfileOpen}
-							aria-controls="profile-menu"
-							on:click={toggleProfile}
-						>
-							<Avatar user={$currentUser} size="xs" classes={$isRTL ? 'mr-0 ml-1' : 'ml-0 mr-1'} />
-							<span class="hidden sm:inline">
-								{$currentUser?.first_name || $currentUser?.email || ''}
-							</span>
-						</button>
-
-						<!-- Profile dropdown -->
-						{#if isProfileOpen}
-							<div
-								id="profile-menu"
-								class="card absolute {$isRTL ? 'left-0' : 'right-0'} mt-2 p-2 w-48 z-50 shadow-xl"
-								transition:fade={{ duration: 150 }}
-							>
-								<nav class="list-nav">
-									<ul>
-										<li>
-											<a href="/dashboard" class="nav-item" on:click={closeMenus}>
-												<span class="badge badge-sm variant-soft-primary"
-													>{t($currentUser?.primary_role?.code || 'user', $language, {
-														default: 'مستخدم'
-													})}</span
-												>
-												<span>{t('dashboard', $language, { default: 'لوحة التحكم' })}</span>
-											</a>
-										</li>
-										<li>
-											<a href="/profile" class="nav-item" on:click={closeMenus}>
-												<span>{t('profile', $language, { default: 'الملف الشخصي' })}</span>
-											</a>
-										</li>
-										<li>
-											<a href="/messages" class="nav-item" on:click={closeMenus}>
-												<span>{t('messages', $language, { default: 'الرسائل' })}</span>
-											</a>
-										</li>
-										<li>
-											<a href="/favorites" class="nav-item" on:click={closeMenus}>
-												<span>{t('favorites', $language, { default: 'المفضلة' })}</span>
-											</a>
-										</li>
-										<li>
-											<a href="/settings" class="nav-item" on:click={closeMenus}>
-												<span>{t('settings', $language, { default: 'الإعدادات' })}</span>
-											</a>
-										</li>
-										<li>
-											<hr class="nav-divider" />
-										</li>
-										<li>
-											<button
-												class="nav-item text-error-500 w-full text-left"
-												on:click={() => {
-													closeMenus(); /* add logout logic */
-												}}
-											>
-												<span>{t('logout', $language, { default: 'تسجيل الخروج' })}</span>
-											</button>
-										</li>
-									</ul>
-								</nav>
-							</div>
-						{/if}
-					</div>
-				{:else}
-					<!-- Login/Register buttons if not authenticated -->
-					<a href="/login" class="btn btn-sm variant-ghost">
-						{t('login', $language, { default: 'تسجيل الدخول' })}
-					</a>
-					<a href="/register" class="btn btn-sm variant-filled-primary">
-						{t('register', $language, { default: 'إنشاء حساب' })}
-					</a>
-				{/if}
-			</div>
-		</div>
+<header class="navbar bg-surface-100-800-token border-b border-surface-300-600-token">
+	<div class="navbar-start">
+		{#if !minimal}
+			<a href="/" class="text-xl font-bold tracking-tight {$textClass}">
+				{t('app_name', $language, { default: 'منصة مزادات العقارات' })}
+			</a>
+		{:else}
+			<button class="btn btn-sm {$isRTL ? 'ms-2' : 'me-2'}" on:click={() => toggleSidebar()}>
+				<Menu />
+			</button>
+			<span class="text-base font-bold {$textClass}">
+				{t('dashboard', $language, { default: 'لوحة التحكم' })}
+			</span>
+		{/if}
 	</div>
 
-	<!-- Mobile navigation menu (when open) -->
-	{#if isMenuOpen}
-		<div
-			class="block {breakpoint}:hidden bg-surface-100-800-token border-t border-surface-300-600-token"
-			transition:fade={{ duration: 150 }}
-		>
-			<nav class="container mx-auto p-4">
-				<ul class="space-y-2">
-					<li>
-						<a
-							href="/"
-							class="flex items-center p-2 rounded-token {getIsActive('/')
-								? 'bg-primary-500 text-white'
-								: 'hover:bg-surface-hover-token'}"
-							on:click={closeMenus}
-						>
-							<Home class="w-5 h-5 {$isRTL ? 'ml-2' : 'mr-2'}" />
-							<span>{t('home', $language, { default: 'الرئيسية' })}</span>
-						</a>
-					</li>
-					<li>
-						<a
-							href="/properties"
-							class="flex items-center p-2 rounded-token {getIsActive('/properties')
-								? 'bg-primary-500 text-white'
-								: 'hover:bg-surface-hover-token'}"
-							on:click={closeMenus}
-						>
-							<Building class="w-5 h-5 {$isRTL ? 'ml-2' : 'mr-2'}" />
-							<span>{t('properties', $language, { default: 'العقارات' })}</span>
-						</a>
-					</li>
-					<li>
-						<a
-							href="/auctions"
-							class="flex items-center p-2 rounded-token {getIsActive('/auctions')
-								? 'bg-primary-500 text-white'
-								: 'hover:bg-surface-hover-token'}"
-							on:click={closeMenus}
-						>
-							<Gavel class="w-5 h-5 {$isRTL ? 'ml-2' : 'mr-2'}" />
-							<span>{t('auctions', $language, { default: 'المزادات' })}</span>
-						</a>
-					</li>
-					<li>
-						<a
-							href="/about"
-							class="flex items-center p-2 rounded-token {getIsActive('/about')
-								? 'bg-primary-500 text-white'
-								: 'hover:bg-surface-hover-token'}"
-							on:click={closeMenus}
-						>
-							<User class="w-5 h-5 {$isRTL ? 'ml-2' : 'mr-2'}" />
-							<span>{t('about', $language, { default: 'من نحن' })}</span>
-						</a>
-					</li>
-					<li>
-						<a
-							href="/contact"
-							class="flex items-center p-2 rounded-token {getIsActive('/contact')
-								? 'bg-primary-500 text-white'
-								: 'hover:bg-surface-hover-token'}"
-							on:click={closeMenus}
-						>
-							<Bell class="w-5 h-5 {$isRTL ? 'ml-2' : 'mr-2'}" />
-							<span>{t('contact', $language, { default: 'اتصل بنا' })}</span>
-						</a>
-					</li>
-				</ul>
+	{#if !minimal}
+		<div class="navbar-center hidden md:flex">
+			<nav class="flex items-center gap-4">
+				<a href="/" class="btn btn-sm variant-ghost-surface">{t('home', $language)}</a>
+				<a href="/properties" class="btn btn-sm variant-ghost-surface"
+					>{t('properties', $language)}</a
+				>
+				<a href="/auctions" class="btn btn-sm variant-ghost-surface">{t('auctions', $language)}</a>
+				{#if $isAuthenticated}
+					<a href="/dashboard" class="btn btn-sm variant-ghost-surface"
+						>{t('dashboard', $language)}</a
+					>
+				{/if}
 			</nav>
 		</div>
 	{/if}
-</header>
 
-<!-- Click outside handler -->
-{#if isProfileOpen || isMenuOpen}
-	<div
-		class="fixed inset-0 z-30 bg-transparent"
-		on:click={closeMenus}
-		on:keydown={(e) => e.key === 'Escape' && closeMenus()}
-		role="button"
-		tabindex="0"
-		aria-label="Close menu"
-	/>
-{/if}
+	<div class="navbar-end">
+		<div class="flex items-center gap-2">
+			<!-- Theme Toggle -->
+			<button
+				class="btn btn-sm btn-icon variant-ghost-surface"
+				on:click={toggleTheme}
+				aria-label={$theme === 'dark' ? t('light_mode', $language) : t('dark_mode', $language)}
+			>
+				{#if $theme === 'dark'}
+					<Sun size={18} />
+				{:else}
+					<Moon size={18} />
+				{/if}
+			</button>
+
+			<!-- Language Toggle -->
+			<button
+				class="btn btn-sm btn-icon variant-ghost-surface"
+				on:click={toggleLanguage}
+				aria-label={$language === 'ar' ? 'English' : 'العربية'}
+			>
+				<Globe size={18} />
+				<span class="ms-1 hidden sm:inline">{$language === 'ar' ? 'EN' : 'عربي'}</span>
+			</button>
+
+			{#if $isAuthenticated}
+				<!-- Notifications Dropdown -->
+				<div class="relative" id="notifications-dropdown">
+					<button
+						class="btn btn-sm btn-icon variant-ghost-surface"
+						on:click={toggleNotificationsDropdown}
+						aria-label={t('notifications', $language)}
+					>
+						<Bell size={18} />
+						<span
+							class="badge-icon bg-primary-500 absolute top-0 {$isRTL
+								? 'left-0'
+								: 'right-0'} h-2 w-2 rounded-full"
+						></span>
+					</button>
+
+					{#if notificationsDropdownOpen}
+						<div
+							class="card absolute top-10 {$isRTL
+								? 'left-0'
+								: 'right-0'} w-64 sm:w-80 z-50 overflow-hidden shadow-xl"
+							transition:fly={{ y: -5, duration: 200 }}
+						>
+							<header class="card-header p-2 {$textClass}">
+								<h3 class="h4">{t('notifications', $language)}</h3>
+							</header>
+							<div class="p-2 max-h-96 overflow-auto">
+								<p class="p-2 {$textClass}">
+									{t('no_notifications', $language, { default: 'لا توجد إشعارات' })}
+								</p>
+							</div>
+							<footer class="card-footer p-2 flex justify-center">
+								<a href="/notifications" class="anchor"
+									>{t('view_all', $language, { default: 'عرض الكل' })}</a
+								>
+							</footer>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Profile Dropdown -->
+				<div class="relative" id="profile-dropdown">
+					<button
+						class="btn btn-sm variant-ghost-surface {$isRTL ? 'me-2' : 'ms-2'}"
+						on:click={toggleProfileDropdown}
+					>
+						<User size={18} class={$isRTL ? 'ms-1' : 'me-1'} />
+						<span class="hidden sm:inline {$textClass}">
+							{$currentUser?.first_name || t('profile', $language)}
+						</span>
+					</button>
+
+					{#if profileDropdownOpen}
+						<div
+							class="card absolute top-10 {$isRTL ? 'left-0' : 'right-0'} w-48 z-50 shadow-xl"
+							transition:fly={{ y: -5, duration: 200 }}
+						>
+							<nav class="list-nav p-2">
+								<ul>
+									<li>
+										<a href="/dashboard" class="flex items-center gap-2 {$textClass}">
+											<span class="badge bg-primary-500"
+												>{$currentUser?.primary_role?.name || ''}</span
+											>
+											<span>{t('dashboard', $language)}</span>
+										</a>
+									</li>
+									<li>
+										<a href="/dashboard/profile" class="flex items-center gap-2 {$textClass}">
+											<User size={16} />
+											<span>{t('profile', $language)}</span>
+										</a>
+									</li>
+									<li>
+										<hr class="my-2" />
+									</li>
+									<li>
+										<button
+											class="w-full flex items-center gap-2 text-error-500 {$textClass}"
+											on:click={handleLogout}
+										>
+											<LogOut size={16} />
+											<span>{t('logout', $language)}</span>
+										</button>
+									</li>
+								</ul>
+							</nav>
+						</div>
+					{/if}
+				</div>
+			{:else}
+				<a href="/auth/login" class="btn btn-sm variant-ghost-surface">
+					{t('login', $language)}
+				</a>
+				<a href="/auth/register" class="btn btn-sm variant-filled-primary hidden sm:flex">
+					{t('register', $language)}
+				</a>
+			{/if}
+		</div>
+	</div>
+</header>

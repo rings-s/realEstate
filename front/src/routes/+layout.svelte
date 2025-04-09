@@ -9,7 +9,7 @@
 	import {
 		language,
 		isRTL,
-		darkMode,
+		theme,
 		isSidebarOpen,
 		pageLoading,
 		toast,
@@ -21,17 +21,18 @@
 	import Alert from '$lib/components/common/Alert.svelte';
 
 	// Import auth store
+	import { isAuthenticated, currentUser } from '$lib/stores/auth';
+
+	// Import token manager
 	import {
-		isAuthenticated,
-		refreshToken,
-		validateToken,
-		logout,
-		currentUser
-	} from '$lib/stores/auth';
+		isTokenExpired,
+		getAccessToken,
+		getRefreshToken,
+		clearTokens
+	} from '$lib/utils/tokenManager';
 
 	// Import utils
 	import { t } from '$lib/config/translations';
-	import { TOKEN_KEY, REFRESH_TOKEN_KEY, TOKEN_EXPIRY_KEY } from '$lib/config/constants';
 	import '../app.postcss'; // Adjust path if needed - might be app.css in your setup
 
 	// Determine if page is in dashboard layout
@@ -40,15 +41,15 @@
 	// Paths that don't require authentication
 	const publicPaths = [
 		'/',
-		'/login',
-		'/register',
+		'/auth/login',
+		'/auth/register',
 		'/properties',
 		'/auctions',
 		'/about',
 		'/contact',
-		'/verify-email',
-		'/reset-password',
-		'/forgot-password'
+		'/auth/verify-email',
+		'/auth/reset-password',
+		'/auth/forgot-password'
 	];
 
 	// Handle token refresh
@@ -59,16 +60,8 @@
 	function checkTokenExpiration() {
 		if (!browser) return;
 
-		const tokenExpiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
-
-		if (!tokenExpiry) return;
-
-		const expiryDate = new Date(tokenExpiry);
-		const now = new Date();
-
-		// If token expires in less than 5 minutes, refresh it
-		const fiveMinutes = 5 * 60 * 1000;
-		if (expiryDate.getTime() - now.getTime() < fiveMinutes) {
+		if (isTokenExpired()) {
+			// If token expires, try to refresh it
 			doRefreshToken();
 		}
 	}
@@ -76,20 +69,53 @@
 	// Refresh token function
 	async function doRefreshToken() {
 		try {
-			const refreshed = await refreshToken();
-			if (!refreshed) {
-				// If refresh fails, redirect to login for protected routes
-				if (!isPublicPath($page.url.pathname)) {
-					goto('/login');
-				}
+			const refreshToken = getRefreshToken();
+
+			if (!refreshToken) {
+				handleAuthFailure();
+				return false;
 			}
+
+			const response = await fetch(`/api/accounts/token/refresh/`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({ refresh: refreshToken })
+			});
+
+			if (!response.ok) {
+				handleAuthFailure();
+				return false;
+			}
+
+			const data = await response.json();
+
+			// Store new tokens
+			localStorage.setItem('access_token', data.access);
+
+			// Calculate token expiry (1 hour from now)
+			const expiry = new Date();
+			expiry.setHours(expiry.getHours() + 1);
+			localStorage.setItem('token_expiry', expiry.toISOString());
+
+			return true;
 		} catch (error) {
 			console.error('Failed to refresh token:', error);
-			// Handle failed token refresh by logging out
-			if (!isPublicPath($page.url.pathname)) {
-				await logout();
-				goto('/login');
-			}
+			handleAuthFailure();
+			return false;
+		}
+	}
+
+	// Handle authentication failure
+	function handleAuthFailure() {
+		clearTokens();
+		isAuthenticated.set(false);
+		currentUser.set(null);
+
+		// Redirect to login if on protected route
+		if (!isPublicPath($page.url.pathname)) {
+			goto('/auth/login');
 		}
 	}
 
@@ -118,10 +144,10 @@
 			isRTL.set(direction === 'rtl');
 			document.documentElement.setAttribute('dir', direction);
 
-			// Initialize dark mode from localStorage
-			const savedDarkMode = localStorage.getItem('darkMode') === 'true';
-			darkMode.set(savedDarkMode);
-			document.documentElement.classList.toggle('dark', savedDarkMode);
+			// Initialize theme from localStorage - Skeleton UI v2 uses data-theme attribute
+			const savedTheme = localStorage.getItem('theme') || 'light';
+			theme.set(savedTheme);
+			document.documentElement.setAttribute('data-theme', savedTheme);
 		}
 	}
 
@@ -134,40 +160,24 @@
 			pageLoading.set(true);
 
 			// Check for token and validate
-			const token = localStorage.getItem(TOKEN_KEY);
-			const refreshTokenValue = localStorage.getItem(REFRESH_TOKEN_KEY);
+			const token = getAccessToken();
 
 			if (token) {
-				try {
-					// Try to validate token
-					const isValid = await validateToken();
+				// Check if token is expired
+				if (isTokenExpired()) {
+					// Try to refresh token
+					const refreshed = await doRefreshToken();
 
-					if (!isValid && refreshTokenValue) {
-						// Try to refresh token if validation fails
-						await doRefreshToken();
+					if (!refreshed && !isPublicPath($page.url.pathname)) {
+						goto('/auth/login');
 					}
-
-					// If still not authenticated and on protected route, redirect to login
-					if (!$isAuthenticated && !isPublicPath($page.url.pathname)) {
-						goto('/login');
-					}
-				} catch (error) {
-					console.error('Error validating auth:', error);
-
-					// Clear auth if validation completely fails
-					localStorage.removeItem(TOKEN_KEY);
-					localStorage.removeItem(REFRESH_TOKEN_KEY);
-					localStorage.removeItem(TOKEN_EXPIRY_KEY);
-					isAuthenticated.set(false);
-
-					// Redirect to login if on protected route
-					if (!isPublicPath($page.url.pathname)) {
-						goto('/login');
-					}
+				} else {
+					// Token is valid, set authenticated state
+					isAuthenticated.set(true);
 				}
 			} else if (!isPublicPath($page.url.pathname)) {
 				// No token and on protected route, redirect to login
-				goto('/login');
+				goto('/auth/login');
 			}
 
 			// Set up token refresh interval (check every minute)
@@ -186,9 +196,9 @@
 		if (refreshTokenInterval) clearInterval(refreshTokenInterval);
 	});
 
-	// Apply theme changes when darkMode or language changes
+	// Apply theme changes when theme or language changes
 	$: if (browser) {
-		document.documentElement.classList.toggle('dark', $darkMode);
+		document.documentElement.setAttribute('data-theme', $theme);
 		document.documentElement.setAttribute('lang', $language);
 		document.documentElement.setAttribute('dir', $isRTL ? 'rtl' : 'ltr');
 	}

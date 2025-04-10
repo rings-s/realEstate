@@ -1,30 +1,13 @@
-<!--
-  Property Form Component with Leaflet Integration
-  Handles creating and editing property listings
--->
 <script>
-	import { onMount, afterUpdate } from 'svelte';
+	import { onMount } from 'svelte';
 	import { t } from '$lib/config/translations';
 	import { language, isRTL, addToast } from '$lib/stores/ui';
 	import { PROPERTY_TYPES, PROPERTY_STATUS } from '$lib/config/constants';
 	import { createEventDispatcher } from 'svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
-	import {
-		Building,
-		MapPin,
-		Star,
-		Tag,
-		Info,
-		Plus,
-		Trash2,
-		X,
-		Locate,
-		MapPinOff
-	} from 'lucide-svelte';
+	import Map from '$lib/components/common/Map.svelte';
+	import { Building, MapPin, Star, Tag, Info, Plus, Trash2, X } from 'lucide-svelte';
 	import { formatPropertyData } from '$lib/services/propertyService';
-
-	// Import Leaflet - these would be added to your app
-	import L from 'leaflet';
 
 	const dispatch = createEventDispatcher();
 
@@ -93,12 +76,6 @@
 	let uploading = false;
 	let imageError = null;
 	let submitAttempted = false;
-
-	// Leaflet map variables
-	let mapContainer;
-	let map;
-	let marker;
-	let isLocating = false;
 	let locationError = null;
 
 	// Initialize form with existing property data
@@ -171,146 +148,20 @@
 		formData.location.country = formData.country;
 	}
 
-	// Update map when location coordinates change
-	$: if (map && formData.location.latitude && formData.location.longitude) {
-		updateMapPosition(formData.location.latitude, formData.location.longitude);
-	}
+	// Set location in form data from Map component event
+	function handleLocationChange(event) {
+		const { latitude, longitude } = event.detail;
+		formData.location.latitude = latitude;
+		formData.location.longitude = longitude;
 
-	// Initialize Leaflet map
-	function initMap() {
-		if (!mapContainer) return;
-
-		// Create map if it doesn't exist
-		if (!map) {
-			map = L.map(mapContainer).setView([24.774265, 46.738586], 13); // Default to Riyadh, Saudi Arabia
-
-			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-				attribution:
-					'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-			}).addTo(map);
-
-			// Add click handler to set location
-			map.on('click', function (e) {
-				setLocation(e.latlng.lat, e.latlng.lng);
-			});
-
-			// Add scale control
-			L.control.scale().addTo(map);
-		}
-
-		// Add marker if property has location
-		if (formData.location.latitude && formData.location.longitude) {
-			updateMapPosition(formData.location.latitude, formData.location.longitude);
-		}
-	}
-
-	// Update marker position on map
-	function updateMapPosition(lat, lng) {
-		if (!map) return;
-
-		const newLatLng = [lat, lng];
-
-		// Create marker if it doesn't exist
-		if (!marker) {
-			marker = L.marker(newLatLng).addTo(map);
-		} else {
-			marker.setLatLng(newLatLng);
-		}
-
-		// Center map on marker
-		map.setView(newLatLng, 15);
-	}
-
-	// Set location in form data
-	function setLocation(lat, lng) {
-		formData.location.latitude = lat;
-		formData.location.longitude = lng;
-		updateMapPosition(lat, lng);
-	}
-
-	// Get current location using browser geolocation
-	function detectLocation() {
-		if (!navigator.geolocation) {
-			locationError = t('geolocation_not_supported', $language, {
-				default: 'الموقع الجغرافي غير مدعوم في متصفحك'
-			});
-			return;
-		}
-
-		isLocating = true;
+		// Clear any previous location errors
 		locationError = null;
-
-		navigator.geolocation.getCurrentPosition(
-			(position) => {
-				setLocation(position.coords.latitude, position.coords.longitude);
-				isLocating = false;
-
-				// Try to get address from coordinates (reverse geocoding)
-				reverseGeocode(position.coords.latitude, position.coords.longitude);
-			},
-			(error) => {
-				isLocating = false;
-				switch (error.code) {
-					case error.PERMISSION_DENIED:
-						locationError = t('location_permission_denied', $language, {
-							default: 'تم رفض إذن الوصول إلى الموقع'
-						});
-						break;
-					case error.POSITION_UNAVAILABLE:
-						locationError = t('location_unavailable', $language, {
-							default: 'معلومات الموقع غير متوفرة'
-						});
-						break;
-					case error.TIMEOUT:
-						locationError = t('location_timeout', $language, {
-							default: 'انتهت مهلة طلب الموقع'
-						});
-						break;
-					default:
-						locationError = t('location_error', $language, {
-							default: 'حدث خطأ أثناء تحديد الموقع'
-						});
-				}
-			},
-			{
-				enableHighAccuracy: true,
-				timeout: 5000,
-				maximumAge: 0
-			}
-		);
 	}
 
 	// Clear location data
 	function clearLocation() {
 		formData.location.latitude = null;
 		formData.location.longitude = null;
-
-		if (marker && map) {
-			map.removeLayer(marker);
-			marker = null;
-		}
-	}
-
-	// Perform reverse geocoding to get address from coordinates
-	async function reverseGeocode(lat, lng) {
-		try {
-			const response = await fetch(
-				`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ar`
-			);
-			const data = await response.json();
-
-			if (data && data.address) {
-				// Fill address fields from geocoding result
-				formData.address = data.display_name || '';
-				formData.city = data.address.city || data.address.town || data.address.village || '';
-				formData.state = data.address.state || '';
-				formData.postal_code = data.address.postcode || '';
-				formData.country = data.address.country || 'المملكة العربية السعودية';
-			}
-		} catch (error) {
-			console.error('Reverse geocoding error:', error);
-			// Don't show error to user, just log it
-		}
 	}
 
 	// Validate required fields
@@ -545,26 +396,7 @@
 	// Get current year for year_built validation
 	const currentYear = new Date().getFullYear();
 
-	// Initialize map on mount
-	onMount(() => {
-		initMap();
-
-		return () => {
-			// Cleanup map on component unmount
-			if (map) {
-				map.remove();
-				map = null;
-				marker = null;
-			}
-		};
-	});
-
-	// Resize map when container dimensions change
-	afterUpdate(() => {
-		if (map) {
-			map.invalidateSize();
-		}
-	});
+	let fileInput;
 </script>
 
 <form
@@ -671,22 +503,11 @@
 				<div class="flex gap-2">
 					<button
 						type="button"
-						class="btn btn-sm variant-filled-primary"
-						on:click={detectLocation}
-						disabled={isLocating}
-					>
-						<Locate class="w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />
-						{isLocating
-							? t('locating', $language, { default: 'جاري التحديد...' })
-							: t('detect_location', $language, { default: 'تحديد موقعي' })}
-					</button>
-					<button
-						type="button"
 						class="btn btn-sm variant-ghost-error"
 						on:click={clearLocation}
 						disabled={!formData.location.latitude}
 					>
-						<MapPinOff class="w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />
+						<X class="w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />
 						{t('clear_location', $language, { default: 'مسح الموقع' })}
 					</button>
 				</div>
@@ -696,10 +517,19 @@
 				<Alert type="warning" message={locationError} class="mb-2" />
 			{/if}
 
-			<div
-				bind:this={mapContainer}
-				class="w-full h-64 border border-surface-300-600-token rounded-lg"
-			></div>
+			<!-- Use the Map component directly -->
+			<Map
+				latitude={formData.location.latitude}
+				longitude={formData.location.longitude}
+				height="300px"
+				width="100%"
+				showMarker={true}
+				draggableMarker={true}
+				showLocationButton={true}
+				interactive={true}
+				on:locationchange={handleLocationChange}
+				classes="mb-4"
+			/>
 
 			<p class="text-sm text-surface-500-400-token mt-1">
 				{t('map_instructions', $language, {
@@ -1115,12 +945,13 @@
 					</p>
 				</div>
 				<input
-					id="property-images"
+					bind:this={fileInput}
 					type="file"
 					multiple
-					accept="image/*"
+					accept="image/jpeg,image/png,image/gif,image/webp"
 					class="hidden"
 					on:change={handleImageSelect}
+					aria-hidden="true"
 				/>
 			</label>
 			<p class="text-sm text-surface-500-400-token mt-2">
@@ -1316,11 +1147,5 @@
 		100% {
 			transform: rotate(360deg);
 		}
-	}
-
-	/* Ensure Leaflet styles are included */
-	:global(.leaflet-container) {
-		height: 100%;
-		width: 100%;
 	}
 </style>

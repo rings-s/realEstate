@@ -21,6 +21,7 @@
 	import PropertyImages from './PropertyImages.svelte';
 	import Avatar from '../common/Avatar.svelte';
 	import Alert from '../common/Alert.svelte';
+	import Map from '../common/Map.svelte';
 	import { createEventDispatcher } from 'svelte';
 
 	const dispatch = createEventDispatcher();
@@ -53,6 +54,13 @@
 	let selectedTab = 'details';
 	let mapLoaded = false;
 
+	// Property coordinates from location data
+	$: latitude = property?.location?.latitude || null;
+	$: longitude = property?.location?.longitude || null;
+
+	// Whether we have valid coordinates for the map
+	$: hasValidCoordinates = latitude && longitude;
+
 	// Tabs for property information
 	const tabs = [
 		{ id: 'details', label: 'details' },
@@ -65,8 +73,8 @@
 		selectedTab = tabId;
 
 		// Load map if location tab is selected
-		if (tabId === 'location' && !mapLoaded && property?.location) {
-			loadMap();
+		if (tabId === 'location') {
+			mapLoaded = true;
 		}
 	}
 
@@ -120,36 +128,11 @@
 		}
 	}
 
-	// Load map if location data is available
-	function loadMap() {
-		if (!property?.location?.latitude || !property?.location?.longitude) {
-			return;
-		}
-
-		// Set map loaded flag to prevent reloading
-		mapLoaded = true;
-
-		// Map loading logic goes here - can be implemented with your map provider of choice
-		// e.g., Leaflet, Google Maps, etc.
-
-		// Example using Leaflet (would need to be included in your project)
-		/*
-    setTimeout(() => {
-      const map = L.map('property-map').setView(
-        [property.location.latitude, property.location.longitude],
-        15
-      );
-
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
-
-      L.marker([property.location.latitude, property.location.longitude])
-        .addTo(map)
-        .bindPopup(property.title)
-        .openPopup();
-    }, 100);
-    */
+	// Handle location change from Map component
+	function handleLocationChange(event) {
+		const { latitude: newLat, longitude: newLng } = event.detail;
+		console.log(`Location updated: ${newLat}, ${newLng}`);
+		// In a real application, you might want to update the property or take other actions
 	}
 
 	// Format features as array
@@ -163,10 +146,7 @@
 		: Object.entries(property?.amenities || {}).map(([key, value]) => value);
 
 	onMount(() => {
-		// Load map if location tab is initially selected
-		if (selectedTab === 'location' && property?.location) {
-			loadMap();
-		}
+		// No need to manually load map, we'll use the Map component
 	});
 </script>
 
@@ -449,20 +429,30 @@
 								</div>
 							</div>
 
-							<!-- Map Container -->
-							<div
-								id="property-map"
-								class="w-full h-96 bg-surface-200-700-token rounded-lg"
-								aria-label={t('property_map', $language, { default: 'خريطة العقار' })}
-							>
-								{#if !property.location || !property.location.latitude || !property.location.longitude}
-									<div class="h-full flex items-center justify-center">
+							<!-- Map Component -->
+							{#if mapLoaded}
+								{#if hasValidCoordinates}
+									<Map
+										{latitude}
+										{longitude}
+										height="400px"
+										width="100%"
+										showMarker={true}
+										showLocationButton={false}
+										interactive={true}
+										markerPopup={property.title}
+										on:locationchange={handleLocationChange}
+									/>
+								{:else}
+									<div
+										class="w-full h-96 bg-surface-200-700-token rounded-lg flex items-center justify-center"
+									>
 										<p class="text-surface-600-300-token">
 											{t('no_location_data', $language, { default: 'لا توجد بيانات موقع متاحة' })}
 										</p>
 									</div>
 								{/if}
-							</div>
+							{/if}
 						</div>
 					{/if}
 				</div>

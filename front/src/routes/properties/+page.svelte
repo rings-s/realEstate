@@ -1,12 +1,7 @@
-<!--
-  Properties Listing Page
-  Displays all properties with filtering and pagination
--->
 <script>
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
-	import { language, isRTL, textClass } from '$lib/stores/ui';
 	import { t } from '$lib/config/translations';
+	import { language, isRTL, addToast } from '$lib/stores/ui';
 	import {
 		properties,
 		propertiesList,
@@ -15,366 +10,512 @@
 		filters,
 		pagination
 	} from '$lib/stores/properties';
-	import { PROPERTY_TYPES } from '$lib/config/constants';
-	import { Building, Search, Filter, X } from 'lucide-svelte';
+	import { PROPERTY_TYPES, PROPERTY_STATUS, SORT_OPTIONS } from '$lib/config/constants';
+	import {
+		Search,
+		Filter,
+		X,
+		Building,
+		MapPin,
+		ChevronDown,
+		ArrowUp,
+		ArrowDown
+	} from 'lucide-svelte';
+
+	import Alert from '$lib/components/common/Alert.svelte';
+	import Pagination from '$lib/components/common/Pagination.svelte';
 	import PropertyCard from '$lib/components/property/PropertyCard.svelte';
 
-	// Filter state
+	// Local state
 	let searchQuery = '';
-	let propertyType = '';
-	let city = '';
-	let status = '';
-	let isFilterOpen = false;
+	let activeFilters = false;
+	let filterValues = {
+		property_type: '',
+		status: '',
+		city: '',
+		bedrooms_min: '',
+		bedrooms_max: '',
+		price_min: '',
+		price_max: '',
+		is_featured: false
+	};
 
-	// Get URL params on mount
+	// Extract cities from properties for filter dropdown
+	$: cities = [...new Set($propertiesList.map((p) => p.city).filter(Boolean))];
+
+	// Initialize filters from URL params or store
 	onMount(async () => {
-		// Get search params from URL
-		const params = $page.url.searchParams;
-		searchQuery = params.get('search') || '';
-		propertyType = params.get('property_type') || '';
-		city = params.get('city') || '';
-		status = params.get('status') || '';
+		// If URL has query params, use those to set initial filters
+		if (typeof window !== 'undefined' && window.location.search) {
+			const params = new URLSearchParams(window.location.search);
 
-		// Initial load with URL params
-		const initialFilters = {
-			search: searchQuery,
-			property_type: propertyType,
-			city: city,
-			status: status,
-			is_published: true // Only show published properties
-		};
+			// Set search if available
+			if (params.has('search')) {
+				searchQuery = params.get('search');
+			}
 
-		await properties.loadProperties(initialFilters);
+			// Set other filters
+			Object.keys(filterValues).forEach((key) => {
+				if (params.has(key)) {
+					const value = params.get(key);
+					filterValues[key] = value === 'true' ? true : value === 'false' ? false : value;
+				}
+			});
+
+			// Apply filters
+			if (searchQuery || Object.values(filterValues).some((v) => v !== '' && v !== false)) {
+				activeFilters = true;
+				applyFilters();
+			} else {
+				// Load properties with default filters
+				await properties.loadProperties();
+			}
+		} else {
+			// Load properties with default filters
+			await properties.loadProperties();
+		}
 	});
 
-	// Handle search form submission
-	function handleSearch(e) {
-		e?.preventDefault();
+	// Apply filters function
+	async function applyFilters() {
+		try {
+			// Create filter object
+			const filterObj = {
+				search: searchQuery.trim()
+			};
 
-		// Update URL with search params
-		const url = new URL(window.location);
-		if (searchQuery) url.searchParams.set('search', searchQuery);
-		else url.searchParams.delete('search');
+			// Add other filters if they have values
+			Object.entries(filterValues).forEach(([key, value]) => {
+				if (value !== '' && value !== false) {
+					filterObj[key] = value;
+				}
+			});
 
-		if (propertyType) url.searchParams.set('property_type', propertyType);
-		else url.searchParams.delete('property_type');
+			// Update URL with filters
+			if (typeof window !== 'undefined') {
+				const params = new URLSearchParams();
+				Object.entries(filterObj).forEach(([key, value]) => {
+					if (value !== '') {
+						params.set(key, value);
+					}
+				});
 
-		if (city) url.searchParams.set('city', city);
-		else url.searchParams.delete('city');
+				const newUrl = `${window.location.pathname}?${params.toString()}`;
+				window.history.pushState({}, '', newUrl);
+			}
 
-		if (status) url.searchParams.set('status', status);
-		else url.searchParams.delete('status');
-
-		history.pushState({}, '', url);
-
-		// Update filters and load properties
-		properties.updateFilters({
-			search: searchQuery,
-			property_type: propertyType,
-			city: city,
-			status: status
-		});
+			// Apply filters
+			await properties.updateFilters(filterObj);
+		} catch (err) {
+			console.error('Error applying filters:', err);
+			addToast(t('filter_error', $language, { default: 'حدث خطأ أثناء تطبيق الفلاتر' }), 'error');
+		}
 	}
 
-	// Reset filters
+	// Reset filters function
 	function resetFilters() {
 		searchQuery = '';
-		propertyType = '';
-		city = '';
-		status = '';
-		handleSearch();
+		filterValues = {
+			property_type: '',
+			status: '',
+			city: '',
+			bedrooms_min: '',
+			bedrooms_max: '',
+			price_min: '',
+			price_max: '',
+			is_featured: false
+		};
+
+		// Update URL by removing query params
+		if (typeof window !== 'undefined') {
+			const newUrl = window.location.pathname;
+			window.history.pushState({}, '', newUrl);
+		}
+
+		// Reset filters in store and reload properties
+		properties.updateFilters({});
 	}
 
-	// Handle pagination
-	function changePage(newPage) {
-		if (newPage < 1 || newPage > $pagination.totalPages) return;
-		properties.changePage(newPage);
+	// Toggle filters panel
+	function toggleFilters() {
+		activeFilters = !activeFilters;
 	}
 
-	// Toggle filter sidebar on mobile
-	function toggleFilter() {
-		isFilterOpen = !isFilterOpen;
+	// Change sort order
+	function changeSort(event) {
+		const sortOrder = event.target.value;
+		properties.updateFilters({ ordering: sortOrder });
 	}
+
+	// Handle page change from pagination component
+	function handlePageChange(event) {
+		const { page } = event.detail;
+		properties.changePage(page);
+
+		// Scroll to top of list
+		if (typeof window !== 'undefined') {
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		}
+	}
+
+	// Format price range for display
+	function formatPriceRange(min, max) {
+		if (min && max) {
+			return `${min} - ${max}`;
+		} else if (min) {
+			return `${min}+`;
+		} else if (max) {
+			return `0 - ${max}`;
+		}
+		return '';
+	}
+
+	// Format bedrooms range for display
+	function formatBedroomsRange(min, max) {
+		if (min && max) {
+			return `${min} - ${max}`;
+		} else if (min) {
+			return `${min}+`;
+		} else if (max) {
+			return `0 - ${max}`;
+		}
+		return '';
+	}
+
+	// Get active filter count for badge
+	$: activeFilterCount = Object.values(filterValues).filter((v) => v !== '' && v !== false).length;
 </script>
 
-<svelte:head>
-	<title>{t('properties', $language)} | {t('app_name', $language)}</title>
-</svelte:head>
+<div class="container mx-auto px-4 py-6">
+	<div class="flex flex-col space-y-6">
+		<!-- Page Header -->
+		<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+			<h1 class="h2 {$isRTL ? 'text-right' : 'text-left'}">
+				{t('properties', $language, { default: 'العقارات' })}
+			</h1>
 
-<div class="container mx-auto px-4 py-8">
-	<!-- Page Header -->
-	<header class="mb-8">
-		<h1 class="h1 mb-2">{t('properties', $language)}</h1>
-		<p class="text-surface-600-300-token">
-			{t('properties_subtitle', $language, { default: 'استكشف العقارات المتاحة للبيع والمزاد' })}
-		</p>
-	</header>
-
-	<!-- Main Content with Filters -->
-	<div class="grid grid-cols-1 md:grid-cols-[300px_1fr] gap-6">
-		<!-- Filters - Desktop (Side) / Mobile (Modal) -->
-		<div
-			class="md:block {isFilterOpen
-				? 'fixed inset-0 z-40 bg-surface-backdrop-token grid place-items-center'
-				: 'hidden'}"
-			class:fixed={isFilterOpen}
-			class:inset-0={isFilterOpen}
-			class:z-40={isFilterOpen}
-			class:bg-surface-backdrop-token={isFilterOpen}
-			class:place-items-center={isFilterOpen}
-		>
-			<div class="card p-4 w-full md:w-auto {isFilterOpen ? 'max-w-md mx-auto' : ''}">
-				<div class="flex justify-between items-center mb-4">
-					<h3 class="h3">{t('filter', $language)}</h3>
-					<button class="btn-icon md:hidden variant-ghost" on:click={toggleFilter}>
-						<X class="w-5 h-5" />
+			<!-- Search & Filter Bar -->
+			<div class="w-full md:w-auto flex flex-col sm:flex-row gap-2">
+				<!-- Search Box -->
+				<div class="input-group w-full sm:w-auto">
+					<input
+						type="text"
+						class="input"
+						placeholder={t('search_properties', $language, { default: 'بحث عن عقار...' })}
+						bind:value={searchQuery}
+						on:keydown={(e) => e.key === 'Enter' && applyFilters()}
+					/>
+					<button class="variant-filled-primary" on:click={applyFilters}>
+						<Search size={18} />
 					</button>
 				</div>
 
-				<form on:submit|preventDefault={handleSearch} class={$textClass}>
-					<!-- Search -->
+				<!-- Filter Button -->
+				<button
+					class="btn variant-ghost-surface {activeFilters ? 'variant-soft-primary' : ''}"
+					on:click={toggleFilters}
+				>
+					<Filter size={18} class={$isRTL ? 'ml-2' : 'mr-2'} />
+					{t('filters', $language, { default: 'الفلاتر' })}
+					{#if activeFilterCount > 0}
+						<span class="badge bg-primary-500 text-white {$isRTL ? 'mr-2' : 'ml-2'}">
+							{activeFilterCount}
+						</span>
+					{/if}
+				</button>
+
+				<!-- Sort Dropdown -->
+				<div class="input-group w-full sm:w-auto">
+					<select class="select" on:change={changeSort} value={$filters.ordering || '-created_at'}>
+						<option disabled>{t('sort_by', $language, { default: 'ترتيب حسب' })}</option>
+						{#each SORT_OPTIONS as option}
+							<option value={option.value}>
+								{t(option.label, $language, { default: option.label })}
+							</option>
+						{/each}
+					</select>
+					<div class="input-group-shim">
+						<ChevronDown size={18} />
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Filter Panel -->
+		{#if activeFilters}
+			<div class="card p-4 bg-surface-100-800-token" transition:slide={{ duration: 300 }}>
+				<div class="flex justify-between items-center mb-4">
+					<h3 class="h4">{t('filter_properties', $language, { default: 'تصفية العقارات' })}</h3>
+					<button class="btn btn-sm variant-ghost-error" on:click={resetFilters}>
+						<X size={16} class={$isRTL ? 'ml-2' : 'mr-2'} />
+						{t('reset_filters', $language, { default: 'إعادة ضبط' })}
+					</button>
+				</div>
+
+				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+					<!-- Property Type -->
 					<label class="label">
-						<span>{t('search', $language)}</span>
-						<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-							<div class="input-group-shim">
-								<Search class="w-4 h-4" />
-							</div>
-							<input
-								type="text"
-								bind:value={searchQuery}
-								placeholder={t('search_placeholder', $language, { default: 'ابحث عن عقار...' })}
-								class="input"
-							/>
-						</div>
+						<span>{t('property_type', $language, { default: 'نوع العقار' })}</span>
+						<select class="select" bind:value={filterValues.property_type}>
+							<option value="">{t('all_types', $language, { default: 'كل الأنواع' })}</option>
+							{#each PROPERTY_TYPES as type}
+								<option value={type.value}>
+									{t(type.value, $language, { default: type.label })}
+								</option>
+							{/each}
+						</select>
 					</label>
 
-					<!-- Property Type -->
-					<label class="label mt-4">
-						<span>{t('property_type', $language)}</span>
-						<select bind:value={propertyType} class="select w-full">
-							<option value="">{t('all_types', $language, { default: 'جميع الأنواع' })}</option>
-							{#each PROPERTY_TYPES as type}
-								<option value={type.value}
-									>{t(type.value, $language, { default: type.label })}</option
-								>
+					<!-- Property Status -->
+					<label class="label">
+						<span>{t('status', $language, { default: 'الحالة' })}</span>
+						<select class="select" bind:value={filterValues.status}>
+							<option value="">{t('all_statuses', $language, { default: 'كل الحالات' })}</option>
+							{#each PROPERTY_STATUS as status}
+								<option value={status.value}>
+									{t(status.value, $language, { default: status.label })}
+								</option>
 							{/each}
 						</select>
 					</label>
 
 					<!-- City -->
-					<label class="label mt-4">
-						<span>{t('city', $language)}</span>
-						<input
-							type="text"
-							bind:value={city}
-							placeholder={t('city_placeholder', $language, { default: 'المدينة...' })}
-							class="input w-full"
-						/>
-					</label>
-
-					<!-- Status -->
-					<label class="label mt-4">
-						<span>{t('status', $language)}</span>
-						<select bind:value={status} class="select w-full">
-							<option value="">{t('all_status', $language, { default: 'جميع الحالات' })}</option>
-							<option value="available">{t('available', $language)}</option>
-							<option value="under_contract">{t('under_contract', $language)}</option>
-							<option value="auction">{t('in_auction', $language)}</option>
+					<label class="label">
+						<span>{t('city', $language, { default: 'المدينة' })}</span>
+						<select class="select" bind:value={filterValues.city}>
+							<option value="">{t('all_cities', $language, { default: 'كل المدن' })}</option>
+							{#each cities as city}
+								<option value={city}>{city}</option>
+							{/each}
 						</select>
 					</label>
 
-					<!-- Filter Buttons -->
-					<div class="flex flex-col gap-2 mt-6">
-						<button type="submit" class="btn variant-filled-primary w-full">
-							<Filter class="w-4 h-4 {$isRTL ? 'ml-2' : 'mr-2'}" />
-							{t('apply_filters', $language, { default: 'تطبيق الفلاتر' })}
-						</button>
+					<!-- Featured properties -->
+					<label
+						class="flex items-center space-x-2 {$isRTL ? 'space-x-reverse' : ''} h-full pb-1 pt-6"
+					>
+						<input type="checkbox" class="checkbox" bind:checked={filterValues.is_featured} />
+						<span>{t('featured_only', $language, { default: 'العقارات المميزة فقط' })}</span>
+					</label>
 
-						<button type="button" class="btn variant-ghost w-full" on:click={resetFilters}>
-							{t('reset_filters', $language, { default: 'إعادة ضبط الفلاتر' })}
-						</button>
-					</div>
-				</form>
-			</div>
-		</div>
-
-		<!-- Properties List -->
-		<div>
-			<!-- Mobile Filter Toggle -->
-			<div class="md:hidden mb-4">
-				<button class="btn variant-ghost-surface w-full" on:click={toggleFilter}>
-					<Filter class="w-4 h-4 {$isRTL ? 'ml-2' : 'mr-2'}" />
-					{t('filters', $language, { default: 'الفلاتر' })}
-				</button>
-			</div>
-
-			<!-- Results Counter -->
-			<div class="mb-4 flex justify-between items-center">
-				<p class={$textClass}>
-					{$isLoading
-						? t('loading', $language)
-						: t('showing_results', $language, {
-								default: 'عرض {{count}} عقار',
-								count: $propertiesList.length
-							})}
-				</p>
-
-				<!-- Sort Dropdown (could be implemented later) -->
-			</div>
-
-			<!-- Loading State -->
-			{#if $isLoading}
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-					{#each Array(6) as _, i}
-						<div class="card p-4 h-80">
-							<div class="placeholder animate-pulse w-full h-40 mb-4 rounded-lg"></div>
-							<div class="placeholder animate-pulse w-2/3 h-4 mb-2"></div>
-							<div class="placeholder animate-pulse w-full h-4 mb-2"></div>
-							<div class="placeholder animate-pulse w-1/2 h-4"></div>
+					<!-- Price Range -->
+					<div class="sm:col-span-2">
+						<span class="label-text">{t('price_range', $language, { default: 'نطاق السعر' })}</span>
+						<div class="flex items-center gap-2">
+							<input
+								type="number"
+								class="input"
+								placeholder={t('min', $language, { default: 'الحد الأدنى' })}
+								bind:value={filterValues.price_min}
+							/>
+							<span>-</span>
+							<input
+								type="number"
+								class="input"
+								placeholder={t('max', $language, { default: 'الحد الأقصى' })}
+								bind:value={filterValues.price_max}
+							/>
 						</div>
-					{/each}
+					</div>
+
+					<!-- Bedrooms Range -->
+					<div class="sm:col-span-2">
+						<span class="label-text"
+							>{t('bedrooms_range', $language, { default: 'عدد غرف النوم' })}</span
+						>
+						<div class="flex items-center gap-2">
+							<input
+								type="number"
+								class="input"
+								placeholder={t('min', $language, { default: 'الحد الأدنى' })}
+								bind:value={filterValues.bedrooms_min}
+							/>
+							<span>-</span>
+							<input
+								type="number"
+								class="input"
+								placeholder={t('max', $language, { default: 'الحد الأقصى' })}
+								bind:value={filterValues.bedrooms_max}
+							/>
+						</div>
+					</div>
 				</div>
 
-				<!-- Error State -->
-			{:else if $error}
-				<div class="alert variant-filled-error">
-					<p>{$error}</p>
-				</div>
-
-				<!-- Empty State -->
-			{:else if $propertiesList.length === 0}
-				<div class="card p-12 text-center">
-					<Building class="w-16 h-16 mx-auto text-primary-500 mb-4" />
-					<h3 class="h3 mb-2">
-						{t('no_properties_found', $language, { default: 'لم يتم العثور على عقارات' })}
-					</h3>
-					<p class="text-surface-600-300-token mb-6">
-						{t('try_different_filters', $language, {
-							default: 'حاول تغيير معايير البحث للعثور على المزيد من العقارات'
-						})}
-					</p>
-					<button class="btn variant-ghost-primary" on:click={resetFilters}>
-						{t('clear_filters', $language, { default: 'مسح الفلاتر' })}
+				<div class="flex justify-end mt-4">
+					<button class="btn variant-filled-primary" on:click={applyFilters}>
+						{t('apply_filters', $language, { default: 'تطبيق الفلاتر' })}
 					</button>
 				</div>
+			</div>
+		{/if}
 
-				<!-- Results List -->
-			{:else}
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-					{#each $propertiesList as property (property.id)}
-						<PropertyCard {property} />
-					{/each}
-				</div>
-
-				<!-- Pagination -->
-				{#if $pagination.totalPages > 1}
-					<div class="flex justify-center mt-8">
-						<nav class="flex space-x-2 rtl:space-x-reverse">
-							<!-- Previous Button -->
-							<button
-								class="btn btn-sm variant-ghost-surface"
-								disabled={$pagination.page === 1}
-								on:click={() => changePage($pagination.page - 1)}
-							>
-								{$isRTL ? '›' : '‹'}
-							</button>
-
-							<!-- Page Numbers -->
-							{#each Array(Math.min(5, $pagination.totalPages)) as _, i}
-								{#if $pagination.totalPages <= 5}
-									<!-- Show all pages if 5 or fewer -->
-									<button
-										class="btn btn-sm {$pagination.page === i + 1
-											? 'variant-filled-primary'
-											: 'variant-ghost-surface'}"
-										on:click={() => changePage(i + 1)}
-									>
-										{i + 1}
-									</button>
-								{:else}
-									<!-- Show ellipsis for larger page counts -->
-									{#if $pagination.page <= 3 && i < 5}
-										<!-- First 5 pages -->
-										<button
-											class="btn btn-sm {$pagination.page === i + 1
-												? 'variant-filled-primary'
-												: 'variant-ghost-surface'}"
-											on:click={() => changePage(i + 1)}
-										>
-											{i + 1}
-										</button>
-									{:else if $pagination.page > $pagination.totalPages - 3 && i < 5}
-										<!-- Last 5 pages -->
-										{@const pageNum = $pagination.totalPages - 4 + i}
-										<button
-											class="btn btn-sm {$pagination.page === pageNum
-												? 'variant-filled-primary'
-												: 'variant-ghost-surface'}"
-											on:click={() => changePage(pageNum)}
-										>
-											{pageNum}
-										</button>
-									{:else if i === 0}
-										<!-- First page -->
-										<button class="btn btn-sm variant-ghost-surface" on:click={() => changePage(1)}>
-											1
-										</button>
-									{:else if i === 1}
-										<!-- Ellipsis or second page -->
-										{#if $pagination.page > 3}
-											<span class="flex items-center justify-center w-8">...</span>
-										{:else}
-											<button
-												class="btn btn-sm variant-ghost-surface"
-												on:click={() => changePage(2)}
-											>
-												2
-											</button>
-										{/if}
-									{:else if i === 2}
-										<!-- Current page area -->
-										<button
-											class="btn btn-sm variant-filled-primary"
-											on:click={() => changePage($pagination.page)}
-										>
-											{$pagination.page}
-										</button>
-									{:else if i === 3}
-										<!-- Ellipsis or second-to-last page -->
-										{#if $pagination.page < $pagination.totalPages - 2}
-											<span class="flex items-center justify-center w-8">...</span>
-										{:else}
-											<button
-												class="btn btn-sm variant-ghost-surface"
-												on:click={() => changePage($pagination.totalPages - 1)}
-											>
-												{$pagination.totalPages - 1}
-											</button>
-										{/if}
-									{:else if i === 4}
-										<!-- Last page -->
-										<button
-											class="btn btn-sm variant-ghost-surface"
-											on:click={() => changePage($pagination.totalPages)}
-										>
-											{$pagination.totalPages}
-										</button>
-									{/if}
-								{/if}
-							{/each}
-
-							<!-- Next Button -->
-							<button
-								class="btn btn-sm variant-ghost-surface"
-								disabled={$pagination.page === $pagination.totalPages}
-								on:click={() => changePage($pagination.page + 1)}
-							>
-								{$isRTL ? '‹' : '›'}
-							</button>
-						</nav>
+		<!-- Active Filters Display -->
+		{#if activeFilterCount > 0}
+			<div class="flex flex-wrap gap-2 {$isRTL ? 'justify-end' : 'justify-start'}">
+				{#if filterValues.property_type}
+					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
+						<Building size={14} />
+						<span>{t(filterValues.property_type, $language)}</span>
+						<button
+							class="btn btn-icon btn-xs variant-ghost text-primary-500"
+							on:click={() => {
+								filterValues.property_type = '';
+								applyFilters();
+							}}
+						>
+							<X size={14} />
+						</button>
 					</div>
 				{/if}
-			{/if}
-		</div>
+
+				{#if filterValues.status}
+					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
+						<span>{t(filterValues.status, $language)}</span>
+						<button
+							class="btn btn-icon btn-xs variant-ghost text-primary-500"
+							on:click={() => {
+								filterValues.status = '';
+								applyFilters();
+							}}
+						>
+							<X size={14} />
+						</button>
+					</div>
+				{/if}
+
+				{#if filterValues.city}
+					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
+						<MapPin size={14} />
+						<span>{filterValues.city}</span>
+						<button
+							class="btn btn-icon btn-xs variant-ghost text-primary-500"
+							on:click={() => {
+								filterValues.city = '';
+								applyFilters();
+							}}
+						>
+							<X size={14} />
+						</button>
+					</div>
+				{/if}
+
+				{#if filterValues.price_min || filterValues.price_max}
+					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
+						<span>
+							{t('price', $language, { default: 'السعر' })}:
+							{formatPriceRange(filterValues.price_min, filterValues.price_max)}
+						</span>
+						<button
+							class="btn btn-icon btn-xs variant-ghost text-primary-500"
+							on:click={() => {
+								filterValues.price_min = '';
+								filterValues.price_max = '';
+								applyFilters();
+							}}
+						>
+							<X size={14} />
+						</button>
+					</div>
+				{/if}
+
+				{#if filterValues.bedrooms_min || filterValues.bedrooms_max}
+					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
+						<span>
+							{t('bedrooms', $language, { default: 'غرف النوم' })}:
+							{formatBedroomsRange(filterValues.bedrooms_min, filterValues.bedrooms_max)}
+						</span>
+						<button
+							class="btn btn-icon btn-xs variant-ghost text-primary-500"
+							on:click={() => {
+								filterValues.bedrooms_min = '';
+								filterValues.bedrooms_max = '';
+								applyFilters();
+							}}
+						>
+							<X size={14} />
+						</button>
+					</div>
+				{/if}
+
+				{#if filterValues.is_featured}
+					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
+						<span>{t('featured', $language, { default: 'مميز' })}</span>
+						<button
+							class="btn btn-icon btn-xs variant-ghost text-primary-500"
+							on:click={() => {
+								filterValues.is_featured = false;
+								applyFilters();
+							}}
+						>
+							<X size={14} />
+						</button>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Loading State -->
+		{#if $isLoading}
+			<div class="flex justify-center py-12">
+				<div class="spinner-icon"></div>
+			</div>
+			<!-- Error State -->
+		{:else if $error}
+			<Alert type="error" message={$error} />
+			<!-- Empty State -->
+		{:else if $propertiesList.length === 0}
+			<div class="card p-12 text-center">
+				<h3 class="h3 mb-4">
+					{t('no_properties_found', $language, { default: 'لم يتم العثور على عقارات' })}
+				</h3>
+				<p class="mb-6">
+					{t('try_adjusting_filters', $language, {
+						default: 'حاول تعديل الفلاتر للعثور على المزيد من العقارات'
+					})}
+				</p>
+				<button class="btn variant-filled-primary" on:click={resetFilters}>
+					{t('reset_filters', $language, { default: 'إعادة ضبط الفلاتر' })}
+				</button>
+			</div>
+			<!-- Property Grid -->
+		{:else}
+			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+				{#each $propertiesList as property (property.id)}
+					<PropertyCard {property} />
+				{/each}
+			</div>
+
+			<!-- Pagination -->
+			<div class="mt-8">
+				<Pagination
+					page={$pagination.page}
+					totalPages={$pagination.totalPages}
+					totalItems={$pagination.totalItems}
+					pageSize={$pagination.pageSize}
+					on:change={handlePageChange}
+					showPageSizeSelector={false}
+				/>
+			</div>
+		{/if}
 	</div>
 </div>
+
+<style>
+	.spinner-icon {
+		border: 4px solid rgba(0, 0, 0, 0.1);
+		border-left-color: var(--color-primary-500);
+		border-radius: 50%;
+		width: 36px;
+		height: 36px;
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		0% {
+			transform: rotate(0deg);
+		}
+		100% {
+			transform: rotate(360deg);
+		}
+	}
+</style>

@@ -1,3 +1,7 @@
+<!--
+  Modified properties/add/+page.svelte to fix authentication issues
+  and improve form submission handling
+-->
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -6,6 +10,7 @@
 	import { properties } from '$lib/stores/properties';
 	import { isAuthenticated, currentUser, userRoles } from '$lib/stores/auth';
 	import { hasPermission, PERMISSIONS } from '$lib/utils/permissions';
+	import { isTokenExpired, getAccessToken } from '$lib/utils/tokenManager';
 
 	import PropertyForm from '$lib/components/property/PropertyForm.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
@@ -15,21 +20,50 @@
 	let loading = false;
 	let error = null;
 	let unauthorized = false;
+	let initialCheckDone = false;
 
 	// Check if user has permission to create properties
 	$: canCreateProperty = hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY);
 
+	// Enhanced authentication check
+	function checkAuthentication() {
+		console.log('Checking authentication status...');
+
+		// First check if we have the auth store value
+		if (!$isAuthenticated) {
+			console.log('Not authenticated according to store');
+
+			// Double-check with token directly as a fallback
+			const token = getAccessToken();
+			if (token && !isTokenExpired()) {
+				console.log('Token exists and is valid, setting authenticated');
+				// We have a valid token despite the store saying otherwise
+				isAuthenticated.set(true);
+				return true;
+			}
+
+			console.log('No valid token found, redirecting to login');
+			goto('/auth/login?redirect=/properties/add');
+			return false;
+		}
+
+		console.log('User is authenticated');
+		return true;
+	}
+
 	onMount(() => {
 		// Check if user is authenticated
-		if (!$isAuthenticated) {
-			goto('/auth/login?redirect=/properties/add');
+		if (!checkAuthentication()) {
 			return;
 		}
 
 		// Check if user has permission to create properties
 		if (!canCreateProperty) {
+			console.log('User lacks permission to create properties');
 			unauthorized = true;
 		}
+
+		initialCheckDone = true;
 	});
 
 	// Handle form submission
@@ -39,8 +73,11 @@
 			loading = true;
 			error = null;
 
+			console.log('Submitting property data:', propertyData);
+
 			// Create new property
 			const newProperty = await properties.createProperty(propertyData);
+			console.log('Property created successfully:', newProperty);
 
 			// Show success message
 			addToast(
@@ -69,10 +106,9 @@
 
 		try {
 			// In the add page, we don't have propertyId yet, handle this differently
-			// Maybe store the images to be uploaded after property creation
-			console.log('Image upload will be handled after property creation');
+			console.log('Image will be uploaded after property creation');
 		} catch (err) {
-			console.error('Error uploading image:', err);
+			console.error('Error handling image:', err);
 			addToast(
 				t('image_upload_error', $language, {
 					default: 'فشل في تحميل الصورة'
@@ -101,7 +137,13 @@
 		</a>
 	</div>
 
-	{#if unauthorized}
+	{#if !initialCheckDone}
+		<!-- Loading state while checking authentication -->
+		<div class="card p-6 text-center">
+			<div class="spinner-icon mx-auto mb-4"></div>
+			<p>{t('loading', $language, { default: 'جاري التحميل...' })}</p>
+		</div>
+	{:else if unauthorized}
 		<div class="card p-6 text-center">
 			<Alert
 				type="error"
@@ -126,3 +168,23 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	.spinner-icon {
+		border: 4px solid rgba(0, 0, 0, 0.1);
+		border-left-color: var(--color-primary-500);
+		border-radius: 50%;
+		width: 36px;
+		height: 36px;
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		0% {
+			transform: rotate(0deg);
+		}
+		100% {
+			transform: rotate(360deg);
+		}
+	}
+</style>

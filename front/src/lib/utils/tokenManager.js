@@ -5,7 +5,7 @@
 
 import { browser } from '$app/environment';
 
-// Token storage keys
+// Token storage keys - make sure these match what's used in layout.svelte
 const ACCESS_TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const TOKEN_EXPIRY_KEY = 'token_expiry';
@@ -26,7 +26,6 @@ export const setTokens = (tokens) => {
 	localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
 
 	// Calculate expiry time (typically 1 hour from now for access token)
-	// Decode token to get actual expiry if needed
 	const expiry = new Date();
 	expiry.setHours(expiry.getHours() + 1); // Default to 1 hour
 
@@ -61,10 +60,14 @@ export const isTokenExpired = () => {
 	const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
 	if (!expiry) return true;
 
-	const expiryDate = new Date(expiry);
-	const now = new Date();
-
-	return now >= expiryDate;
+	try {
+		const expiryDate = new Date(expiry);
+		const now = new Date();
+		return now >= expiryDate;
+	} catch (e) {
+		console.error('Error parsing token expiry date:', e);
+		return true; // If we can't parse the date, consider the token expired
+	}
 };
 
 /**

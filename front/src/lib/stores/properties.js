@@ -174,8 +174,15 @@ function createPropertiesStore() {
 			}));
 
 			try {
+				console.log('Creating property with data:', propertyData);
+
+				// Format the data properly for API
 				const formattedData = propertyService.formatPropertyData(propertyData);
+				console.log('Formatted property data:', formattedData);
+
+				// Create new property
 				const newProperty = await propertyService.createProperty(formattedData);
+				console.log('Property created successfully:', newProperty);
 
 				update((state) => ({
 					...state,
@@ -183,14 +190,32 @@ function createPropertiesStore() {
 					isLoading: false
 				}));
 
+				// Also add it to the properties list if it should be displayed
+				if (newProperty.is_published) {
+					update((state) => ({
+						...state,
+						properties: [newProperty, ...state.properties]
+					}));
+				}
+
 				return newProperty;
 			} catch (error) {
 				console.error('Error creating property:', error);
 
+				// Enhanced error handling with more details
+				let errorMessage = error.message || 'Failed to create property';
+
+				// Check for specific API errors
+				if (error.details) {
+					errorMessage = Object.entries(error.details)
+						.map(([field, message]) => `${field}: ${message}`)
+						.join(', ');
+				}
+
 				update((state) => ({
 					...state,
 					isLoading: false,
-					error: error.message || 'فشل في إنشاء العقار'
+					error: errorMessage
 				}));
 
 				throw error;

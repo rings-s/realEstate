@@ -76,7 +76,7 @@
 				return false;
 			}
 
-			const response = await fetch(`/api/accounts/token/refresh/`, {
+			const response = await fetch(`${API_URL}/accounts/token/refresh/`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json'
@@ -91,13 +91,14 @@
 
 			const data = await response.json();
 
-			// Store new tokens
-			localStorage.setItem('access_token', data.access);
+			// Store new tokens using the tokenManager function
+			setTokens({
+				access: data.access,
+				refresh: refreshToken // Keep the same refresh token
+			});
 
-			// Calculate token expiry (1 hour from now)
-			const expiry = new Date();
-			expiry.setHours(expiry.getHours() + 1);
-			localStorage.setItem('token_expiry', expiry.toISOString());
+			// Ensure the isAuthenticated store is updated
+			isAuthenticated.set(true);
 
 			return true;
 		} catch (error) {
@@ -113,9 +114,9 @@
 		isAuthenticated.set(false);
 		currentUser.set(null);
 
-		// Redirect to login if on protected route
-		if (!isPublicPath($page.url.pathname)) {
-			goto('/auth/login');
+		// Only redirect to login if on protected route and not already there
+		if (!isPublicPath($page.url.pathname) && !$page.url.pathname.startsWith('/auth/login')) {
+			goto(`/auth/login?redirect=${encodeURIComponent($page.url.pathname)}`);
 		}
 	}
 

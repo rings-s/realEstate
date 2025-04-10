@@ -5,15 +5,16 @@ app_name = 'auction_platform'
 
 urlpatterns = [
     # Property URLs
+    # Property URLs
     path('properties/', views.PropertyListCreateView.as_view(), name='property-list'),
     path('properties/<slug:slug>/', views.PropertyDetailView.as_view(), name='property-detail'),
     path('properties/<slug:slug>/edit/', views.PropertyEditView.as_view(), name='property-edit'),
     path('properties/<slug:slug>/delete/', views.PropertyDeleteView.as_view(), name='property-delete'),
     path('properties/<int:property_id>/images/', views.PropertyImageListCreateView.as_view(), name='property-image-list'),
+    path('properties/<int:property_id>/images/reorder/', views.PropertyImageReorderView.as_view(), name='property-image-reorder'),
     path('property-images/<int:pk>/', views.PropertyImageDetailView.as_view(), name='property-image-detail'),
     path('property-images/<int:pk>/edit/', views.PropertyImageEditView.as_view(), name='property-image-edit'),
     path('property-images/<int:pk>/delete/', views.PropertyImageDeleteView.as_view(), name='property-image-delete'),
-
     # Auction URLs
     path('auctions/', views.AuctionListCreateView.as_view(), name='auction-list'),
     path('auctions/<slug:slug>/', views.AuctionDetailView.as_view(), name='auction-detail'),

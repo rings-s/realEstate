@@ -5,8 +5,9 @@
 	import { PROPERTY_TYPES, PROPERTY_STATUS } from '$lib/config/constants';
 	import { createEventDispatcher } from 'svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
-	import Map from '$lib/components/common/Map.svelte';
+	import Map from '$lib/components/property/Map.svelte';
 	import Tabs from '$lib/components/common/Tabs.svelte';
+	import PropertyImages from '$lib/components/property/PropertyImages.svelte';
 	import {
 		Building,
 		MapPin,
@@ -17,15 +18,10 @@
 		Trash2,
 		X,
 		Home,
-		Bed,
-		Bath,
-		Car,
-		Upload,
-		Ruler
+		Image,
+		Settings
 	} from 'lucide-svelte';
 	import { formatPropertyData } from '$lib/services/propertyService';
-	import { isAuthenticated, userRoles } from '$lib/stores/auth';
-	import { hasPermission, PERMISSIONS } from '$lib/utils/permissions';
 
 	const dispatch = createEventDispatcher();
 
@@ -47,9 +43,6 @@
 	// Max text field lengths
 	export let maxTitleLength = 100;
 	export let maxDescriptionLength = 2000;
-
-	// Tab state
-	let activeTab = 'basicInfo';
 
 	// Form data
 	let formData = {
@@ -98,36 +91,22 @@
 	let imageError = null;
 	let submitAttempted = false;
 	let locationError = null;
-	let fileInput;
-	let mapComponent;
-
-	// Permission check
-	$: canCreateProperty = hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY);
-
-	// Define tabs
-	const formTabs = [
+	let activeTab = 'basic-info';
+	let tabs = [
 		{
-			id: 'basicInfo',
-			label: t('basic_information', $language, { default: 'المعلومات الأساسية' }),
+			id: 'basic-info',
+			label: $language === 'ar' ? 'المعلومات الأساسية' : 'Basic Information',
 			icon: Building
 		},
-		{ id: 'location', label: t('location', $language, { default: 'الموقع' }), icon: MapPin },
-		{
-			id: 'details',
-			label: t('property_details', $language, { default: 'تفاصيل العقار' }),
-			icon: Info
-		},
+		{ id: 'location', label: $language === 'ar' ? 'الموقع' : 'Location', icon: MapPin },
+		{ id: 'details', label: $language === 'ar' ? 'تفاصيل العقار' : 'Property Details', icon: Info },
 		{
 			id: 'features',
-			label: t('features_amenities', $language, { default: 'المميزات والمرافق' }),
+			label: $language === 'ar' ? 'المميزات والمرافق' : 'Features & Amenities',
 			icon: Star
 		},
-		{ id: 'images', label: t('images', $language, { default: 'الصور' }), icon: Upload },
-		{
-			id: 'publishing',
-			label: t('publishing_options', $language, { default: 'خيارات النشر' }),
-			icon: Tag
-		}
+		{ id: 'images', label: $language === 'ar' ? 'الصور' : 'Images', icon: Image },
+		{ id: 'publishing', label: $language === 'ar' ? 'النشر' : 'Publishing', icon: Settings }
 	];
 
 	// Initialize form with existing property data
@@ -216,36 +195,31 @@
 		formData.location.longitude = null;
 	}
 
-	// Detect current location
-	function detectCurrentLocation() {
-		if (mapComponent) {
-			// The Map component has its own location detection
-			// This will trigger the locationchange event which we handle above
-		} else {
-			// Fallback if Map component reference is not available
-			if (navigator.geolocation) {
-				navigator.geolocation.getCurrentPosition(
-					(position) => {
-						formData.location.latitude = position.coords.latitude;
-						formData.location.longitude = position.coords.longitude;
-					},
-					(error) => {
-						locationError = t('geolocation_error', $language, {
-							default: 'فشل في تحديد موقعك. يرجى التأكد من السماح بالوصول إلى الموقع'
-						});
-					}
-				);
-			} else {
-				locationError = t('geolocation_not_supported', $language, {
-					default: 'الموقع الجغرافي غير مدعوم في متصفحك'
-				});
-			}
-		}
+	// Handle tab change
+	function handleTabChange(event) {
+		activeTab = event.detail.id;
 	}
 
 	// Validate required fields
 	function validate() {
 		submitAttempted = true;
+
+		// Check for required fields
+		if (!formData.title.trim()) {
+			activeTab = 'basic-info';
+			return false;
+		}
+
+		if (!formData.address.trim() || !formData.city.trim()) {
+			activeTab = 'location';
+			return false;
+		}
+
+		if (!formData.description.trim()) {
+			activeTab = 'details';
+			return false;
+		}
+
 		return isValid;
 	}
 
@@ -279,7 +253,7 @@
 			const formattedData = formatPropertyData(propertyData);
 
 			// Submit data to parent component
-			dispatch('submit', formattedData);
+			dispatch('submit', { property: formattedData, images });
 		} catch (err) {
 			console.error('Error preparing property data:', err);
 			error = err.message || t('save_error', $language, { default: 'حدث خطأ أثناء حفظ العقار' });
@@ -289,169 +263,9 @@
 		}
 	}
 
-	// Handle image file selection
-	function handleImageSelect(event) {
-		const files = event.target.files;
-		if (!files.length) return;
-
-		imageError = null;
-
-		// Check if adding these would exceed max images
-		if (images.length + files.length > maxImages) {
-			imageError = t('max_images_error', $language, {
-				default: `يمكنك تحميل ${maxImages} صور كحد أقصى`,
-				count: maxImages
-			});
-			return;
-		}
-
-		// Process each file
-		for (let i = 0; i < files.length; i++) {
-			const file = files[i];
-
-			// Check file size
-			if (file.size > maxFileSize * 1024 * 1024) {
-				imageError = t('image_size_error', $language, {
-					default: `حجم الصورة يجب أن يكون أقل من ${maxFileSize}MB`,
-					size: maxFileSize
-				});
-				continue;
-			}
-
-			// Check file type
-			if (!file.type.startsWith('image/')) {
-				imageError = t('image_type_error', $language, { default: 'يرجى تحميل ملفات صور فقط' });
-				continue;
-			}
-
-			// Create a temporary URL for preview
-			const imageUrl = URL.createObjectURL(file);
-
-			// Add to images array
-			const newImage = {
-				id: null,
-				file,
-				url: imageUrl,
-				is_primary: images.length === 0, // First image is primary by default
-				caption: '',
-				uploaded: false,
-				progress: 0
-			};
-
-			images = [...images, newImage];
-
-			// Auto-upload if enabled
-			if (autoUpload && property && property.id) {
-				uploadImage(newImage, property.id);
-			}
-		}
-
-		// Reset file input
-		event.target.value = '';
-	}
-
-	// Trigger file selection dialog
-	function openFileSelector() {
-		if (fileInput) {
-			fileInput.click();
-		}
-	}
-
-	// Upload a single image
-	async function uploadImage(image, propertyId) {
-		if (!image.file || image.uploaded) return;
-
-		try {
-			uploading = true;
-
-			// Update the image's progress
-			const imageIndex = images.findIndex((img) => img.url === image.url);
-			if (imageIndex === -1) return;
-
-			images[imageIndex].progress = 10;
-			images = [...images];
-
-			// Create form data for upload
-			const formData = new FormData();
-			formData.append('image', image.file);
-			formData.append('is_primary', image.is_primary);
-
-			if (image.caption) {
-				formData.append('caption', image.caption);
-			}
-
-			// Dispatch upload event to parent component
-			dispatch('uploadImage', { propertyId, formData, imageIndex });
-		} catch (err) {
-			console.error('Error uploading image:', err);
-			imageError = t('image_upload_error', $language, {
-				default: 'فشل في تحميل الصورة'
-			});
-
-			// Remove the failed image
-			const imageIndex = images.findIndex((img) => img.url === image.url);
-			if (imageIndex !== -1) {
-				images.splice(imageIndex, 1);
-				images = [...images];
-			}
-		} finally {
-			uploading = false;
-		}
-	}
-
-	// Remove an image
-	async function removeImage(index) {
-		const image = images[index];
-
-		try {
-			// If image is already uploaded, notify parent
-			if (image.id && image.uploaded) {
-				dispatch('removeImage', { imageId: image.id });
-			}
-
-			// Remove from UI
-			images.splice(index, 1);
-			images = [...images];
-
-			// If we removed the primary image, set the first image as primary
-			if (image.is_primary && images.length > 0) {
-				images[0].is_primary = true;
-
-				// Update on server if needed
-				if (images[0].id && images[0].uploaded) {
-					dispatch('setPrimaryImage', { imageId: images[0].id });
-				}
-
-				images = [...images];
-			}
-		} catch (err) {
-			console.error('Error removing image:', err);
-			imageError = t('image_remove_error', $language, {
-				default: 'فشل في حذف الصورة'
-			});
-		}
-	}
-
-	// Set an image as primary
-	async function setPrimaryImage(index) {
-		try {
-			// Update UI first
-			images.forEach((img, i) => {
-				img.is_primary = i === index;
-			});
-			images = [...images];
-
-			// If the image is uploaded, notify parent
-			const image = images[index];
-			if (image.id && image.uploaded) {
-				dispatch('setPrimaryImage', { imageId: image.id });
-			}
-		} catch (err) {
-			console.error('Error setting primary image:', err);
-			imageError = t('image_primary_error', $language, {
-				default: 'فشل في تعيين الصورة الرئيسية'
-			});
-		}
+	// Handle image updates from PropertyImages component
+	function handleImagesUpdate(event) {
+		images = event.detail.images;
 	}
 
 	// Add a new feature
@@ -485,15 +299,11 @@
 	// Get current year for year_built validation
 	const currentYear = new Date().getFullYear();
 
-	// Handle tab change
-	function handleTabChange(event) {
-		activeTab = event.detail.id;
-	}
-
 	onMount(() => {
-		if (!canCreateProperty) {
-			// Show permission error
-			error = t('no_permission', $language, { default: 'ليس لديك صلاحية لإنشاء عقار' });
+		// Set default tab based on URL hash if present
+		const hash = window.location.hash.replace('#', '');
+		if (hash && tabs.some((tab) => tab.id === hash)) {
+			activeTab = hash;
 		}
 	});
 </script>
@@ -507,739 +317,732 @@
 		<Alert type="error" message={error} />
 	{/if}
 
-	<!-- Form Tabs -->
-	<Tabs tabs={formTabs} {activeTab} on:change={handleTabChange} border="border-b" />
+	<!-- Tabs Navigation -->
+	<Tabs
+		{tabs}
+		bind:activeTab
+		on:change={handleTabChange}
+		variant="ghost-hover"
+		border="border-b"
+		classes="mb-4"
+	>
+		<!-- Tab 1: Basic Information -->
+		{#if activeTab === 'basic-info'}
+			<div class="card p-4 animate-in fade-in duration-300">
+				<h2 class="h3 mb-4 flex items-center">
+					<Building class="w-6 h-6 {$isRTL ? 'ml-2' : 'mr-2'}" />
+					{t('basic_information', $language, { default: 'المعلومات الأساسية' })}
+				</h2>
 
-	<!-- Basic Information Tab -->
-	<div class="tab-panel" class:hidden={activeTab !== 'basicInfo'}>
-		<div class="card p-4">
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<!-- Title -->
-				<label class="label md:col-span-2">
-					<span
-						>{t('title', $language, { default: 'العنوان' })}<span class="text-error-500">*</span
-						></span
-					>
-					<input
-						type="text"
-						class="input {!formData.title && submitAttempted ? 'input-error' : ''}"
-						bind:value={formData.title}
-						maxlength={maxTitleLength}
-						required
-						placeholder={t('title_placeholder', $language, { default: 'أدخل عنوان العقار' })}
-					/>
-					<span class="text-sm text-surface-500-400-token {$isRTL ? 'text-left' : 'text-right'}">
-						{formData.title.length}/{maxTitleLength}
-					</span>
-					{#if !formData.title && submitAttempted}
-						<span class="text-error-500 text-sm"
-							>{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}</span
-						>
-					{/if}
-				</label>
-
-				<!-- Property Type -->
-				<label class="label">
-					<span
-						>{t('property_type', $language, { default: 'نوع العقار' })}<span class="text-error-500"
-							>*</span
-						></span
-					>
-					<select
-						class="select {!formData.property_type && submitAttempted ? 'select-error' : ''}"
-						bind:value={formData.property_type}
-						required
-					>
-						{#each PROPERTY_TYPES as type}
-							<option value={type.value}>{t(type.value, $language, { default: type.label })}</option
-							>
-						{/each}
-					</select>
-					{#if !formData.property_type && submitAttempted}
-						<span class="text-error-500 text-sm"
-							>{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}</span
-						>
-					{/if}
-				</label>
-
-				<!-- Status -->
-				<label class="label">
-					<span
-						>{t('status', $language, { default: 'الحالة' })}<span class="text-error-500">*</span
-						></span
-					>
-					<select
-						class="select {!formData.status && submitAttempted ? 'select-error' : ''}"
-						bind:value={formData.status}
-						required
-					>
-						{#each PROPERTY_STATUS as status}
-							<option value={status.value}
-								>{t(status.value, $language, { default: status.label })}</option
-							>
-						{/each}
-					</select>
-					{#if !formData.status && submitAttempted}
-						<span class="text-error-500 text-sm"
-							>{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}</span
-						>
-					{/if}
-				</label>
-
-				<!-- Description (moved to basic info tab) -->
-				<label class="label md:col-span-2">
-					<span
-						>{t('description', $language, { default: 'الوصف' })}<span class="text-error-500">*</span
-						></span
-					>
-					<textarea
-						class="textarea {!formData.description && submitAttempted ? 'textarea-error' : ''}"
-						bind:value={formData.description}
-						rows="6"
-						maxlength={maxDescriptionLength}
-						required
-						placeholder={t('description_placeholder', $language, {
-							default: 'أدخل وصفاً مفصلاً للعقار'
-						})}
-					></textarea>
-					<span class="text-sm text-surface-500-400-token {$isRTL ? 'text-left' : 'text-right'}">
-						{formData.description.length}/{maxDescriptionLength}
-					</span>
-					{#if !formData.description && submitAttempted}
-						<span class="text-error-500 text-sm"
-							>{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}</span
-						>
-					{/if}
-				</label>
-			</div>
-		</div>
-	</div>
-
-	<!-- Location Tab -->
-	<div class="tab-panel" class:hidden={activeTab !== 'location'}>
-		<div class="card p-4">
-			<!-- Map Container -->
-			<div class="mb-4">
-				<div class="flex justify-between items-center mb-2">
-					<h3 class="h4">
-						{t('map_location', $language, { default: 'تحديد الموقع على الخريطة' })}
-					</h3>
-					<div class="flex gap-2">
-						<button
-							type="button"
-							class="btn btn-sm variant-filled-primary"
-							on:click={detectCurrentLocation}
-						>
-							<MapPin class="w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />
-							{t('detect_location', $language, { default: 'تحديد موقعي الحالي' })}
-						</button>
-						<button
-							type="button"
-							class="btn btn-sm variant-ghost-error"
-							on:click={clearLocation}
-							disabled={!formData.location.latitude}
-						>
-							<X class="w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />
-							{t('clear_location', $language, { default: 'مسح الموقع' })}
-						</button>
-					</div>
-				</div>
-
-				{#if locationError}
-					<Alert type="warning" message={locationError} class="mb-2" />
-				{/if}
-
-				<!-- Use the Map component with location detection -->
-				<Map
-					bind:this={mapComponent}
-					latitude={formData.location.latitude}
-					longitude={formData.location.longitude}
-					height="300px"
-					width="100%"
-					showMarker={true}
-					draggableMarker={true}
-					showLocationButton={true}
-					interactive={true}
-					on:locationchange={handleLocationChange}
-					classes="mb-4"
-				/>
-
-				<p class="text-sm text-surface-500-400-token mt-1">
-					{t('map_instructions', $language, {
-						default: 'انقر على الخريطة لتحديد موقع العقار أو أدخل الإحداثيات يدوياً'
-					})}
-				</p>
-			</div>
-
-			<!-- Latitude and Longitude Fields -->
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-				<label class="label">
-					<span>{t('latitude', $language, { default: 'خط العرض' })}</span>
-					<input
-						type="number"
-						class="input"
-						bind:value={formData.location.latitude}
-						step="any"
-						placeholder={t('latitude_placeholder', $language, { default: 'مثال: 24.774265' })}
-					/>
-				</label>
-
-				<label class="label">
-					<span>{t('longitude', $language, { default: 'خط الطول' })}</span>
-					<input
-						type="number"
-						class="input"
-						bind:value={formData.location.longitude}
-						step="any"
-						placeholder={t('longitude_placeholder', $language, { default: 'مثال: 46.738586' })}
-					/>
-				</label>
-			</div>
-
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<!-- Address -->
-				<label class="label md:col-span-2">
-					<span
-						>{t('address', $language, { default: 'العنوان' })}<span class="text-error-500">*</span
-						></span
-					>
-					<input
-						type="text"
-						class="input {!formData.address && submitAttempted ? 'input-error' : ''}"
-						bind:value={formData.address}
-						required
-						placeholder={t('address_placeholder', $language, {
-							default: 'أدخل عنوان العقار الكامل'
-						})}
-					/>
-					{#if !formData.address && submitAttempted}
-						<span class="text-error-500 text-sm"
-							>{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}</span
-						>
-					{/if}
-				</label>
-
-				<!-- City -->
-				<label class="label">
-					<span
-						>{t('city', $language, { default: 'المدينة' })}<span class="text-error-500">*</span
-						></span
-					>
-					<input
-						type="text"
-						class="input {!formData.city && submitAttempted ? 'input-error' : ''}"
-						bind:value={formData.city}
-						required
-						placeholder={t('city_placeholder', $language, { default: 'أدخل اسم المدينة' })}
-					/>
-					{#if !formData.city && submitAttempted}
-						<span class="text-error-500 text-sm"
-							>{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}</span
-						>
-					{/if}
-				</label>
-
-				<!-- State/Province -->
-				<label class="label">
-					<span>{t('state', $language, { default: 'المنطقة/المحافظة' })}</span>
-					<input
-						type="text"
-						class="input"
-						bind:value={formData.state}
-						placeholder={t('state_placeholder', $language, {
-							default: 'أدخل اسم المنطقة أو المحافظة'
-						})}
-					/>
-				</label>
-
-				<!-- Postal Code -->
-				<label class="label">
-					<span>{t('postal_code', $language, { default: 'الرمز البريدي' })}</span>
-					<input
-						type="text"
-						class="input"
-						bind:value={formData.postal_code}
-						placeholder={t('postal_code_placeholder', $language, { default: 'أدخل الرمز البريدي' })}
-					/>
-				</label>
-
-				<!-- Country -->
-				<label class="label">
-					<span>{t('country', $language, { default: 'الدولة' })}</span>
-					<input
-						type="text"
-						class="input"
-						bind:value={formData.country}
-						placeholder={t('country_placeholder', $language, { default: 'أدخل اسم الدولة' })}
-					/>
-				</label>
-			</div>
-		</div>
-	</div>
-
-	<!-- Property Details Tab -->
-	<div class="tab-panel" class:hidden={activeTab !== 'details'}>
-		<div class="card p-4">
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-				<!-- Size -->
-				<label class="label">
-					<span
-						><Ruler class="inline-block w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />{t(
-							'size_sqm',
-							$language,
-							{ default: 'المساحة (متر مربع)' }
-						)}</span
-					>
-					<input
-						type="number"
-						class="input"
-						bind:value={formData.size_sqm}
-						min="0"
-						step="0.01"
-						placeholder={t('size_placeholder', $language, { default: 'أدخل المساحة' })}
-					/>
-				</label>
-
-				<!-- Bedrooms -->
-				<label class="label">
-					<span
-						><Bed class="inline-block w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />{t(
-							'bedrooms',
-							$language,
-							{ default: 'غرف النوم' }
-						)}</span
-					>
-					<input
-						type="number"
-						class="input"
-						bind:value={formData.bedrooms}
-						min="0"
-						step="1"
-						placeholder={t('bedrooms_placeholder', $language, { default: 'عدد غرف النوم' })}
-					/>
-				</label>
-
-				<!-- Bathrooms -->
-				<label class="label">
-					<span
-						><Bath class="inline-block w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />{t(
-							'bathrooms',
-							$language,
-							{ default: 'الحمامات' }
-						)}</span
-					>
-					<input
-						type="number"
-						class="input"
-						bind:value={formData.bathrooms}
-						min="0"
-						step="1"
-						placeholder={t('bathrooms_placeholder', $language, { default: 'عدد الحمامات' })}
-					/>
-				</label>
-
-				<!-- Parking Spaces -->
-				<label class="label">
-					<span
-						><Car class="inline-block w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />{t(
-							'parking_spaces',
-							$language,
-							{ default: 'مواقف السيارات' }
-						)}</span
-					>
-					<input
-						type="number"
-						class="input"
-						bind:value={formData.parking_spaces}
-						min="0"
-						step="1"
-						placeholder={t('parking_placeholder', $language, { default: 'عدد المواقف' })}
-					/>
-				</label>
-
-				<!-- Year Built -->
-				<label class="label">
-					<span>{t('year_built', $language, { default: 'سنة البناء' })}</span>
-					<input
-						type="number"
-						class="input"
-						bind:value={formData.year_built}
-						min="1900"
-						max={currentYear}
-						step="1"
-						placeholder={t('year_built_placeholder', $language, { default: 'سنة بناء العقار' })}
-					/>
-				</label>
-
-				<!-- Market Value -->
-				<label class="label">
-					<span>{t('market_value', $language, { default: 'القيمة السوقية' })}</span>
-					<input
-						type="number"
-						class="input"
-						bind:value={formData.market_value}
-						min="0"
-						step="0.01"
-						placeholder={t('market_value_placeholder', $language, {
-							default: 'القيمة السوقية للعقار'
-						})}
-					/>
-				</label>
-
-				<!-- Minimum Bid -->
-				<label class="label">
-					<span>{t('minimum_bid', $language, { default: 'الحد الأدنى للمزايدة' })}</span>
-					<input
-						type="number"
-						class="input"
-						bind:value={formData.minimum_bid}
-						min="0"
-						step="0.01"
-						placeholder={t('minimum_bid_placeholder', $language, {
-							default: 'الحد الأدنى للمزايدة'
-						})}
-					/>
-				</label>
-			</div>
-		</div>
-	</div>
-
-	<!-- Features and Amenities Tab -->
-	<div class="tab-panel" class:hidden={activeTab !== 'features'}>
-		<div class="card p-4">
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-				<!-- Features -->
-				<div>
-					<h3 class="font-semibold mb-2">{t('features', $language, { default: 'المميزات' })}</h3>
-
-					<!-- Features Input -->
-					<div class="flex mb-2">
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<!-- Title -->
+					<label class="label md:col-span-2">
+						<span>
+							{t('title', $language, { default: 'العنوان' })}
+							<span class="text-error-500">*</span>
+						</span>
 						<input
 							type="text"
-							class="input rounded-r-none {$isRTL
-								? 'rounded-l-none border-l-0'
-								: 'rounded-r-none border-r-0'}"
-							bind:value={newFeature}
-							placeholder={t('feature_placeholder', $language, { default: 'أضف ميزة جديدة' })}
-							on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addFeature())}
+							class="input {!formData.title && submitAttempted ? 'input-error' : ''}"
+							bind:value={formData.title}
+							maxlength={maxTitleLength}
+							required
+							placeholder={t('title_placeholder', $language, { default: 'أدخل عنوان العقار' })}
 						/>
-						<button
-							type="button"
-							class="btn variant-filled-primary {$isRTL ? 'rounded-r-token' : 'rounded-l-token'}"
-							on:click={addFeature}
-						>
-							<Plus class="w-5 h-5" />
-						</button>
-					</div>
+						<span class="text-sm text-surface-500-400-token {$isRTL ? 'text-left' : 'text-right'}">
+							{formData.title.length}/{maxTitleLength}
+						</span>
+						{#if !formData.title && submitAttempted}
+							<span class="text-error-500 text-sm">
+								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
+							</span>
+						{/if}
+					</label>
 
-					<!-- Features List -->
-					{#if formData.features.length === 0}
-						<p class="text-surface-500-400-token text-sm italic">
-							{t('no_features', $language, { default: 'لا توجد ميزات محددة' })}
-						</p>
-					{:else}
-						<ul class="space-y-2 max-h-60 overflow-y-auto">
-							{#each formData.features as feature, i}
-								<li
-									class="flex items-center justify-between bg-surface-200-700-token p-2 rounded-token"
-								>
-									<span>{feature}</span>
-									<button
-										type="button"
-										class="btn btn-sm btn-icon variant-soft-error"
-										on:click={() => removeFeature(i)}
-										aria-label={t('remove_feature', $language, { default: 'إزالة الميزة' })}
-									>
-										<X class="w-4 h-4" />
-									</button>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</div>
-
-				<!-- Amenities -->
-				<div>
-					<h3 class="font-semibold mb-2">{t('amenities', $language, { default: 'المرافق' })}</h3>
-
-					<!-- Amenities Input -->
-					<div class="flex mb-2">
-						<input
-							type="text"
-							class="input {$isRTL ? 'rounded-l-none border-l-0' : 'rounded-r-none border-r-0'}"
-							bind:value={newAmenity}
-							placeholder={t('amenity_placeholder', $language, { default: 'أضف مرفق جديد' })}
-							on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
-						/>
-						<button
-							type="button"
-							class="btn variant-filled-primary {$isRTL ? 'rounded-r-token' : 'rounded-l-token'}"
-							on:click={addAmenity}
-						>
-							<Plus class="w-5 h-5" />
-						</button>
-					</div>
-
-					<!-- Amenities List -->
-					{#if formData.amenities.length === 0}
-						<p class="text-surface-500-400-token text-sm italic">
-							{t('no_amenities', $language, { default: 'لا توجد مرافق محددة' })}
-						</p>
-					{:else}
-						<ul class="space-y-2 max-h-60 overflow-y-auto">
-							{#each formData.amenities as amenity, i}
-								<li
-									class="flex items-center justify-between bg-surface-200-700-token p-2 rounded-token"
-								>
-									<span>{amenity}</span>
-									<button
-										type="button"
-										class="btn btn-sm btn-icon variant-soft-error"
-										on:click={() => removeAmenity(i)}
-										aria-label={t('remove_amenity', $language, { default: 'إزالة المرفق' })}
-									>
-										<X class="w-4 h-4" />
-									</button>
-								</li>
-							{/each}
-						</ul>
-					{/if}
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Images Tab -->
-	<div class="tab-panel" class:hidden={activeTab !== 'images'}>
-		<div class="card p-4">
-			<!-- Image error display -->
-			{#if imageError}
-				<Alert type="error" message={imageError} class="mb-4" />
-			{/if}
-
-			<!-- Image upload area -->
-			<div class="mb-4">
-				<div class="flex justify-between items-center mb-2">
-					<h3 class="h4">{t('upload_images', $language, { default: 'تحميل الصور' })}</h3>
-					<p class="text-sm text-surface-500-400-token">
-						{t('image_count', $language, {
-							default: '{current}/{max} صور',
-							current: images.length,
-							max: maxImages
-						})}
-					</p>
-				</div>
-
-				<!-- File Upload Button -->
-				<div class="mb-4">
-					<button
-						type="button"
-						class="btn variant-filled-primary w-full"
-						on:click={openFileSelector}
-						disabled={images.length >= maxImages}
-					>
-						<Upload class="w-5 h-5 {$isRTL ? 'ml-2' : 'mr-2'}" />
-						{t('select_images', $language, { default: 'اختر صور للتحميل' })}
-					</button>
-					<input
-						bind:this={fileInput}
-						type="file"
-						multiple
-						accept="image/jpeg,image/png,image/gif,image/webp"
-						class="hidden"
-						on:change={handleImageSelect}
-						aria-hidden="true"
-					/>
-					<p class="text-xs text-surface-500-400-token mt-2 text-center">
-						{t('supported_formats', $language, { default: 'الصيغ المدعومة: JPG, PNG, GIF, WEBP' })} |
-						{t('max_file_size', $language, {
-							default: 'الحد الأقصى لحجم الملف: {size}MB',
-							size: maxFileSize
-						})}
-					</p>
-				</div>
-
-				<!-- Drag & Drop Area -->
-				<label
-					for="property-images"
-					class="block w-full h-32 border-2 border-dashed border-surface-300-600-token rounded-token cursor-pointer hover:bg-surface-hover-token transition-colors"
-					on:click={openFileSelector}
-				>
-					<div class="flex flex-col items-center justify-center h-full">
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							class="w-10 h-10 text-surface-500-400-token mb-2"
-							width="24"
-							height="24"
-							viewBox="0 0 24 24"
-							fill="none"
-							stroke="currentColor"
-							stroke-width="2"
-							stroke-linecap="round"
-							stroke-linejoin="round"
-						>
-							<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"></path>
-							<line x1="16" y1="5" x2="22" y2="5"></line>
-							<line x1="19" y1="2" x2="19" y2="8"></line>
-							<circle cx="9" cy="9" r="2"></circle>
-							<path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
-						</svg>
-						<p class="text-sm text-surface-500-400-token">
-							{t('drop_images', $language, { default: 'اسحب الصور هنا أو انقر للاختيار' })}
-						</p>
-					</div>
-				</label>
-			</div>
-
-			<!-- Image preview grid -->
-			{#if images.length > 0}
-				<h3 class="h4 mb-4">{t('uploaded_images', $language, { default: 'الصور المحملة' })}</h3>
-				<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-					{#each images as image, i}
-						<div class="relative group">
-							<!-- Image preview -->
-							<div
-								class="aspect-square bg-cover bg-center rounded-token overflow-hidden border {image.is_primary
-									? 'border-primary-500'
-									: 'border-surface-300-600-token'}"
-								style="background-image: url('{image.url}')"
-							>
-								<!-- Upload progress overlay -->
-								{#if !image.uploaded && image.progress < 100}
-									<div
-										class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white"
-									>
-										<div class="w-16 h-16">
-											<svg
-												class="animate-spin"
-												viewBox="0 0 24 24"
-												fill="none"
-												xmlns="http://www.w3.org/2000/svg"
-											>
-												<circle
-													class="opacity-25"
-													cx="12"
-													cy="12"
-													r="10"
-													stroke="currentColor"
-													stroke-width="4"
-												></circle>
-												<path
-													class="opacity-75"
-													fill="currentColor"
-													d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A8.001 8.001 0 0120.709 10H24c0 6.627-5.373 12-12 12v-4c4.411 0 8-3.589 8-8H6.291z"
-												></path>
-											</svg>
-										</div>
-									</div>
-								{/if}
-
-								<!-- Primary badge -->
-								{#if image.is_primary}
-									<div
-										class="absolute top-2 {$isRTL
-											? 'right-2'
-											: 'left-2'} badge variant-filled-primary"
-									>
-										{t('primary', $language, { default: 'رئيسية' })}
-									</div>
-								{/if}
-							</div>
-
-							<!-- Image actions -->
-							<div
-								class="absolute bottom-0 inset-x-0 p-2 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex justify-between"
-							>
-								<!-- Set as primary button -->
-								{#if !image.is_primary}
-									<button
-										type="button"
-										class="btn btn-sm variant-ghost-primary"
-										on:click={() => setPrimaryImage(i)}
-										disabled={uploading}
-										aria-label={t('set_primary', $language, { default: 'تعيين كصورة رئيسية' })}
-									>
-										<Star class="w-4 h-4" />
-									</button>
-								{:else}
-									<div></div>
-								{/if}
-
-								<!-- Remove button -->
-								<button
-									type="button"
-									class="btn btn-sm variant-ghost-error"
-									on:click={() => removeImage(i)}
-									disabled={uploading}
-									aria-label={t('remove_image', $language, { default: 'إزالة الصورة' })}
-								>
-									<Trash2 class="w-4 h-4" />
-								</button>
-							</div>
-						</div>
-					{/each}
-				</div>
-			{:else}
-				<div class="text-center p-6 bg-surface-100-800-token rounded-token">
-					<p class="text-surface-500-400-token">
-						{t('no_images_yet', $language, { default: 'لم يتم تحميل أي صور بعد' })}
-					</p>
-				</div>
-			{/if}
-		</div>
-	</div>
-
-	<!-- Publishing Options Tab -->
-	<div class="tab-panel" class:hidden={activeTab !== 'publishing'}>
-		<div class="card p-4">
-			<div class="space-y-4">
-				<!-- Published checkbox -->
-				<label class="flex items-center space-x-2 {$isRTL ? 'space-x-reverse' : ''}">
-					<input type="checkbox" class="checkbox" bind:checked={formData.is_published} />
-					<span>{t('is_published', $language, { default: 'نشر العقار' })}</span>
-				</label>
-
-				<!-- Featured checkbox -->
-				<label class="flex items-center space-x-2 {$isRTL ? 'space-x-reverse' : ''}">
-					<input type="checkbox" class="checkbox" bind:checked={formData.is_featured} />
-					<span>{t('is_featured', $language, { default: 'عقار مميز' })}</span>
-				</label>
-
-				<!-- SEO options -->
-				<div class="pt-4 border-t border-surface-300-600-token">
-					<h3 class="font-semibold mb-2">
-						{t('seo_options', $language, { default: 'خيارات تحسين محركات البحث' })}
-					</h3>
-
-					<!-- Meta Title -->
+					<!-- Property Type -->
 					<label class="label">
-						<span>{t('meta_title', $language, { default: 'عنوان الميتا' })}</span>
+						<span>
+							{t('property_type', $language, { default: 'نوع العقار' })}
+							<span class="text-error-500">*</span>
+						</span>
+						<select
+							class="select {!formData.property_type && submitAttempted ? 'select-error' : ''}"
+							bind:value={formData.property_type}
+							required
+						>
+							{#each PROPERTY_TYPES as type}
+								<option value={type.value}
+									>{t(type.value, $language, { default: type.label })}</option
+								>
+							{/each}
+						</select>
+						{#if !formData.property_type && submitAttempted}
+							<span class="text-error-500 text-sm">
+								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
+							</span>
+						{/if}
+					</label>
+
+					<!-- Status -->
+					<label class="label">
+						<span>
+							{t('status', $language, { default: 'الحالة' })}
+							<span class="text-error-500">*</span>
+						</span>
+						<select
+							class="select {!formData.status && submitAttempted ? 'select-error' : ''}"
+							bind:value={formData.status}
+							required
+						>
+							{#each PROPERTY_STATUS as status}
+								<option value={status.value}>
+									{t(status.value, $language, { default: status.label })}
+								</option>
+							{/each}
+						</select>
+						{#if !formData.status && submitAttempted}
+							<span class="text-error-500 text-sm">
+								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
+							</span>
+						{/if}
+					</label>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Tab 2: Location -->
+		{#if activeTab === 'location'}
+			<div class="card p-4 animate-in fade-in duration-300">
+				<h2 class="h3 mb-4 flex items-center">
+					<MapPin class="w-6 h-6 {$isRTL ? 'ml-2' : 'mr-2'}" />
+					{t('location', $language, { default: 'الموقع' })}
+				</h2>
+
+				<!-- Map Container -->
+				<div class="mb-4">
+					<div class="flex justify-between items-center mb-2">
+						<h3 class="h4">
+							{t('map_location', $language, { default: 'تحديد الموقع على الخريطة' })}
+						</h3>
+						<div class="flex gap-2">
+							<button
+								type="button"
+								class="btn btn-sm variant-ghost-error"
+								on:click={clearLocation}
+								disabled={!formData.location.latitude}
+							>
+								<X class="w-4 h-4 {$isRTL ? 'ml-1' : 'mr-1'}" />
+								{t('clear_location', $language, { default: 'مسح الموقع' })}
+							</button>
+						</div>
+					</div>
+
+					{#if locationError}
+						<Alert type="warning" message={locationError} class="mb-2" />
+					{/if}
+
+					<!-- Use the Map component -->
+					<Map
+						latitude={formData.location.latitude}
+						longitude={formData.location.longitude}
+						height="400px"
+						width="100%"
+						showMarker={true}
+						draggableMarker={true}
+						showLocationButton={true}
+						interactive={true}
+						on:locationchange={handleLocationChange}
+						classes="mb-4"
+					/>
+
+					<p class="text-sm text-surface-500-400-token mt-1">
+						{t('map_instructions', $language, {
+							default: 'انقر على الخريطة لتحديد موقع العقار أو أدخل الإحداثيات يدوياً'
+						})}
+					</p>
+				</div>
+
+				<!-- Latitude and Longitude Fields -->
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+					<label class="label">
+						<span>{t('latitude', $language, { default: 'خط العرض' })}</span>
+						<input
+							type="number"
+							class="input"
+							bind:value={formData.location.latitude}
+							step="any"
+							placeholder={t('latitude_placeholder', $language, { default: 'مثال: 24.774265' })}
+						/>
+					</label>
+
+					<label class="label">
+						<span>{t('longitude', $language, { default: 'خط الطول' })}</span>
+						<input
+							type="number"
+							class="input"
+							bind:value={formData.location.longitude}
+							step="any"
+							placeholder={t('longitude_placeholder', $language, { default: 'مثال: 46.738586' })}
+						/>
+					</label>
+				</div>
+
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+					<!-- Address -->
+					<label class="label md:col-span-2">
+						<span>
+							{t('address', $language, { default: 'العنوان' })}
+							<span class="text-error-500">*</span>
+						</span>
+						<input
+							type="text"
+							class="input {!formData.address && submitAttempted ? 'input-error' : ''}"
+							bind:value={formData.address}
+							required
+							placeholder={t('address_placeholder', $language, {
+								default: 'أدخل عنوان العقار الكامل'
+							})}
+						/>
+						{#if !formData.address && submitAttempted}
+							<span class="text-error-500 text-sm">
+								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
+							</span>
+						{/if}
+					</label>
+
+					<!-- City -->
+					<label class="label">
+						<span>
+							{t('city', $language, { default: 'المدينة' })}
+							<span class="text-error-500">*</span>
+						</span>
+						<input
+							type="text"
+							class="input {!formData.city && submitAttempted ? 'input-error' : ''}"
+							bind:value={formData.city}
+							required
+							placeholder={t('city_placeholder', $language, { default: 'أدخل اسم المدينة' })}
+						/>
+						{#if !formData.city && submitAttempted}
+							<span class="text-error-500 text-sm">
+								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
+							</span>
+						{/if}
+					</label>
+
+					<!-- State/Province -->
+					<label class="label">
+						<span>{t('state', $language, { default: 'المنطقة/المحافظة' })}</span>
 						<input
 							type="text"
 							class="input"
-							bind:value={formData.meta_title}
-							placeholder={t('meta_title_placeholder', $language, {
-								default: 'عنوان الميتا لمحركات البحث'
+							bind:value={formData.state}
+							placeholder={t('state_placeholder', $language, {
+								default: 'أدخل اسم المنطقة أو المحافظة'
 							})}
 						/>
 					</label>
 
-					<!-- Meta Description -->
+					<!-- Postal Code -->
 					<label class="label">
-						<span>{t('meta_description', $language, { default: 'وصف الميتا' })}</span>
-						<textarea
-							class="textarea"
-							bind:value={formData.meta_description}
-							rows="3"
-							placeholder={t('meta_description_placeholder', $language, {
-								default: 'وصف الميتا لمحركات البحث'
+						<span>{t('postal_code', $language, { default: 'الرمز البريدي' })}</span>
+						<input
+							type="text"
+							class="input"
+							bind:value={formData.postal_code}
+							placeholder={t('postal_code_placeholder', $language, {
+								default: 'أدخل الرمز البريدي'
 							})}
-						></textarea>
+						/>
+					</label>
+
+					<!-- Country -->
+					<label class="label">
+						<span>{t('country', $language, { default: 'الدولة' })}</span>
+						<input
+							type="text"
+							class="input"
+							bind:value={formData.country}
+							placeholder={t('country_placeholder', $language, { default: 'أدخل اسم الدولة' })}
+						/>
 					</label>
 				</div>
 			</div>
-		</div>
-	</div>
+		{/if}
+
+		<!-- Tab 3: Property Details -->
+		{#if activeTab === 'details'}
+			<div class="card p-4 animate-in fade-in duration-300">
+				<h2 class="h3 mb-4 flex items-center">
+					<Info class="w-6 h-6 {$isRTL ? 'ml-2' : 'mr-2'}" />
+					{t('property_details', $language, { default: 'تفاصيل العقار' })}
+				</h2>
+
+				<div class="mb-4">
+					<!-- Description -->
+					<label class="label">
+						<span>
+							{t('description', $language, { default: 'الوصف' })}
+							<span class="text-error-500">*</span>
+						</span>
+						<textarea
+							class="textarea {!formData.description && submitAttempted ? 'textarea-error' : ''}"
+							bind:value={formData.description}
+							rows="6"
+							maxlength={maxDescriptionLength}
+							required
+							placeholder={t('description_placeholder', $language, {
+								default: 'أدخل وصفاً مفصلاً للعقار'
+							})}
+						></textarea>
+						<span class="text-sm text-surface-500-400-token {$isRTL ? 'text-left' : 'text-right'}">
+							{formData.description.length}/{maxDescriptionLength}
+						</span>
+						{#if !formData.description && submitAttempted}
+							<span class="text-error-500 text-sm">
+								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
+							</span>
+						{/if}
+					</label>
+				</div>
+
+				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+					<!-- Size -->
+					<label class="label">
+						<span>{t('size_sqm', $language, { default: 'المساحة (متر مربع)' })}</span>
+						<input
+							type="number"
+							class="input"
+							bind:value={formData.size_sqm}
+							min="0"
+							step="0.01"
+							placeholder={t('size_placeholder', $language, { default: 'أدخل المساحة' })}
+						/>
+					</label>
+
+					<!-- Bedrooms -->
+					<label class="label">
+						<span>{t('bedrooms', $language, { default: 'غرف النوم' })}</span>
+						<input
+							type="number"
+							class="input"
+							bind:value={formData.bedrooms}
+							min="0"
+							step="1"
+							placeholder={t('bedrooms_placeholder', $language, { default: 'عدد غرف النوم' })}
+						/>
+					</label>
+
+					<!-- Bathrooms -->
+					<label class="label">
+						<span>{t('bathrooms', $language, { default: 'الحمامات' })}</span>
+						<input
+							type="number"
+							class="input"
+							bind:value={formData.bathrooms}
+							min="0"
+							step="1"
+							placeholder={t('bathrooms_placeholder', $language, { default: 'عدد الحمامات' })}
+						/>
+					</label>
+
+					<!-- Parking Spaces -->
+					<label class="label">
+						<span>{t('parking_spaces', $language, { default: 'مواقف السيارات' })}</span>
+						<input
+							type="number"
+							class="input"
+							bind:value={formData.parking_spaces}
+							min="0"
+							step="1"
+							placeholder={t('parking_placeholder', $language, { default: 'عدد المواقف' })}
+						/>
+					</label>
+
+					<!-- Year Built -->
+					<label class="label">
+						<span>{t('year_built', $language, { default: 'سنة البناء' })}</span>
+						<input
+							type="number"
+							class="input"
+							bind:value={formData.year_built}
+							min="1900"
+							max={currentYear}
+							step="1"
+							placeholder={t('year_built_placeholder', $language, { default: 'سنة بناء العقار' })}
+						/>
+					</label>
+
+					<!-- Market Value -->
+					<label class="label">
+						<span>{t('market_value', $language, { default: 'القيمة السوقية' })}</span>
+						<input
+							type="number"
+							class="input"
+							bind:value={formData.market_value}
+							min="0"
+							step="0.01"
+							placeholder={t('market_value_placeholder', $language, {
+								default: 'القيمة السوقية للعقار'
+							})}
+						/>
+					</label>
+
+					<!-- Minimum Bid -->
+					<label class="label">
+						<span>{t('minimum_bid', $language, { default: 'الحد الأدنى للمزايدة' })}</span>
+						<input
+							type="number"
+							class="input"
+							bind:value={formData.minimum_bid}
+							min="0"
+							step="0.01"
+							placeholder={t('minimum_bid_placeholder', $language, {
+								default: 'الحد الأدنى للمزايدة'
+							})}
+						/>
+					</label>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Tab 4: Features and Amenities -->
+		{#if activeTab === 'features'}
+			<div class="card p-4 animate-in fade-in duration-300">
+				<h2 class="h3 mb-4 flex items-center">
+					<Star class="w-6 h-6 {$isRTL ? 'ml-2' : 'mr-2'}" />
+					{t('features_amenities', $language, { default: 'المميزات والمرافق' })}
+				</h2>
+
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+					<!-- Features -->
+					<div>
+						<h3 class="font-semibold mb-2">{t('features', $language, { default: 'المميزات' })}</h3>
+
+						<!-- Features Input -->
+						<div class="flex mb-2">
+							<input
+								type="text"
+								class="input {$isRTL ? 'rounded-l-none border-l-0' : 'rounded-r-none border-r-0'}"
+								bind:value={newFeature}
+								placeholder={t('feature_placeholder', $language, { default: 'أضف ميزة جديدة' })}
+								on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addFeature())}
+							/>
+							<button
+								type="button"
+								class="btn variant-filled-primary {$isRTL ? 'rounded-r-token' : 'rounded-l-token'}"
+								on:click={addFeature}
+							>
+								<Plus class="w-5 h-5" />
+							</button>
+						</div>
+
+						<!-- Features List -->
+						{#if formData.features.length === 0}
+							<p class="text-surface-500-400-token text-sm italic">
+								{t('no_features', $language, { default: 'لا توجد ميزات محددة' })}
+							</p>
+						{:else}
+							<ul class="space-y-2 max-h-60 overflow-y-auto">
+								{#each formData.features as feature, i}
+									<li
+										class="flex items-center justify-between bg-surface-200-700-token p-2 rounded-token"
+									>
+										<span>{feature}</span>
+										<button
+											type="button"
+											class="btn btn-sm btn-icon variant-soft-error"
+											on:click={() => removeFeature(i)}
+											aria-label={t('remove_feature', $language, { default: 'إزالة الميزة' })}
+										>
+											<X class="w-4 h-4" />
+										</button>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+
+					<!-- Amenities -->
+					<div>
+						<h3 class="font-semibold mb-2">{t('amenities', $language, { default: 'المرافق' })}</h3>
+
+						<!-- Amenities Input -->
+						<div class="flex mb-2">
+							<input
+								type="text"
+								class="input {$isRTL ? 'rounded-l-none border-l-0' : 'rounded-r-none border-r-0'}"
+								bind:value={newAmenity}
+								placeholder={t('amenity_placeholder', $language, { default: 'أضف مرفق جديد' })}
+								on:keydown={(e) => e.key === 'Enter' && (e.preventDefault(), addAmenity())}
+							/>
+							<button
+								type="button"
+								class="btn variant-filled-primary {$isRTL ? 'rounded-r-token' : 'rounded-l-token'}"
+								on:click={addAmenity}
+							>
+								<Plus class="w-5 h-5" />
+							</button>
+						</div>
+
+						<!-- Amenities List -->
+						{#if formData.amenities.length === 0}
+							<p class="text-surface-500-400-token text-sm italic">
+								{t('no_amenities', $language, { default: 'لا توجد مرافق محددة' })}
+							</p>
+						{:else}
+							<ul class="space-y-2 max-h-60 overflow-y-auto">
+								{#each formData.amenities as amenity, i}
+									<li
+										class="flex items-center justify-between bg-surface-200-700-token p-2 rounded-token"
+									>
+										<span>{amenity}</span>
+										<button
+											type="button"
+											class="btn btn-sm btn-icon variant-soft-error"
+											on:click={() => removeAmenity(i)}
+											aria-label={t('remove_amenity', $language, { default: 'إزالة المرفق' })}
+										>
+											<X class="w-4 h-4" />
+										</button>
+									</li>
+								{/each}
+							</ul>
+						{/if}
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Tab 5: Images -->
+		{#if activeTab === 'images'}
+			<div class="card p-4 animate-in fade-in duration-300">
+				<h2 class="h3 mb-4 flex items-center">
+					<Image class="w-6 h-6 {$isRTL ? 'ml-2' : 'mr-2'}" />
+					{t('images', $language, { default: 'الصور' })}
+				</h2>
+
+				{#if property && property.id}
+					<!-- Use PropertyImages component for existing properties -->
+					<PropertyImages
+						propertyId={property.id}
+						{images}
+						{maxImages}
+						on:update={handleImagesUpdate}
+					/>
+				{:else}
+					<!-- Simple image upload for new properties -->
+					<div class="mb-4">
+						<label
+							for="property-images"
+							class="block w-full h-32 border-2 border-dashed border-surface-300-600-token rounded-token cursor-pointer hover:bg-surface-hover-token transition-colors"
+						>
+							<div class="flex flex-col items-center justify-center h-full">
+								<Image class="w-10 h-10 text-surface-500-400-token mb-2" />
+								<h3 class="font-medium text-center">
+									{t('add_property_images', $language, { default: 'إضافة صور للعقار' })}
+								</h3>
+								<p class="text-sm text-surface-600-300-token text-center">
+									{t('drag_or_click', $language, {
+										default: 'اسحب وأفلت الصور هنا أو انقر للاختيار'
+									})}
+								</p>
+								<p class="text-xs text-surface-500-400-token text-center">
+									{t('image_requirements', $language, {
+										default: 'PNG، JPG، GIF حتى 5 ميجابايت | {{remaining}} صور متبقية',
+										remaining: maxImages - images.length
+									})}
+								</p>
+
+								<input
+									id="property-images"
+									type="file"
+									accept="image/jpeg,image/png,image/gif,image/webp"
+									multiple
+									class="hidden"
+									on:change={(event) => {
+										// Handle file selection
+										const files = event.target.files;
+										if (files && files.length > 0) {
+											// Process files
+											for (let i = 0; i < files.length; i++) {
+												if (images.length >= maxImages) break;
+
+												const file = files[i];
+												if (file.size > maxFileSize * 1024 * 1024) {
+													imageError = t('file_too_large', $language, {
+														default: 'حجم الملف كبير جداً: {{filename}}. الحد الأقصى هو 5 ميجابايت',
+														filename: file.name
+													});
+													continue;
+												}
+
+												// Create preview URL
+												const url = URL.createObjectURL(file);
+												images = [
+													...images,
+													{
+														id: null,
+														file,
+														url,
+														is_primary: images.length === 0, // First image is primary
+														caption: '',
+														uploaded: false,
+														progress: 0
+													}
+												];
+											}
+										}
+										// Reset input
+										event.target.value = '';
+									}}
+									aria-hidden="true"
+								/>
+							</div>
+						</label>
+						<p class="text-sm text-surface-500-400-token mt-2">
+							{t('image_count', $language, {
+								default: '{current}/{max} صور',
+								current: images.length,
+								max: maxImages
+							})}
+						</p>
+					</div>
+
+					<!-- Preview of selected images -->
+					{#if images.length > 0}
+						<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+							{#each images as image, i}
+								<div class="relative group">
+									<!-- Image preview -->
+									<div
+										class="aspect-square bg-cover bg-center rounded-token overflow-hidden border {image.is_primary
+											? 'border-primary-500'
+											: 'border-surface-300-600-token'}"
+										style="background-image: url('{image.url}')"
+									>
+										<!-- Primary badge -->
+										{#if image.is_primary}
+											<div class="absolute top-2 {$isRTL ? 'right-2' : 'left-2'} z-10">
+												<span class="badge variant-filled-primary">
+													{t('primary', $language, { default: 'الرئيسية' })}
+												</span>
+											</div>
+										{/if}
+									</div>
+
+									<!-- Image actions -->
+									<div
+										class="absolute bottom-0 inset-x-0 p-2 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex justify-between"
+									>
+										<!-- Set as primary button -->
+										{#if !image.is_primary}
+											<button
+												type="button"
+												class="btn btn-sm variant-ghost-primary"
+												on:click={() => {
+													// Update primary status
+													images = images.map((img, idx) => ({
+														...img,
+														is_primary: idx === i
+													}));
+												}}
+												aria-label={t('set_as_primary', $language, {
+													default: 'تعيين كصورة رئيسية'
+												})}
+											>
+												<Star class="w-4 h-4" />
+											</button>
+										{:else}
+											<div></div>
+										{/if}
+
+										<!-- Remove button -->
+										<button
+											type="button"
+											class="btn btn-sm variant-ghost-error"
+											on:click={() => {
+												// Remove image
+												images = images.filter((_, idx) => idx !== i);
+
+												// If we removed the primary image, set the first one as primary
+												if (image.is_primary && images.length > 0) {
+													images = images.map((img, idx) => ({
+														...img,
+														is_primary: idx === 0
+													}));
+												}
+											}}
+											aria-label={t('remove_image', $language, { default: 'إزالة الصورة' })}
+										>
+											<Trash2 class="w-4 h-4" />
+										</button>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Tab 6: Publishing Options -->
+		{#if activeTab === 'publishing'}
+			<div class="card p-4 animate-in fade-in duration-300">
+				<h2 class="h3 mb-4 flex items-center">
+					<Tag class="w-6 h-6 {$isRTL ? 'ml-2' : 'mr-2'}" />
+					{t('publishing_options', $language, { default: 'خيارات النشر' })}
+				</h2>
+
+				<div class="space-y-4">
+					<!-- Published checkbox -->
+					<label class="flex items-center space-x-2 {$isRTL ? 'space-x-reverse' : ''}">
+						<input type="checkbox" class="checkbox" bind:checked={formData.is_published} />
+						<span>{t('is_published', $language, { default: 'نشر العقار' })}</span>
+					</label>
+
+					<!-- Featured checkbox -->
+					<label class="flex items-center space-x-2 {$isRTL ? 'space-x-reverse' : ''}">
+						<input type="checkbox" class="checkbox" bind:checked={formData.is_featured} />
+						<span>{t('is_featured', $language, { default: 'عقار مميز' })}</span>
+					</label>
+
+					<!-- SEO options -->
+					<div class="pt-4 border-t border-surface-300-600-token">
+						<h3 class="font-semibold mb-2">
+							{t('seo_options', $language, { default: 'خيارات تحسين محركات البحث' })}
+						</h3>
+
+						<!-- Meta Title -->
+						<label class="label">
+							<span>{t('meta_title', $language, { default: 'عنوان الميتا' })}</span>
+							<input
+								type="text"
+								class="input"
+								bind:value={formData.meta_title}
+								placeholder={t('meta_title_placeholder', $language, {
+									default: 'عنوان الميتا لمحركات البحث'
+								})}
+							/>
+						</label>
+
+						<!-- Meta Description -->
+						<label class="label">
+							<span>{t('meta_description', $language, { default: 'وصف الميتا' })}</span>
+							<textarea
+								class="textarea"
+								bind:value={formData.meta_description}
+								rows="3"
+								placeholder={t('meta_description_placeholder', $language, {
+									default: 'وصف الميتا لمحركات البحث'
+								})}
+							></textarea>
+						</label>
+					</div>
+				</div>
+			</div>
+		{/if}
+	</Tabs>
 
 	<!-- Form Actions -->
 	<div class="flex justify-end gap-2">
@@ -1253,7 +1056,7 @@
 		</button>
 		<button type="submit" class="btn variant-filled-primary" disabled={loading}>
 			{#if loading}
-				<div class="spinner-icon mr-2"></div>
+				<div class="spinner-icon {$isRTL ? 'ml-2' : 'mr-2'}"></div>
 			{/if}
 			{property
 				? t('update_property', $language, { default: 'تحديث العقار' })
@@ -1280,13 +1083,5 @@
 		100% {
 			transform: rotate(360deg);
 		}
-	}
-
-	.tab-panel {
-		padding-top: 1rem;
-	}
-
-	.hidden {
-		display: none;
 	}
 </style>

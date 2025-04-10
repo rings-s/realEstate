@@ -6,7 +6,8 @@
 	import { properties } from '$lib/stores/properties';
 	import { isAuthenticated, currentUser, userRoles } from '$lib/stores/auth';
 	import { hasPermission, PERMISSIONS } from '$lib/utils/permissions';
-	import { getAccessToken, isTokenExpired } from '$lib/utils/tokenManager';
+	import { isTokenExpired, getAccessToken } from '$lib/utils/tokenManager';
+	import * as propertyService from '$lib/services/propertyService';
 
 	import PropertyForm from '$lib/components/property/PropertyForm.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
@@ -17,86 +18,101 @@
 	let error = null;
 	let unauthorized = false;
 	let initialCheckDone = false;
-	let uploadedImages = [];
+	let selectedImages = [];
 
-	// Check permissions for creating properties
-	// This looks at the role-based permissions structure to see if the user can create properties
-	$: canCreateProperty = $isAuthenticated && hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY);
+	// Check if user has permission to create properties
+	$: canCreateProperty = hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY);
 
-	// Enhanced authentication and permission check
-	async function checkAuthAndPermissions() {
-		console.log('Checking authentication and permissions...');
+	// Enhanced authentication check
+	function checkAuthentication() {
+		console.log('Checking authentication status...');
 
-		// First check if store says we're authenticated
+		// First check if we have the auth store value
 		if (!$isAuthenticated) {
-			// Double-check with token as fallback
+			console.log('Not authenticated according to store');
+
+			// Double-check with token directly as a fallback
 			const token = getAccessToken();
 			if (token && !isTokenExpired()) {
-				console.log('Token exists and is valid, updating authentication state');
+				console.log('Token exists and is valid, setting authenticated');
+				// We have a valid token despite the store saying otherwise
 				isAuthenticated.set(true);
-				// Wait for the store to update
-				await new Promise((resolve) => setTimeout(resolve, 50));
-			} else {
-				console.log('No valid authentication found, redirecting to login');
-				goto('/auth/login?redirect=/properties/add');
-				return false;
+				return true;
 			}
-		}
 
-		// Now check if user has the CREATE_PROPERTY permission
-		const hasCreatePermission = hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY);
-
-		// Also look for SELLER or AGENT roles which should be able to create properties
-		const isSellerOrAgent =
-			$userRoles.includes('seller') || $userRoles.includes('agent') || $userRoles.includes('admin');
-
-		if (!hasCreatePermission && !isSellerOrAgent) {
-			console.log('User lacks permission to create properties');
-			unauthorized = true;
-			error = t('no_permission', $language, { default: 'ليس لديك صلاحية لإضافة عقار' });
+			console.log('No valid token found, redirecting to login');
+			goto('/auth/login?redirect=/properties/add');
 			return false;
 		}
 
-		console.log('User has permission to create properties');
+		console.log('User is authenticated');
 		return true;
 	}
 
-	onMount(async () => {
-		// Check authentication and permissions
-		const hasPermission = await checkAuthAndPermissions();
-		initialCheckDone = true;
-
-		if (!hasPermission) {
-			console.log('Permission check failed');
+	onMount(() => {
+		// Check if user is authenticated
+		if (!checkAuthentication()) {
 			return;
 		}
+
+		// Check if user has permission to create properties
+		if (!canCreateProperty) {
+			console.log('User lacks permission to create properties');
+			unauthorized = true;
+		}
+
+		initialCheckDone = true;
 	});
+
+	// Upload images for a property
+	async function uploadPropertyImages(propertyId, images) {
+		if (!propertyId || !images || images.length === 0) {
+			return;
+		}
+
+		console.log(`Uploading ${images.length} images for property ID ${propertyId}`);
+
+		// Upload each image sequentially
+		for (let i = 0; i < images.length; i++) {
+			const image = images[i];
+
+			if (!image.file) continue;
+
+			try {
+				const result = await propertyService.uploadPropertyImage(propertyId, image.file, {
+					isPrimary: image.is_primary,
+					caption: image.caption || '',
+					order: i
+				});
+
+				console.log(`Uploaded image ${i + 1}/${images.length}`, result);
+			} catch (err) {
+				console.error(`Error uploading image ${i + 1}/${images.length}:`, err);
+				// Continue with next image despite error
+			}
+		}
+
+		console.log('All images uploaded successfully');
+	}
 
 	// Handle form submission
 	async function handleSubmit(event) {
 		try {
-			const propertyData = event.detail;
+			const { property: propertyData, images } = event.detail;
+			selectedImages = images; // Store images for later upload
 			loading = true;
 			error = null;
 
 			console.log('Submitting property data:', propertyData);
+			console.log('Selected images:', selectedImages.length);
 
 			// Create new property
 			const newProperty = await properties.createProperty(propertyData);
 			console.log('Property created successfully:', newProperty);
 
-			// Handle any pending image uploads
-			if (uploadedImages.length > 0 && newProperty.id) {
-				for (const imageData of uploadedImages) {
-					try {
-						await properties.uploadImage(newProperty.id, imageData.file, {
-							isPrimary: imageData.isPrimary,
-							caption: imageData.caption
-						});
-					} catch (imgErr) {
-						console.error('Error uploading image after property creation:', imgErr);
-					}
-				}
+			// Upload images if any
+			if (selectedImages.length > 0) {
+				await uploadPropertyImages(newProperty.id, selectedImages);
 			}
 
 			// Show success message
@@ -120,35 +136,74 @@
 		}
 	}
 
-	// Handle property image selection before the property is created
-	function handleImageUpload(event) {
+	// Handle property image upload for the form preview
+	// This is used for immediate uploads during editing, not for initial creation
+	async function handleImageUpload(event) {
 		const { propertyId, formData, imageIndex } = event.detail;
 
-		// Store image info for uploading after property creation
-		if (!propertyId) {
-			// Extract file and metadata from formData
-			const file = formData.get('image');
-			const isPrimary = formData.get('is_primary') === 'true';
-			const caption = formData.get('caption') || '';
+		try {
+			if (propertyId) {
+				// Upload the image
+				const response = await propertyService.uploadFiles(
+					propertyService.ENDPOINTS.PROPERTY.IMAGES(propertyId),
+					formData
+				);
 
-			// Add to pending uploads
-			uploadedImages.push({
-				file,
-				isPrimary,
-				caption
-			});
-
-			console.log('Image queued for upload after property creation:', {
-				isPrimary,
-				caption,
-				fileName: file ? file.name : 'unknown'
-			});
-
+				// Update the image in the UI
+				if (selectedImages[imageIndex]) {
+					selectedImages[imageIndex].id = response.id;
+					selectedImages[imageIndex].uploaded = true;
+					selectedImages[imageIndex].progress = 100;
+					selectedImages = [...selectedImages];
+				}
+			} else {
+				console.log('Storing image for upload after property creation');
+			}
+		} catch (err) {
+			console.error('Error handling image upload:', err);
 			addToast(
-				t('image_queued', $language, {
-					default: 'سيتم تحميل الصورة بعد إنشاء العقار'
+				t('image_upload_error', $language, {
+					default: 'فشل في تحميل الصورة'
 				}),
-				'info'
+				'error'
+			);
+		}
+	}
+
+	// Handle image removal
+	async function handleRemoveImage(event) {
+		const { imageId } = event.detail;
+
+		try {
+			if (imageId) {
+				await propertyService.deletePropertyImage(imageId);
+
+				addToast(t('image_removed', $language, { default: 'تم حذف الصورة بنجاح' }), 'success');
+			}
+		} catch (err) {
+			console.error('Error removing image:', err);
+			addToast(t('image_remove_error', $language, { default: 'فشل في حذف الصورة' }), 'error');
+		}
+	}
+
+	// Handle setting primary image
+	async function handleSetPrimaryImage(event) {
+		const { imageId } = event.detail;
+
+		try {
+			if (imageId) {
+				await propertyService.setPropertyImageAsPrimary(imageId);
+
+				addToast(
+					t('primary_image_set', $language, { default: 'تم تعيين الصورة الرئيسية بنجاح' }),
+					'success'
+				);
+			}
+		} catch (err) {
+			console.error('Error setting primary image:', err);
+			addToast(
+				t('primary_image_error', $language, { default: 'فشل في تعيين الصورة الرئيسية' }),
+				'error'
 			);
 		}
 	}
@@ -182,9 +237,7 @@
 		<div class="card p-6 text-center">
 			<Alert
 				type="error"
-				message={t('no_permission', $language, {
-					default: 'ليس لديك صلاحية لإضافة عقار. يجب أن تكون بائع عقارات أو وكيل عقاري للقيام بذلك.'
-				})}
+				message={t('no_permission', $language, { default: 'ليس لديك صلاحية لإضافة عقار' })}
 			/>
 			<div class="mt-4">
 				<a href="/properties" class="btn variant-filled">
@@ -194,12 +247,14 @@
 		</div>
 	{:else}
 		<!-- Property Form -->
-		<div class="card">
+		<div class="card p-6 mb-6">
 			<PropertyForm
 				{loading}
 				{error}
 				on:submit={handleSubmit}
 				on:uploadImage={handleImageUpload}
+				on:removeImage={handleRemoveImage}
+				on:setPrimaryImage={handleSetPrimaryImage}
 				on:cancel={handleCancel}
 			/>
 		</div>

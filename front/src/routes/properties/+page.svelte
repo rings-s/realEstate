@@ -1,503 +1,269 @@
 <script>
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { t } from '$lib/config/translations';
 	import { language, isRTL, addToast } from '$lib/stores/ui';
-	import {
-		properties,
-		propertiesList,
-		isLoading,
-		error,
-		filters,
-		pagination
-	} from '$lib/stores/properties';
-	import { PROPERTY_TYPES, PROPERTY_STATUS, SORT_OPTIONS } from '$lib/config/constants';
-	import {
-		Search,
-		Filter,
-		X,
-		Building,
-		MapPin,
-		ChevronDown,
-		ArrowUp,
-		ArrowDown
-	} from 'lucide-svelte';
+	import { properties } from '$lib/stores/properties';
+	import { isAuthenticated, currentUser, userRoles } from '$lib/stores/auth';
+	import { hasPermission, PERMISSIONS } from '$lib/utils/permissions';
+	import { isTokenExpired, getAccessToken } from '$lib/utils/tokenManager';
+	import * as propertyService from '$lib/services/propertyService';
 
+	import PropertyForm from '$lib/components/property/PropertyForm.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
-	import Pagination from '$lib/components/common/Pagination.svelte';
-	import PropertyCard from '$lib/components/property/PropertyCard.svelte';
+	import { Building, ArrowLeft } from 'lucide-svelte';
 
 	// Local state
-	let searchQuery = '';
-	let activeFilters = false;
-	let filterValues = {
-		property_type: '',
-		status: '',
-		city: '',
-		bedrooms_min: '',
-		bedrooms_max: '',
-		price_min: '',
-		price_max: '',
-		is_featured: false
-	};
+	let loading = false;
+	let error = null;
+	let unauthorized = false;
+	let initialCheckDone = false;
+	let selectedImages = [];
 
-	// Extract cities from properties for filter dropdown
-	$: cities = [...new Set($propertiesList.map((p) => p.city).filter(Boolean))];
+	// Check if user has permission to create properties
+	$: canCreateProperty = hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY);
 
-	// Initialize filters from URL params or store
-	onMount(async () => {
-		// If URL has query params, use those to set initial filters
-		if (typeof window !== 'undefined' && window.location.search) {
-			const params = new URLSearchParams(window.location.search);
+	// Enhanced authentication check
+	function checkAuthentication() {
+		console.log('Checking authentication status...');
 
-			// Set search if available
-			if (params.has('search')) {
-				searchQuery = params.get('search');
+		// First check if we have the auth store value
+		if (!$isAuthenticated) {
+			console.log('Not authenticated according to store');
+
+			// Double-check with token directly as a fallback
+			const token = getAccessToken();
+			if (token && !isTokenExpired()) {
+				console.log('Token exists and is valid, setting authenticated');
+				// We have a valid token despite the store saying otherwise
+				isAuthenticated.set(true);
+				return true;
 			}
 
-			// Set other filters
-			Object.keys(filterValues).forEach((key) => {
-				if (params.has(key)) {
-					const value = params.get(key);
-					filterValues[key] = value === 'true' ? true : value === 'false' ? false : value;
-				}
-			});
-
-			// Apply filters
-			if (searchQuery || Object.values(filterValues).some((v) => v !== '' && v !== false)) {
-				activeFilters = true;
-				applyFilters();
-			} else {
-				// Load properties with default filters
-				await properties.loadProperties();
-			}
-		} else {
-			// Load properties with default filters
-			await properties.loadProperties();
+			console.log('No valid token found, redirecting to login');
+			goto('/auth/login?redirect=/properties/add');
+			return false;
 		}
+
+		console.log('User is authenticated');
+		return true;
+	}
+
+	onMount(() => {
+		// Check if user is authenticated
+		if (!checkAuthentication()) {
+			return;
+		}
+
+		// Check if user has permission to create properties
+		if (!canCreateProperty) {
+			console.log('User lacks permission to create properties');
+			unauthorized = true;
+		}
+
+		initialCheckDone = true;
 	});
 
-	// Apply filters function
-	async function applyFilters() {
-		try {
-			// Create filter object
-			const filterObj = {
-				search: searchQuery.trim()
-			};
+	// Upload images for a property
+	async function uploadPropertyImages(propertyId, images) {
+		if (!propertyId || !images || images.length === 0) {
+			return;
+		}
 
-			// Add other filters if they have values
-			Object.entries(filterValues).forEach(([key, value]) => {
-				if (value !== '' && value !== false) {
-					filterObj[key] = value;
-				}
-			});
+		console.log(`Uploading ${images.length} images for property ID ${propertyId}`);
 
-			// Update URL with filters
-			if (typeof window !== 'undefined') {
-				const params = new URLSearchParams();
-				Object.entries(filterObj).forEach(([key, value]) => {
-					if (value !== '') {
-						params.set(key, value);
-					}
+		// Upload each image sequentially
+		for (let i = 0; i < images.length; i++) {
+			const image = images[i];
+
+			if (!image.file) continue;
+
+			try {
+				const formData = new FormData();
+				formData.append('image', image.file);
+				formData.append('is_primary', image.is_primary);
+				if (image.caption) formData.append('caption', image.caption);
+				formData.append('order', i);
+
+				const result = await propertyService.uploadPropertyImage(propertyId, image.file, {
+					isPrimary: image.is_primary,
+					caption: image.caption || '',
+					order: i
 				});
 
-				const newUrl = `${window.location.pathname}?${params.toString()}`;
-				window.history.pushState({}, '', newUrl);
+				console.log(`Uploaded image ${i + 1}/${images.length}`, result);
+			} catch (err) {
+				console.error(`Error uploading image ${i + 1}/${images.length}:`, err);
+				// Continue with next image despite error
+			}
+		}
+
+		console.log('All images uploaded successfully');
+	}
+
+	// Handle form submission
+	async function handleSubmit(event) {
+		try {
+			const { property: propertyData, images } = event.detail;
+			selectedImages = images; // Store images for later upload
+			loading = true;
+			error = null;
+
+			console.log('Submitting property data:', propertyData);
+			console.log('Selected images:', selectedImages.length);
+
+			// Create new property
+			const newProperty = await properties.createProperty(propertyData);
+			console.log('Property created successfully:', newProperty);
+
+			// Upload images if any
+			if (selectedImages.length > 0) {
+				await uploadPropertyImages(newProperty.id, selectedImages);
 			}
 
-			// Apply filters
-			await properties.updateFilters(filterObj);
+			// Show success message
+			addToast(
+				t('property_created', $language, {
+					default: 'تم إنشاء العقار بنجاح'
+				}),
+				'success'
+			);
+
+			// Redirect to property detail page
+			goto(`/properties/${newProperty.slug}`);
 		} catch (err) {
-			console.error('Error applying filters:', err);
-			addToast(t('filter_error', $language, { default: 'حدث خطأ أثناء تطبيق الفلاتر' }), 'error');
+			console.error('Error creating property:', err);
+			error =
+				err.message ||
+				t('create_property_error', $language, {
+					default: 'حدث خطأ أثناء إنشاء العقار'
+				});
+			loading = false;
 		}
 	}
 
-	// Reset filters function
-	function resetFilters() {
-		searchQuery = '';
-		filterValues = {
-			property_type: '',
-			status: '',
-			city: '',
-			bedrooms_min: '',
-			bedrooms_max: '',
-			price_min: '',
-			price_max: '',
-			is_featured: false
-		};
+	// Handle property image upload for the form preview
+	async function handleImageUpload(event) {
+		const { propertyId, formData, imageIndex } = event.detail;
 
-		// Update URL by removing query params
-		if (typeof window !== 'undefined') {
-			const newUrl = window.location.pathname;
-			window.history.pushState({}, '', newUrl);
-		}
+		try {
+			if (propertyId) {
+				// Upload the image
+				const response = await propertyService.uploadFiles(
+					propertyService.ENDPOINTS.PROPERTY.IMAGES(propertyId),
+					formData
+				);
 
-		// Reset filters in store and reload properties
-		properties.updateFilters({});
-	}
-
-	// Toggle filters panel
-	function toggleFilters() {
-		activeFilters = !activeFilters;
-	}
-
-	// Change sort order
-	function changeSort(event) {
-		const sortOrder = event.target.value;
-		properties.updateFilters({ ordering: sortOrder });
-	}
-
-	// Handle page change from pagination component
-	function handlePageChange(event) {
-		const { page } = event.detail;
-		properties.changePage(page);
-
-		// Scroll to top of list
-		if (typeof window !== 'undefined') {
-			window.scrollTo({ top: 0, behavior: 'smooth' });
+				// Update the image in the UI
+				if (selectedImages[imageIndex]) {
+					selectedImages[imageIndex].id = response.id;
+					selectedImages[imageIndex].uploaded = true;
+					selectedImages[imageIndex].progress = 100;
+					selectedImages = [...selectedImages];
+				}
+			} else {
+				console.log('Storing image for upload after property creation');
+			}
+		} catch (err) {
+			console.error('Error handling image upload:', err);
+			addToast(
+				t('image_upload_error', $language, {
+					default: 'فشل في تحميل الصورة'
+				}),
+				'error'
+			);
 		}
 	}
 
-	// Format price range for display
-	function formatPriceRange(min, max) {
-		if (min && max) {
-			return `${min} - ${max}`;
-		} else if (min) {
-			return `${min}+`;
-		} else if (max) {
-			return `0 - ${max}`;
+	// Handle image removal
+	async function handleRemoveImage(event) {
+		const { imageId } = event.detail;
+
+		try {
+			if (imageId) {
+				await propertyService.deletePropertyImage(imageId);
+
+				addToast(t('image_removed', $language, { default: 'تم حذف الصورة بنجاح' }), 'success');
+			}
+		} catch (err) {
+			console.error('Error removing image:', err);
+			addToast(t('image_remove_error', $language, { default: 'فشل في حذف الصورة' }), 'error');
 		}
-		return '';
 	}
 
-	// Format bedrooms range for display
-	function formatBedroomsRange(min, max) {
-		if (min && max) {
-			return `${min} - ${max}`;
-		} else if (min) {
-			return `${min}+`;
-		} else if (max) {
-			return `0 - ${max}`;
+	// Handle setting primary image
+	async function handleSetPrimaryImage(event) {
+		const { imageId } = event.detail;
+
+		try {
+			if (imageId) {
+				await propertyService.setPropertyImageAsPrimary(imageId);
+
+				addToast(
+					t('primary_image_set', $language, { default: 'تم تعيين الصورة الرئيسية بنجاح' }),
+					'success'
+				);
+			}
+		} catch (err) {
+			console.error('Error setting primary image:', err);
+			addToast(
+				t('primary_image_error', $language, { default: 'فشل في تعيين الصورة الرئيسية' }),
+				'error'
+			);
 		}
-		return '';
 	}
 
-	// Get active filter count for badge
-	$: activeFilterCount = Object.values(filterValues).filter((v) => v !== '' && v !== false).length;
+	// Handle cancel
+	function handleCancel() {
+		goto('/properties');
+	}
 </script>
 
 <div class="container mx-auto px-4 py-6">
-	<div class="flex flex-col space-y-6">
-		<!-- Page Header -->
-		<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-			<h1 class="h2 {$isRTL ? 'text-right' : 'text-left'}">
-				{t('properties', $language, { default: 'العقارات' })}
-			</h1>
+	<div class="flex justify-between items-center mb-6">
+		<h1 class="h2 {$isRTL ? 'text-right' : 'text-left'}">
+			<Building class="inline-block w-8 h-8 {$isRTL ? 'ml-2' : 'mr-2'} text-primary-500" />
+			{t('add_property', $language, { default: 'إضافة عقار' })}
+		</h1>
 
-			<!-- Search & Filter Bar -->
-			<div class="w-full md:w-auto flex flex-col sm:flex-row gap-2">
-				<!-- Search Box -->
-				<div class="input-group w-full sm:w-auto">
-					<input
-						type="text"
-						class="input"
-						placeholder={t('search_properties', $language, { default: 'بحث عن عقار...' })}
-						bind:value={searchQuery}
-						on:keydown={(e) => e.key === 'Enter' && applyFilters()}
-					/>
-					<button class="variant-filled-primary" on:click={applyFilters}>
-						<Search size={18} />
-					</button>
-				</div>
+		<a href="/properties" class="btn variant-ghost">
+			<ArrowLeft class="w-5 h-5 {$isRTL ? 'ml-2' : 'mr-2'}" />
+			{t('back_to_properties', $language, { default: 'العودة إلى العقارات' })}
+		</a>
+	</div>
 
-				<!-- Filter Button -->
-				<button
-					class="btn variant-ghost-surface {activeFilters ? 'variant-soft-primary' : ''}"
-					on:click={toggleFilters}
-				>
-					<Filter size={18} class={$isRTL ? 'ml-2' : 'mr-2'} />
-					{t('filters', $language, { default: 'الفلاتر' })}
-					{#if activeFilterCount > 0}
-						<span class="badge bg-primary-500 text-white {$isRTL ? 'mr-2' : 'ml-2'}">
-							{activeFilterCount}
-						</span>
-					{/if}
-				</button>
-
-				<!-- Sort Dropdown -->
-				<div class="input-group w-full sm:w-auto">
-					<select class="select" on:change={changeSort} value={$filters.ordering || '-created_at'}>
-						<option disabled>{t('sort_by', $language, { default: 'ترتيب حسب' })}</option>
-						{#each SORT_OPTIONS as option}
-							<option value={option.value}>
-								{t(option.label, $language, { default: option.label })}
-							</option>
-						{/each}
-					</select>
-					<div class="input-group-shim">
-						<ChevronDown size={18} />
-					</div>
-				</div>
+	{#if !initialCheckDone}
+		<!-- Loading state while checking authentication -->
+		<div class="card p-6 text-center">
+			<div class="spinner-icon mx-auto mb-4"></div>
+			<p>{t('loading', $language, { default: 'جاري التحميل...' })}</p>
+		</div>
+	{:else if unauthorized}
+		<div class="card p-6 text-center">
+			<Alert
+				type="error"
+				message={t('no_permission', $language, { default: 'ليس لديك صلاحية لإضافة عقار' })}
+			/>
+			<div class="mt-4">
+				<a href="/properties" class="btn variant-filled">
+					{t('back_to_properties', $language, { default: 'العودة إلى العقارات' })}
+				</a>
 			</div>
 		</div>
-
-		<!-- Filter Panel -->
-		{#if activeFilters}
-			<div class="card p-4 bg-surface-100-800-token" transition:slide={{ duration: 300 }}>
-				<div class="flex justify-between items-center mb-4">
-					<h3 class="h4">{t('filter_properties', $language, { default: 'تصفية العقارات' })}</h3>
-					<button class="btn btn-sm variant-ghost-error" on:click={resetFilters}>
-						<X size={16} class={$isRTL ? 'ml-2' : 'mr-2'} />
-						{t('reset_filters', $language, { default: 'إعادة ضبط' })}
-					</button>
-				</div>
-
-				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-					<!-- Property Type -->
-					<label class="label">
-						<span>{t('property_type', $language, { default: 'نوع العقار' })}</span>
-						<select class="select" bind:value={filterValues.property_type}>
-							<option value="">{t('all_types', $language, { default: 'كل الأنواع' })}</option>
-							{#each PROPERTY_TYPES as type}
-								<option value={type.value}>
-									{t(type.value, $language, { default: type.label })}
-								</option>
-							{/each}
-						</select>
-					</label>
-
-					<!-- Property Status -->
-					<label class="label">
-						<span>{t('status', $language, { default: 'الحالة' })}</span>
-						<select class="select" bind:value={filterValues.status}>
-							<option value="">{t('all_statuses', $language, { default: 'كل الحالات' })}</option>
-							{#each PROPERTY_STATUS as status}
-								<option value={status.value}>
-									{t(status.value, $language, { default: status.label })}
-								</option>
-							{/each}
-						</select>
-					</label>
-
-					<!-- City -->
-					<label class="label">
-						<span>{t('city', $language, { default: 'المدينة' })}</span>
-						<select class="select" bind:value={filterValues.city}>
-							<option value="">{t('all_cities', $language, { default: 'كل المدن' })}</option>
-							{#each cities as city}
-								<option value={city}>{city}</option>
-							{/each}
-						</select>
-					</label>
-
-					<!-- Featured properties -->
-					<label
-						class="flex items-center space-x-2 {$isRTL ? 'space-x-reverse' : ''} h-full pb-1 pt-6"
-					>
-						<input type="checkbox" class="checkbox" bind:checked={filterValues.is_featured} />
-						<span>{t('featured_only', $language, { default: 'العقارات المميزة فقط' })}</span>
-					</label>
-
-					<!-- Price Range -->
-					<div class="sm:col-span-2">
-						<span class="label-text">{t('price_range', $language, { default: 'نطاق السعر' })}</span>
-						<div class="flex items-center gap-2">
-							<input
-								type="number"
-								class="input"
-								placeholder={t('min', $language, { default: 'الحد الأدنى' })}
-								bind:value={filterValues.price_min}
-							/>
-							<span>-</span>
-							<input
-								type="number"
-								class="input"
-								placeholder={t('max', $language, { default: 'الحد الأقصى' })}
-								bind:value={filterValues.price_max}
-							/>
-						</div>
-					</div>
-
-					<!-- Bedrooms Range -->
-					<div class="sm:col-span-2">
-						<span class="label-text"
-							>{t('bedrooms_range', $language, { default: 'عدد غرف النوم' })}</span
-						>
-						<div class="flex items-center gap-2">
-							<input
-								type="number"
-								class="input"
-								placeholder={t('min', $language, { default: 'الحد الأدنى' })}
-								bind:value={filterValues.bedrooms_min}
-							/>
-							<span>-</span>
-							<input
-								type="number"
-								class="input"
-								placeholder={t('max', $language, { default: 'الحد الأقصى' })}
-								bind:value={filterValues.bedrooms_max}
-							/>
-						</div>
-					</div>
-				</div>
-
-				<div class="flex justify-end mt-4">
-					<button class="btn variant-filled-primary" on:click={applyFilters}>
-						{t('apply_filters', $language, { default: 'تطبيق الفلاتر' })}
-					</button>
-				</div>
-			</div>
-		{/if}
-
-		<!-- Active Filters Display -->
-		{#if activeFilterCount > 0}
-			<div class="flex flex-wrap gap-2 {$isRTL ? 'justify-end' : 'justify-start'}">
-				{#if filterValues.property_type}
-					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
-						<Building size={14} />
-						<span>{t(filterValues.property_type, $language)}</span>
-						<button
-							class="btn btn-icon btn-xs variant-ghost text-primary-500"
-							on:click={() => {
-								filterValues.property_type = '';
-								applyFilters();
-							}}
-						>
-							<X size={14} />
-						</button>
-					</div>
-				{/if}
-
-				{#if filterValues.status}
-					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
-						<span>{t(filterValues.status, $language)}</span>
-						<button
-							class="btn btn-icon btn-xs variant-ghost text-primary-500"
-							on:click={() => {
-								filterValues.status = '';
-								applyFilters();
-							}}
-						>
-							<X size={14} />
-						</button>
-					</div>
-				{/if}
-
-				{#if filterValues.city}
-					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
-						<MapPin size={14} />
-						<span>{filterValues.city}</span>
-						<button
-							class="btn btn-icon btn-xs variant-ghost text-primary-500"
-							on:click={() => {
-								filterValues.city = '';
-								applyFilters();
-							}}
-						>
-							<X size={14} />
-						</button>
-					</div>
-				{/if}
-
-				{#if filterValues.price_min || filterValues.price_max}
-					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
-						<span>
-							{t('price', $language, { default: 'السعر' })}:
-							{formatPriceRange(filterValues.price_min, filterValues.price_max)}
-						</span>
-						<button
-							class="btn btn-icon btn-xs variant-ghost text-primary-500"
-							on:click={() => {
-								filterValues.price_min = '';
-								filterValues.price_max = '';
-								applyFilters();
-							}}
-						>
-							<X size={14} />
-						</button>
-					</div>
-				{/if}
-
-				{#if filterValues.bedrooms_min || filterValues.bedrooms_max}
-					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
-						<span>
-							{t('bedrooms', $language, { default: 'غرف النوم' })}:
-							{formatBedroomsRange(filterValues.bedrooms_min, filterValues.bedrooms_max)}
-						</span>
-						<button
-							class="btn btn-icon btn-xs variant-ghost text-primary-500"
-							on:click={() => {
-								filterValues.bedrooms_min = '';
-								filterValues.bedrooms_max = '';
-								applyFilters();
-							}}
-						>
-							<X size={14} />
-						</button>
-					</div>
-				{/if}
-
-				{#if filterValues.is_featured}
-					<div class="badge variant-soft-primary p-2 flex items-center gap-1">
-						<span>{t('featured', $language, { default: 'مميز' })}</span>
-						<button
-							class="btn btn-icon btn-xs variant-ghost text-primary-500"
-							on:click={() => {
-								filterValues.is_featured = false;
-								applyFilters();
-							}}
-						>
-							<X size={14} />
-						</button>
-					</div>
-				{/if}
-			</div>
-		{/if}
-
-		<!-- Loading State -->
-		{#if $isLoading}
-			<div class="flex justify-center py-12">
-				<div class="spinner-icon"></div>
-			</div>
-			<!-- Error State -->
-		{:else if $error}
-			<Alert type="error" message={$error} />
-			<!-- Empty State -->
-		{:else if $propertiesList.length === 0}
-			<div class="card p-12 text-center">
-				<h3 class="h3 mb-4">
-					{t('no_properties_found', $language, { default: 'لم يتم العثور على عقارات' })}
-				</h3>
-				<p class="mb-6">
-					{t('try_adjusting_filters', $language, {
-						default: 'حاول تعديل الفلاتر للعثور على المزيد من العقارات'
-					})}
-				</p>
-				<button class="btn variant-filled-primary" on:click={resetFilters}>
-					{t('reset_filters', $language, { default: 'إعادة ضبط الفلاتر' })}
-				</button>
-			</div>
-			<!-- Property Grid -->
-		{:else}
-			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-				{#each $propertiesList as property (property.id)}
-					<PropertyCard {property} />
-				{/each}
-			</div>
-
-			<!-- Pagination -->
-			<div class="mt-8">
-				<Pagination
-					page={$pagination.page}
-					totalPages={$pagination.totalPages}
-					totalItems={$pagination.totalItems}
-					pageSize={$pagination.pageSize}
-					on:change={handlePageChange}
-					showPageSizeSelector={false}
-				/>
-			</div>
-		{/if}
-	</div>
+	{:else}
+		<!-- Enhanced Property Form with Tabs -->
+		<div class="mb-6">
+			<PropertyForm
+				{loading}
+				{error}
+				on:submit={handleSubmit}
+				on:uploadImage={handleImageUpload}
+				on:removeImage={handleRemoveImage}
+				on:setPrimaryImage={handleSetPrimaryImage}
+				on:cancel={handleCancel}
+			/>
+		</div>
+	{/if}
 </div>
 
 <style>

@@ -1,10 +1,12 @@
+<!--
+  Refactored Property Images Component
+  A component for managing property images without external dependencies
+-->
 <script>
 	import { t } from '$lib/config/translations';
 	import { language, isRTL, addToast } from '$lib/stores/ui';
 	import { createEventDispatcher, onMount } from 'svelte';
-	import { flip } from 'svelte/animate';
-	import { fade, slide } from 'svelte/transition';
-	import { dndzone } from 'svelte-dnd-action';
+	import { fade } from 'svelte/transition';
 	import {
 		ImagePlus,
 		Star,
@@ -14,7 +16,9 @@
 		X,
 		Loader,
 		CheckCircle,
-		AlertCircle
+		AlertCircle,
+		ArrowUp,
+		ArrowDown
 	} from 'lucide-svelte';
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
@@ -47,7 +51,6 @@
 	export let classes = '';
 
 	// Internal state
-	let dragDisabled = false;
 	let selectedImage = null;
 	let isEditModalOpen = false;
 	let isConfirmDeleteModalOpen = false;
@@ -100,6 +103,15 @@
 
 			const data = await response.json();
 			images = data.results || [];
+
+			// Sort images by order (and primary status as secondary sort)
+			images.sort((a, b) => {
+				if (a.is_primary && !b.is_primary) return -1;
+				if (!a.is_primary && b.is_primary) return 1;
+				return (a.order || 0) - (b.order || 0);
+			});
+
+			dispatch('update', { images });
 		} catch (error) {
 			console.error('Error loading images:', error);
 			addToast(t('images_load_error', $language, { default: 'فشل تحميل الصور' }), 'error');
@@ -255,19 +267,30 @@
 		}
 	}
 
-	// Handle file drop
-	async function handleFileDrop(event) {
-		const { items, info } = event.detail;
-
-		// If it's files being dropped
-		if (info.files) {
-			const files = info.files;
-			await uploadImages(files);
+	// Handle file drop from drag-and-drop
+	function handleDrop(event) {
+		event.preventDefault();
+		const files = event.dataTransfer.files;
+		if (files.length > 0) {
+			uploadImages(files);
 		}
-
-		// Update items (needed for dndzone)
-		images = items;
+		dropTarget.classList.remove('border-primary-500');
 	}
+
+	// Handle drag over for visual effects
+	function handleDragOver(event) {
+		event.preventDefault();
+		dropTarget.classList.add('border-primary-500');
+	}
+
+	// Handle drag leave for visual effects
+	function handleDragLeave(event) {
+		event.preventDefault();
+		dropTarget.classList.remove('border-primary-500');
+	}
+
+	// Element reference for drag and drop
+	let dropTarget;
 
 	// Upload images
 	async function uploadImages(files) {
@@ -337,16 +360,23 @@
 				formData.append('is_primary', 'true');
 			}
 
+			// Set the order based on current images length
+			formData.append('order', images.length + i);
+
 			try {
+				// Simulate upload progress
+				const updateProgress = () => {
+					uploadProgress = Math.min(100, uploadProgress + 5);
+					if (uploadProgress < 100 && isUploading) {
+						setTimeout(updateProgress, 100);
+					}
+				};
+				updateProgress();
+
 				const response = await fetch(`${API_URL}/properties/${propertyId}/images/`, {
 					method: 'POST',
 					headers: getHeaders(),
-					body: formData,
-					// This allows us to track progress
-					onUploadProgress: (progressEvent) => {
-						const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-						uploadProgress = percentCompleted;
-					}
+					body: formData
 				});
 
 				if (!response.ok) {
@@ -383,19 +413,78 @@
 		}
 
 		isUploading = false;
+		uploadProgress = 100;
 
 		// Dispatch event
 		dispatch('update', { images });
 	}
 
-	// Handle image reordering
-	async function handleConsiderImageOrder(event) {
-		const { items } = event.detail;
-		images = items;
+	// Move image up in order
+	async function moveImageUp(index) {
+		if (index === 0) return; // Already at the top
+
+		reordering = true;
+
+		try {
+			// Swap order values
+			const newOrder = [...images];
+			const temp = newOrder[index].order;
+			newOrder[index].order = newOrder[index - 1].order;
+			newOrder[index - 1].order = temp;
+
+			// Swap positions in array
+			[newOrder[index], newOrder[index - 1]] = [newOrder[index - 1], newOrder[index]];
+
+			// Update UI immediately
+			images = newOrder;
+
+			// Save to server if we have IDs
+			if (propertyId && images[index].id && images[index - 1].id) {
+				await saveImageOrder();
+			}
+		} catch (error) {
+			console.error('Error moving image:', error);
+			addToast(t('image_order_error', $language, { default: 'فشل تغيير ترتيب الصور' }), 'error');
+		} finally {
+			reordering = false;
+		}
 	}
 
-	// Save new image order to server
+	// Move image down in order
+	async function moveImageDown(index) {
+		if (index >= images.length - 1) return; // Already at the bottom
+
+		reordering = true;
+
+		try {
+			// Swap order values
+			const newOrder = [...images];
+			const temp = newOrder[index].order;
+			newOrder[index].order = newOrder[index + 1].order;
+			newOrder[index + 1].order = temp;
+
+			// Swap positions in array
+			[newOrder[index], newOrder[index + 1]] = [newOrder[index + 1], newOrder[index]];
+
+			// Update UI immediately
+			images = newOrder;
+
+			// Save to server if we have IDs
+			if (propertyId && images[index].id && images[index + 1].id) {
+				await saveImageOrder();
+			}
+		} catch (error) {
+			console.error('Error moving image:', error);
+			addToast(t('image_order_error', $language, { default: 'فشل تغيير ترتيب الصور' }), 'error');
+		} finally {
+			reordering = false;
+		}
+	}
+
+	// Save image order to server
 	async function saveImageOrder() {
+		if (!propertyId) return;
+
 		reordering = true;
 
 		try {
@@ -434,22 +523,6 @@
 		}
 	}
 
-	// Handle drag end (when images are reordered)
-	function handleFinalizeDragOrder(event) {
-		// Get the items in the new order
-		const { items } = event.detail;
-		images = items;
-
-		// Save the new order to the server
-		saveImageOrder();
-	}
-
-	// Make items compatible with dndzone
-	$: dndItems = images.map((img) => ({
-		...img,
-		id: img.id.toString() // dndzone requires string ids
-	}));
-
 	// Size class based on size prop
 	$: sizeClass = sizeClasses[size] || sizeClasses.md;
 
@@ -465,9 +538,13 @@
 	<!-- Upload dropzone area -->
 	{#if editable && images.length < maxImages}
 		<div
+			bind:this={dropTarget}
 			class="card p-4 mb-4 border border-dashed border-surface-300-600-token cursor-pointer hover:bg-surface-hover-token transition-colors"
 			on:click={() => fileInput.click()}
 			on:keydown={(e) => e.key === 'Enter' && fileInput.click()}
+			on:dragover={handleDragOver}
+			on:dragleave={handleDragLeave}
+			on:drop={handleDrop}
 			role="button"
 			tabindex="0"
 			aria-label={t('add_images', $language, { default: 'إضافة صور' })}
@@ -556,15 +633,12 @@
 			{/each}
 		</div>
 	{:else}
-		<!-- Images grid with drag and drop reordering -->
+		<!-- Images grid with reordering controls -->
 		<section
-			use:dndzone={{ items: dndItems, dragDisabled, flipDurationMs: 200, type: 'images' }}
-			on:consider={handleConsiderImageOrder}
-			on:finalize={handleFinalizeDragOrder}
 			class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4 relative"
 		>
-			{#each dndItems as image (image.id)}
-				<div animate:flip={{ duration: 200 }} transition:fade>
+			{#each images as image, i (image.id)}
+				<div transition:fade>
 					<div class="card p-2 h-full flex flex-col relative overflow-hidden group">
 						<!-- Primary image badge -->
 						{#if image.is_primary}
@@ -628,34 +702,40 @@
 								</p>
 							{/if}
 							<p class="text-xs text-surface-500-400-token line-clamp-1">
-								{formatFileSize(image.file_size * 1024)} •
-								{image.width}×{image.height}
+								{formatFileSize(image.file_size * 1024 || 0)} •
+								{image.width || 0}×{image.height || 0}
 							</p>
 						</div>
 
-						<!-- Drag handle indicator for reordering -->
+						<!-- Reordering controls -->
 						{#if editable && images.length > 1}
 							<div
 								class="absolute bottom-2 {$isRTL
 									? 'left-2'
 									: 'right-2'} opacity-50 group-hover:opacity-100"
 							>
-								<div class="cursor-move">
-									<svg
-										width="16"
-										height="16"
-										viewBox="0 0 24 24"
-										fill="none"
-										xmlns="http://www.w3.org/2000/svg"
-									>
-										<path
-											d="M12 8V16M9 11H15M9 13H15M7 5H17M7 19H17"
-											stroke="currentColor"
-											stroke-width="2"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-										/>
-									</svg>
+								<div class="flex gap-1">
+									{#if i > 0}
+										<button
+											class="btn btn-sm btn-icon variant-soft p-1"
+											on:click={() => moveImageUp(i)}
+											aria-label={t('move_up', $language, { default: 'نقل للأعلى' })}
+											title={t('move_up', $language, { default: 'نقل للأعلى' })}
+										>
+											<ArrowUp class="w-3 h-3" />
+										</button>
+									{/if}
+
+									{#if i < images.length - 1}
+										<button
+											class="btn btn-sm btn-icon variant-soft p-1"
+											on:click={() => moveImageDown(i)}
+											aria-label={t('move_down', $language, { default: 'نقل للأسفل' })}
+											title={t('move_down', $language, { default: 'نقل للأسفل' })}
+										>
+											<ArrowDown class="w-3 h-3" />
+										</button>
+									{/if}
 								</div>
 							</div>
 						{/if}
@@ -682,7 +762,6 @@
 		title={t('edit_image', $language, { default: 'تعديل الصورة' })}
 		on:close={() => (isEditModalOpen = false)}
 		size="md"
-		form={true}
 	>
 		<div class="grid grid-cols-1 gap-4">
 			<!-- Image preview -->
@@ -729,7 +808,7 @@
 				<span>{t('set_as_primary', $language, { default: 'تعيين كصورة رئيسية' })}</span>
 			</label>
 
-			<slot name="footer">
+			<div class="flex justify-end gap-2 mt-4">
 				<button
 					type="button"
 					class="btn variant-ghost-surface"
@@ -737,10 +816,10 @@
 				>
 					{t('cancel', $language, { default: 'إلغاء' })}
 				</button>
-				<button type="submit" class="btn variant-filled-primary" on:click={updateImageDetails}>
+				<button type="button" class="btn variant-filled-primary" on:click={updateImageDetails}>
 					{t('save', $language, { default: 'حفظ' })}
 				</button>
-			</slot>
+			</div>
 		</div>
 	</Modal>
 {/if}
@@ -769,7 +848,7 @@
 				/>
 			</div>
 
-			<slot name="footer">
+			<div class="flex justify-end gap-2 mt-4">
 				<button
 					type="button"
 					class="btn variant-ghost-surface"
@@ -780,7 +859,7 @@
 				<button type="button" class="btn variant-filled-error" on:click={deleteImage}>
 					{t('delete', $language, { default: 'حذف' })}
 				</button>
-			</slot>
+			</div>
 		</div>
 	</Modal>
 {/if}

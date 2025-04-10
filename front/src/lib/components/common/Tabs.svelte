@@ -33,12 +33,23 @@
 	export let pill = false;
 	// Border style (border-t, border-b, border-x, border-none)
 	export let border = 'border-b';
+	// Tab content visibility (auto, visible, manual)
+	export let contentVisibility = 'auto';
 
 	// Set initial active tab if not provided
 	onMount(() => {
 		if (!activeTab && tabs.length > 0) {
 			activeTab = tabs[0].id;
 			dispatch('change', { id: activeTab });
+		}
+
+		// Handle URL hash for tab activation
+		if (typeof window !== 'undefined') {
+			const hash = window.location.hash.replace('#', '');
+			if (hash && tabs.some((tab) => tab.id === hash)) {
+				activeTab = hash;
+				dispatch('change', { id: activeTab });
+			}
 		}
 	});
 
@@ -47,6 +58,11 @@
 		if (disabled) return;
 		activeTab = tabId;
 		dispatch('change', { id: tabId });
+
+		// Update URL hash for bookmarking
+		if (typeof window !== 'undefined') {
+			window.history.replaceState(null, null, `#${tabId}`);
+		}
 	}
 
 	// Build the tabs variant class
@@ -72,6 +88,72 @@
 
 	// Build the tab button class
 	$: tabButtonClass = `tab ${variantClass} ${pill ? 'rounded-token' : ''} ${block ? 'flex-auto' : ''} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`;
+
+	// Access first and last tab for keyboard navigation
+	$: firstTab = tabs[0]?.id;
+	$: lastTab = tabs[tabs.length - 1]?.id;
+
+	// Handle keyboard navigation
+	function handleKeyDown(event, currentTabId) {
+		if (disabled) return;
+
+		const currentIndex = tabs.findIndex((tab) => tab.id === currentTabId);
+
+		// Handle keyboard navigation
+		switch (event.key) {
+			case 'ArrowRight':
+				// If RTL, move left (previous tab), else move right (next tab)
+				if ($isRTL) {
+					if (currentIndex > 0) {
+						activeTab = tabs[currentIndex - 1].id;
+					} else {
+						activeTab = lastTab;
+					}
+				} else {
+					if (currentIndex < tabs.length - 1) {
+						activeTab = tabs[currentIndex + 1].id;
+					} else {
+						activeTab = firstTab;
+					}
+				}
+				dispatch('change', { id: activeTab });
+				event.preventDefault();
+				break;
+
+			case 'ArrowLeft':
+				// If RTL, move right (next tab), else move left (previous tab)
+				if ($isRTL) {
+					if (currentIndex < tabs.length - 1) {
+						activeTab = tabs[currentIndex + 1].id;
+					} else {
+						activeTab = firstTab;
+					}
+				} else {
+					if (currentIndex > 0) {
+						activeTab = tabs[currentIndex - 1].id;
+					} else {
+						activeTab = lastTab;
+					}
+				}
+				dispatch('change', { id: activeTab });
+				event.preventDefault();
+				break;
+
+			case 'Home':
+				// Move to first tab
+				activeTab = firstTab;
+				dispatch('change', { id: activeTab });
+				event.preventDefault();
+				break;
+
+			case 'End':
+				// Move to last tab
+				activeTab = lastTab;
+				dispatch('change', { id: activeTab });
+				event.preventDefault();
+				break;
+		}
+	}
 </script>
 
 <div class="tabs-container {classes}" {id}>
@@ -80,11 +162,14 @@
 		class="tabs {border ? borderClass + ' border-surface-300-600-token' : ''} {center
 			? 'flex justify-center'
 			: ''} {block ? 'grid grid-cols-' + tabs.length : ''}"
+		role="tablist"
+		aria-orientation="horizontal"
 	>
 		{#each tabs as tab, i}
 			<button
 				class="{tabButtonClass} {activeTab === tab.id ? 'tab-active' : ''}"
 				on:click={() => handleTabClick(tab.id)}
+				on:keydown={(e) => handleKeyDown(e, tab.id)}
 				{disabled}
 				aria-selected={activeTab === tab.id}
 				id="{id}-tab-{tab.id}"
@@ -102,20 +187,32 @@
 		{/each}
 	</div>
 
-	<!-- We don't use dynamic named slots here - just dispatch the active tab -->
-	<!-- Parent component will handle showing/hiding content based on activeTab -->
+	<!-- Tab Content -->
 	<div class="tab-content" role="tabpanel">
-		<div
-			id="{id}-panel-{activeTab}"
-			role="tabpanel"
-			aria-labelledby="{id}-tab-{activeTab}"
-			tabindex="0"
-			class="tab-panel"
-			class:pt-4={border === 'border-b'}
-			class:pb-4={border === 'border-t'}
-		>
-			<slot></slot>
-		</div>
+		{#if contentVisibility === 'auto'}
+			<!-- Auto mode: show the selected tab content -->
+			<div
+				id="{id}-panel-{activeTab}"
+				role="tabpanel"
+				aria-labelledby="{id}-tab-{activeTab}"
+				tabindex="0"
+				class="tab-panel"
+				class:pt-4={border === 'border-b'}
+				class:pb-4={border === 'border-t'}
+				class:transition-all={transition}
+				class:duration-200={transition}
+			>
+				<slot />
+			</div>
+		{:else if contentVisibility === 'visible'}
+			<!-- Visible mode: always show tab content -->
+			<div class:pt-4={border === 'border-b'} class:pb-4={border === 'border-t'}>
+				<slot />
+			</div>
+		{:else}
+			<!-- Manual mode: parent controls visibility through slot -->
+			<slot />
+		{/if}
 	</div>
 </div>
 

@@ -1,6 +1,6 @@
 <!--
   Enhanced Map Component
-  Reusable Leaflet map component with marker support and location detection
+  A reliable Leaflet map component with marker support and location detection
 -->
 <script>
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
@@ -12,8 +12,8 @@
 	/**
 	 * Props
 	 */
-	export let latitude = 24.774265; // Default to Riyadh, Saudi Arabia
-	export let longitude = 46.738586;
+	export let latitude = null; // Initial latitude
+	export let longitude = null; // Initial longitude
 	export let height = '400px';
 	export let width = '100%';
 	export let zoom = 13;
@@ -25,27 +25,48 @@
 	export let markerPopup = '';
 	export let classes = '';
 
+	// Internal state
 	let mapContainer;
 	let map;
 	let marker;
 	let isLocating = false;
 	let locationError = null;
 
-	// Dynamically import Leaflet only on the client side
+	// Make sure we have default coordinates if none provided
+	$: initialLatitude = latitude !== null ? latitude : 24.774265; // Default to Riyadh, Saudi Arabia
+	$: initialLongitude = longitude !== null ? longitude : 46.738586;
+
+	// We'll store Leaflet as a module-level variable to avoid re-importing
 	let L;
+	let leafletLoaded = false;
+
 	onMount(async () => {
-		if (typeof window !== 'undefined') {
-			L = await import('leaflet');
-			initializeMap();
+		try {
+			// Only import Leaflet in the browser
+			if (typeof window !== 'undefined') {
+				// Dynamic import for Leaflet
+				const leafletModule = await import('leaflet');
+				L = leafletModule.default;
+
+				// Wait a tick to ensure the DOM is ready
+				await new Promise((resolve) => setTimeout(resolve, 0));
+
+				// Initialize the map
+				initializeMap();
+				leafletLoaded = true;
+			}
+		} catch (error) {
+			console.error('Error loading Leaflet:', error);
 		}
 	});
 
 	async function initializeMap() {
-		if (!mapContainer || typeof window === 'undefined') return;
+		if (!mapContainer || !L) return;
 
 		try {
+			// Create map with the provided options
 			map = L.map(mapContainer, {
-				center: [latitude || 24.774265, longitude || 46.738586],
+				center: [initialLatitude, initialLongitude],
 				zoom: zoom,
 				dragging: interactive,
 				touchZoom: interactive,
@@ -53,39 +74,44 @@
 				doubleClickZoom: interactive,
 				boxZoom: interactive,
 				keyboard: interactive,
-				tap: interactive && L.Browser.mobile,
+				tap: interactive,
 				zoomControl: interactive
 			});
 
+			// Add the OpenStreetMap tile layer
 			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 				attribution:
-					'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+					'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+				maxZoom: 19
 			}).addTo(map);
 
+			// Add marker if coordinates are provided
 			if (showMarker && latitude && longitude) {
 				addMarker(latitude, longitude);
 			}
 
+			// Add click handler for interactive maps
 			if (interactive) {
 				map.on('click', handleMapClick);
-				if (draggableMarker && marker) {
-					marker.on('dragend', handleMarkerDrag);
-				}
 			}
 
-			dispatch('ready', { map, L });
+			// Dispatch the ready event
+			dispatch('ready', { map });
 		} catch (error) {
-			console.error('Error initializing Leaflet map:', error);
+			console.error('Error initializing map:', error);
 		}
 	}
 
+	// Add or update marker on the map
 	function addMarker(lat, lng) {
 		if (!map || !L) return;
 
+		// Remove existing marker if any
 		if (marker) {
 			marker.remove();
 		}
 
+		// Custom icon if provided
 		let icon = null;
 		if (markerIcon) {
 			icon = L.icon({
@@ -95,51 +121,75 @@
 			});
 		}
 
+		// Create and add the marker
 		marker = L.marker([lat, lng], {
 			draggable: draggableMarker,
 			icon: icon || undefined
 		}).addTo(map);
 
+		// Add popup if provided
 		if (markerPopup) {
 			marker.bindPopup(markerPopup).openPopup();
 		}
 
+		// Add drag end event for draggable markers
+		if (draggableMarker) {
+			marker.on('dragend', handleMarkerDrag);
+		}
+
+		// Update the component state
 		latitude = lat;
 		longitude = lng;
 
+		// Dispatch the location change event
 		dispatch('locationchange', { latitude, longitude });
 	}
 
+	// Handle map click event
 	function handleMapClick(e) {
-		if (!draggableMarker) {
-			addMarker(e.latlng.lat, e.latlng.lng);
-		}
+		// Add or update marker
+		addMarker(e.latlng.lat, e.latlng.lng);
+
+		// Pan to the new location
+		map.panTo(e.latlng);
+
+		// Clear any previous errors
+		locationError = null;
 	}
 
+	// Handle marker drag event
 	function handleMarkerDrag(e) {
 		const latlng = e.target.getLatLng();
+
+		// Update the component state
 		latitude = latlng.lat;
 		longitude = latlng.lng;
 
+		// Dispatch the location change event
 		dispatch('locationchange', { latitude, longitude });
+
+		// Clear any previous errors
+		locationError = null;
 	}
 
-	$: if (map && L) {
-		// Handle changes to latitude/longitude from outside component
-		if (latitude && longitude) {
-			// If we already have a marker, update its position
+	// When props change, update the map
+	$: if (map && L && leafletLoaded) {
+		// Update marker if latitude/longitude change
+		if (latitude !== null && longitude !== null) {
 			if (marker) {
+				// Update existing marker position
 				marker.setLatLng([latitude, longitude]);
 			} else if (showMarker) {
-				// If we don't have a marker yet but should show one, add it
+				// Create new marker if needed
 				addMarker(latitude, longitude);
 			}
 
-			// Update map view
+			// Center map on new coordinates
 			map.setView([latitude, longitude], map.getZoom());
 		}
 	}
 
+	// Detect user's current location
 	async function detectLocation() {
 		if (!navigator.geolocation) {
 			locationError = t('geolocation_not_supported', $language, {
@@ -152,6 +202,7 @@
 		locationError = null;
 
 		try {
+			// Get current position with a timeout
 			const position = await new Promise((resolve, reject) => {
 				navigator.geolocation.getCurrentPosition(resolve, reject, {
 					enableHighAccuracy: true,
@@ -162,14 +213,16 @@
 
 			const { latitude: lat, longitude: lng } = position.coords;
 
+			// Update map and marker
 			if (map) {
-				map.setView([lat, lng], 16); // Zoom in closer when using current location
+				map.setView([lat, lng], 16); // Zoom in closer for current location
 
 				if (showMarker) {
 					addMarker(lat, lng);
 				}
 			}
 
+			// Update component state
 			latitude = lat;
 			longitude = lng;
 
@@ -179,11 +232,13 @@
 				'success'
 			);
 
+			// Dispatch the location detection event
 			dispatch('locationdetect', { latitude: lat, longitude: lng });
+			dispatch('locationchange', { latitude: lat, longitude: lng });
 		} catch (error) {
 			console.error('Error getting location:', error);
 
-			// Provide more specific error messages
+			// Provide specific error messages
 			let errorMessage;
 
 			switch (error.code) {
@@ -218,6 +273,7 @@
 		}
 	}
 
+	// Clean up map when component is destroyed
 	onDestroy(() => {
 		if (map) {
 			map.remove();
@@ -225,6 +281,7 @@
 	});
 </script>
 
+<!-- Include Leaflet CSS in the component -->
 <svelte:head>
 	<link
 		rel="stylesheet"
@@ -234,9 +291,11 @@
 	/>
 </svelte:head>
 
-<div class="leaflet-map-container w-full {classes}">
+<div class="map-container w-full {classes}">
+	<!-- Map container element -->
 	<div bind:this={mapContainer} style="width: {width}; height: {height};" class="rounded-lg"></div>
 
+	<!-- Location detection button -->
 	{#if showLocationButton}
 		<div class="mt-2">
 			<button
@@ -274,14 +333,15 @@
 		</div>
 	{/if}
 
+	<!-- Location error message -->
 	{#if locationError}
 		<div class="mt-2 text-error-500 text-sm bg-error-500/20 p-2 rounded-token">
 			{locationError}
 		</div>
 	{/if}
 
-	<!-- Coordinates display -->
-	{#if latitude && longitude}
+	<!-- Display coordinates if available -->
+	{#if latitude !== null && longitude !== null}
 		<div class="mt-2 text-sm text-surface-600-300-token">
 			<span class="font-medium">
 				{t('coordinates', $language, { default: 'الإحداثيات' })}:
@@ -292,6 +352,7 @@
 </div>
 
 <style>
+	/* Loading spinner animation */
 	.spinner-icon {
 		border: 2px solid #f3f3f3;
 		border-top: 2px solid currentColor;
@@ -311,8 +372,8 @@
 		}
 	}
 
-	:global(.leaflet-map-container .leaflet-container) {
-		position: relative;
+	/* Fix z-index issues with Leaflet controls */
+	:global(.map-container .leaflet-container) {
 		z-index: 1;
 	}
 </style>

@@ -281,27 +281,21 @@ class PropertyImageDeleteView(generics.DestroyAPIView):
         return super().destroy(request, *args, **kwargs)
 
 class PropertyImageReorderView(APIView):
-    """
-    Reorder property images.
-
-    POST: Update the display order of a property's images
-    """
     permission_classes = [IsAuthenticated]
 
     @log_api_calls
     @api_verified_user_required
     def post(self, request, property_id, format=None):
-        """Reorder images for a property"""
         property = get_object_or_404(Property, id=property_id)
 
-        # Check if user has permission to reorder images
+        # Check permissions
         if not (request.user.has_role('admin') or property.owner == request.user):
             return Response(
                 {'detail': _('You do not have permission to reorder images for this property.')},
                 status=status.HTTP_403_FORBIDDEN
             )
 
-        # Get the image order data from the request
+        # Get image order data
         images_data = request.data.get('images', [])
         if not images_data or not isinstance(images_data, list):
             return Response(
@@ -309,7 +303,7 @@ class PropertyImageReorderView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Update the order of each image
+        # Update each image's order
         for image_data in images_data:
             image_id = image_data.get('id')
             new_order = image_data.get('order')
@@ -318,12 +312,10 @@ class PropertyImageReorderView(APIView):
                 continue
 
             try:
-                # Ensure the image belongs to the property
                 image = PropertyImage.objects.get(id=image_id, property_id=property_id)
                 image.order = new_order
                 image.save(update_fields=['order'])
             except PropertyImage.DoesNotExist:
-                # Skip images that don't exist or don't belong to the property
                 continue
 
         return Response(

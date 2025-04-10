@@ -5,13 +5,13 @@
 	import { language, isRTL, addToast } from '$lib/stores/ui';
 	import { properties } from '$lib/stores/properties';
 	import { isAuthenticated, currentUser, userRoles } from '$lib/stores/auth';
-	import { PERMISSIONS } from '$lib/utils/permissions';
-	import { isTokenExpired, getAccessToken } from '$lib/utils/tokenManager';
+	import { hasPermission, PERMISSIONS, ROLES } from '$lib/utils/permissions';
+	import { isTokenExpired, getAccessToken, getUserFromToken } from '$lib/utils/tokenManager';
 	import * as propertyService from '$lib/services/propertyService';
 
 	import PropertyForm from '$lib/components/property/PropertyForm.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
-	import { Building, ArrowLeft } from 'lucide-svelte';
+	import { Building, ArrowLeft, Save } from 'lucide-svelte';
 
 	// Local state
 	let loading = false;
@@ -19,27 +19,17 @@
 	let unauthorized = false;
 	let initialCheckDone = false;
 	let selectedImages = [];
-	let rolesLoaded = false;
 
-	// Improved permission check that doesn't fail on empty roles
-	function canCreateProperty(roles) {
-		// Don't check permissions until roles are properly loaded
-		if (!roles || !Array.isArray(roles) || roles.length === 0) {
-			console.log('Roles not loaded yet, deferring permission check');
-			return true; // Assume allowed until we can properly check
-		}
+	// Check permissions in a more robust way
+	$: canCreateProperty =
+		$userRoles &&
+		($userRoles.includes(ROLES.ADMIN) ||
+			$userRoles.includes(ROLES.SELLER) ||
+			$userRoles.includes(ROLES.AGENT) ||
+			hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY));
 
-		// Check for admin role which has all permissions
-		if (roles.includes('admin')) {
-			return true;
-		}
-
-		// Check for roles that can create properties
-		return roles.includes('seller') || roles.includes('agent');
-	}
-
-	// Enhanced authentication check
-	function checkAuthentication() {
+	// Enhanced authentication check with token validation
+	async function checkAuthentication() {
 		console.log('Checking authentication status...');
 
 		// First check if we have the auth store value
@@ -50,9 +40,19 @@
 			const token = getAccessToken();
 			if (token && !isTokenExpired()) {
 				console.log('Token exists and is valid, setting authenticated');
-				// We have a valid token despite the store saying otherwise
-				isAuthenticated.set(true);
-				return true;
+
+				// Get user info from token
+				const userInfo = getUserFromToken();
+				if (userInfo && userInfo.roles) {
+					// Update the stores manually since they might not be initialized yet
+					isAuthenticated.set(true);
+					userRoles.set(userInfo.roles);
+					currentUser.set(userInfo);
+
+					// Wait a moment for store updates to propagate
+					await new Promise((resolve) => setTimeout(resolve, 100));
+					return true;
+				}
 			}
 
 			console.log('No valid token found, redirecting to login');
@@ -60,42 +60,43 @@
 			return false;
 		}
 
-		console.log('User is authenticated');
-		return true;
-	}
-
-	onMount(async () => {
-		// Check if user is authenticated
-		if (!checkAuthentication()) {
-			return;
-		}
-
-		// Wait for roles to be loaded if they aren't already
+		// Also check if user roles are loaded, which is required for permission check
 		if (!$userRoles || $userRoles.length === 0) {
-			console.log('User roles not loaded yet, waiting...');
+			console.log('User authenticated but roles not loaded');
 
-			// Wait a bit to let roles load
-			await new Promise((resolve) => setTimeout(resolve, 1000));
+			// Try to get roles from token
+			const userInfo = getUserFromToken();
+			if (userInfo && userInfo.roles && userInfo.roles.length > 0) {
+				console.log('Setting roles from token:', userInfo.roles);
+				userRoles.set(userInfo.roles);
 
-			// If roles are still not loaded, set a flag but don't block the UI
-			if (!$userRoles || $userRoles.length === 0) {
-				console.log('Roles still not loaded after waiting, continuing anyway');
-				// Initialize with empty array if null
-				if (!$userRoles) userRoles.set([]);
+				// Wait a moment for store updates to propagate
+				await new Promise((resolve) => setTimeout(resolve, 100));
+			} else {
+				console.log('No roles found in token, will check permissions later');
 			}
 		}
 
-		rolesLoaded = true;
+		console.log('User is authenticated with roles:', $userRoles);
+		return true;
+	}
 
-		// Check permissions if roles are loaded
-		if (rolesLoaded && !canCreateProperty($userRoles)) {
-			console.log('User lacks permission to create properties');
-			unauthorized = true;
-		} else {
-			console.log('User has permission to create properties or permission check deferred');
+	// Initialize component on mount
+	onMount(async () => {
+		// Check if user is authenticated
+		if (!(await checkAuthentication())) {
+			return;
 		}
 
-		initialCheckDone = true;
+		// Check if user has permission to create properties after a short delay
+		// to ensure stores are properly updated
+		setTimeout(() => {
+			if (!canCreateProperty) {
+				console.log('User lacks permission to create properties. Roles:', $userRoles);
+				unauthorized = true;
+			}
+			initialCheckDone = true;
+		}, 200);
 	});
 
 	// Upload images for a property
@@ -105,6 +106,8 @@
 		}
 
 		console.log(`Uploading ${images.length} images for property ID ${propertyId}`);
+		let successCount = 0;
+		let errorCount = 0;
 
 		// Upload each image sequentially
 		for (let i = 0; i < images.length; i++) {
@@ -120,13 +123,33 @@
 				});
 
 				console.log(`Uploaded image ${i + 1}/${images.length}`, result);
+				successCount++;
 			} catch (err) {
 				console.error(`Error uploading image ${i + 1}/${images.length}:`, err);
-				// Continue with next image despite error
+				errorCount++;
 			}
 		}
 
-		console.log('All images uploaded successfully');
+		console.log(`Image upload complete: ${successCount} succeeded, ${errorCount} failed`);
+		if (successCount > 0) {
+			addToast(
+				t('images_uploaded', $language, {
+					default: 'تم رفع {{count}} صور بنجاح',
+					count: successCount
+				}),
+				'success'
+			);
+		}
+
+		if (errorCount > 0) {
+			addToast(
+				t('some_images_failed', $language, {
+					default: 'فشل رفع {{count}} صور',
+					count: errorCount
+				}),
+				'error'
+			);
+		}
 	}
 
 	// Handle form submission
@@ -139,6 +162,17 @@
 
 			console.log('Submitting property data:', propertyData);
 			console.log('Selected images:', selectedImages.length);
+
+			// Verify authentication before submission
+			if (!$isAuthenticated) {
+				if (!(await checkAuthentication())) {
+					throw new Error(
+						t('auth_required', $language, {
+							default: 'يرجى تسجيل الدخول لإنشاء عقار'
+						})
+					);
+				}
+			}
 
 			// Create new property
 			const newProperty = await properties.createProperty(propertyData);
@@ -167,75 +201,20 @@
 					default: 'حدث خطأ أثناء إنشاء العقار'
 				});
 			loading = false;
-		}
-	}
 
-	// Handle property image upload for the form preview
-	async function handleImageUpload(event) {
-		const { propertyId, formData, imageIndex } = event.detail;
-
-		try {
-			if (propertyId) {
-				// Upload the image
-				const response = await propertyService.uploadFiles(
-					propertyService.ENDPOINTS.PROPERTY.IMAGES(propertyId),
-					formData
-				);
-
-				// Update the image in the UI
-				if (selectedImages[imageIndex]) {
-					selectedImages[imageIndex].id = response.id;
-					selectedImages[imageIndex].uploaded = true;
-					selectedImages[imageIndex].progress = 100;
-					selectedImages = [...selectedImages];
-				}
-			} else {
-				console.log('Storing image for upload after property creation');
-			}
-		} catch (err) {
-			console.error('Error handling image upload:', err);
-			addToast(
-				t('image_upload_error', $language, {
-					default: 'فشل في تحميل الصورة'
-				}),
-				'error'
-			);
-		}
-	}
-
-	// Handle image removal
-	async function handleRemoveImage(event) {
-		const { imageId } = event.detail;
-
-		try {
-			if (imageId) {
-				await propertyService.deletePropertyImage(imageId);
-				addToast(t('image_removed', $language, { default: 'تم حذف الصورة بنجاح' }), 'success');
-			}
-		} catch (err) {
-			console.error('Error removing image:', err);
-			addToast(t('image_remove_error', $language, { default: 'فشل في حذف الصورة' }), 'error');
-		}
-	}
-
-	// Handle setting primary image
-	async function handleSetPrimaryImage(event) {
-		const { imageId } = event.detail;
-
-		try {
-			if (imageId) {
-				await propertyService.setPropertyImageAsPrimary(imageId);
+			// If authentication error, redirect to login
+			if (err.message?.includes('authentication') || err.status === 401) {
 				addToast(
-					t('primary_image_set', $language, { default: 'تم تعيين الصورة الرئيسية بنجاح' }),
-					'success'
+					t('auth_required', $language, {
+						default: 'يرجى تسجيل الدخول لإنشاء عقار'
+					}),
+					'error'
 				);
+
+				setTimeout(() => {
+					goto('/auth/login?redirect=/properties/add');
+				}, 1500);
 			}
-		} catch (err) {
-			console.error('Error setting primary image:', err);
-			addToast(
-				t('primary_image_error', $language, { default: 'فشل في تعيين الصورة الرئيسية' }),
-				'error'
-			);
 		}
 	}
 
@@ -277,17 +256,9 @@
 			</div>
 		</div>
 	{:else}
-		<!-- Property Form -->
-		<div class="card p-6 mb-6">
-			<PropertyForm
-				{loading}
-				{error}
-				on:submit={handleSubmit}
-				on:uploadImage={handleImageUpload}
-				on:removeImage={handleRemoveImage}
-				on:setPrimaryImage={handleSetPrimaryImage}
-				on:cancel={handleCancel}
-			/>
+		<!-- Enhanced Property Form with Tabs -->
+		<div class="mb-6">
+			<PropertyForm {loading} {error} on:submit={handleSubmit} on:cancel={handleCancel} />
 		</div>
 	{/if}
 </div>

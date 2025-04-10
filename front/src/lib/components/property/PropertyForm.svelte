@@ -39,7 +39,6 @@
 	// Max number of images allowed
 	export let maxImages = 10;
 	// Auto-upload images immediately
-	export let autoUpload = true;
 	// Max text field lengths
 	export let maxTitleLength = 100;
 	export let maxDescriptionLength = 2000;

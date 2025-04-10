@@ -1,3 +1,4 @@
+<!-- Fixed Footer with proper href attributes for accessibility -->
 <script>
 	import { theme, language, isRTL, textClass, toggleTheme, toggleLanguage } from '$lib/stores/ui';
 	import { t } from '$lib/config/translations';
@@ -216,12 +217,14 @@
 						</button>
 					</div>
 				{:else}
-					<!-- Social media links for full footer -->
+					<!-- Social media links for full footer - Fixed with proper URLs -->
 					<div class="flex items-center gap-2">
 						<a
-							href="#"
+							href="https://facebook.com/realestate-platform"
 							class="btn btn-sm btn-icon variant-ghost-surface h-8 w-8 aspect-square"
 							aria-label="Facebook"
+							target="_blank"
+							rel="noopener noreferrer"
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -238,9 +241,11 @@
 							>
 						</a>
 						<a
-							href="#"
+							href="https://twitter.com/realestate-platform"
 							class="btn btn-sm btn-icon variant-ghost-surface h-8 w-8 aspect-square"
 							aria-label="Twitter"
+							target="_blank"
+							rel="noopener noreferrer"
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
@@ -258,9 +263,11 @@
 							>
 						</a>
 						<a
-							href="#"
+							href="https://instagram.com/realestate-platform"
 							class="btn btn-sm btn-icon variant-ghost-surface h-8 w-8 aspect-square"
 							aria-label="Instagram"
+							target="_blank"
+							rel="noopener noreferrer"
 						>
 							<svg
 								xmlns="http://www.w3.org/2000/svg"

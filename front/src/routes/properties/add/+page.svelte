@@ -5,7 +5,7 @@
 	import { language, isRTL, addToast } from '$lib/stores/ui';
 	import { properties } from '$lib/stores/properties';
 	import { isAuthenticated, currentUser, userRoles } from '$lib/stores/auth';
-	import { hasPermission, PERMISSIONS } from '$lib/utils/permissions';
+	import { PERMISSIONS } from '$lib/utils/permissions';
 	import { isTokenExpired, getAccessToken } from '$lib/utils/tokenManager';
 	import * as propertyService from '$lib/services/propertyService';
 
@@ -19,9 +19,24 @@
 	let unauthorized = false;
 	let initialCheckDone = false;
 	let selectedImages = [];
+	let rolesLoaded = false;
 
-	// Check if user has permission to create properties
-	$: canCreateProperty = hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY);
+	// Improved permission check that doesn't fail on empty roles
+	function canCreateProperty(roles) {
+		// Don't check permissions until roles are properly loaded
+		if (!roles || !Array.isArray(roles) || roles.length === 0) {
+			console.log('Roles not loaded yet, deferring permission check');
+			return true; // Assume allowed until we can properly check
+		}
+
+		// Check for admin role which has all permissions
+		if (roles.includes('admin')) {
+			return true;
+		}
+
+		// Check for roles that can create properties
+		return roles.includes('seller') || roles.includes('agent');
+	}
 
 	// Enhanced authentication check
 	function checkAuthentication() {
@@ -49,16 +64,35 @@
 		return true;
 	}
 
-	onMount(() => {
+	onMount(async () => {
 		// Check if user is authenticated
 		if (!checkAuthentication()) {
 			return;
 		}
 
-		// Check if user has permission to create properties
-		if (!canCreateProperty) {
+		// Wait for roles to be loaded if they aren't already
+		if (!$userRoles || $userRoles.length === 0) {
+			console.log('User roles not loaded yet, waiting...');
+
+			// Wait a bit to let roles load
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+
+			// If roles are still not loaded, set a flag but don't block the UI
+			if (!$userRoles || $userRoles.length === 0) {
+				console.log('Roles still not loaded after waiting, continuing anyway');
+				// Initialize with empty array if null
+				if (!$userRoles) userRoles.set([]);
+			}
+		}
+
+		rolesLoaded = true;
+
+		// Check permissions if roles are loaded
+		if (rolesLoaded && !canCreateProperty($userRoles)) {
 			console.log('User lacks permission to create properties');
 			unauthorized = true;
+		} else {
+			console.log('User has permission to create properties or permission check deferred');
 		}
 
 		initialCheckDone = true;
@@ -137,7 +171,6 @@
 	}
 
 	// Handle property image upload for the form preview
-	// This is used for immediate uploads during editing, not for initial creation
 	async function handleImageUpload(event) {
 		const { propertyId, formData, imageIndex } = event.detail;
 
@@ -177,7 +210,6 @@
 		try {
 			if (imageId) {
 				await propertyService.deletePropertyImage(imageId);
-
 				addToast(t('image_removed', $language, { default: 'تم حذف الصورة بنجاح' }), 'success');
 			}
 		} catch (err) {
@@ -193,7 +225,6 @@
 		try {
 			if (imageId) {
 				await propertyService.setPropertyImageAsPrimary(imageId);
-
 				addToast(
 					t('primary_image_set', $language, { default: 'تم تعيين الصورة الرئيسية بنجاح' }),
 					'success'

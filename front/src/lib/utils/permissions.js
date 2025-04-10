@@ -140,6 +140,7 @@ export const ROLE_PERMISSIONS = {
  * @param {string} permission - Permission to check
  * @returns {boolean} True if user has permission
  */
+
 export const hasPermission = (userRoles, permission) => {
 	// Handle edge cases gracefully
 	if (!userRoles || !Array.isArray(userRoles) || userRoles.length === 0) {

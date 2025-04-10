@@ -1,6 +1,6 @@
 /**
- * Permissions Utility
- * Handles role-based access control for the application
+ * Enhanced Permissions Utility
+ * Handles role-based access control for the application with better debugging
  */
 
 // Role definitions
@@ -141,13 +141,42 @@ export const ROLE_PERMISSIONS = {
  * @returns {boolean} True if user has permission
  */
 export const hasPermission = (userRoles, permission) => {
-	// Admin has all permissions
+	// Handle edge cases gracefully
+	if (!userRoles || !Array.isArray(userRoles) || userRoles.length === 0) {
+		console.warn('hasPermission called with empty or invalid userRoles', { userRoles, permission });
+		return false;
+	}
+
+	if (!permission) {
+		console.warn('hasPermission called with empty permission');
+		return false;
+	}
+
+	// Debug log - uncomment if needed
+	// console.log(`Checking permission ${permission} for roles:`, userRoles);
+
+	// Admin has all permissions - check first for efficiency
 	if (userRoles.includes(ROLES.ADMIN)) {
+		return true;
+	}
+
+	// Handle case sensitivity issues for role names
+	const normalizedUserRoles = userRoles.map((role) =>
+		typeof role === 'string' ? role.toLowerCase() : role
+	);
+
+	if (normalizedUserRoles.includes('admin')) {
 		return true;
 	}
 
 	// Check each role the user has
 	for (const role of userRoles) {
+		// Handle case where role doesn't exist in our mappings
+		if (!ROLE_PERMISSIONS[role]) {
+			console.warn(`Role not found in permission mappings: ${role}`);
+			continue;
+		}
+
 		const rolePermissions = ROLE_PERMISSIONS[role] || [];
 		if (rolePermissions.includes(permission)) {
 			return true;
@@ -164,6 +193,11 @@ export const hasPermission = (userRoles, permission) => {
  * @returns {boolean} True if user has any of the permissions
  */
 export const hasAnyPermission = (userRoles, permissions) => {
+	if (!permissions || !Array.isArray(permissions) || permissions.length === 0) {
+		console.warn('hasAnyPermission called with empty or invalid permissions');
+		return false;
+	}
+
 	return permissions.some((permission) => hasPermission(userRoles, permission));
 };
 
@@ -174,6 +208,11 @@ export const hasAnyPermission = (userRoles, permissions) => {
  * @returns {boolean} True if user has all of the permissions
  */
 export const hasAllPermissions = (userRoles, permissions) => {
+	if (!permissions || !Array.isArray(permissions) || permissions.length === 0) {
+		console.warn('hasAllPermissions called with empty or invalid permissions');
+		return false;
+	}
+
 	return permissions.every((permission) => hasPermission(userRoles, permission));
 };
 
@@ -185,7 +224,10 @@ export const hasAllPermissions = (userRoles, permissions) => {
  * @returns {boolean} True if user is owner
  */
 export const isOwner = (user, resource, ownerField = 'owner') => {
-	if (!user || !resource) return false;
+	if (!user || !resource) {
+		console.warn('isOwner called with invalid user or resource');
+		return false;
+	}
 
 	// Check if resource has owner ID
 	if (resource[`${ownerField}_id`]) {
@@ -211,7 +253,7 @@ export const isOwner = (user, resource, ownerField = 'owner') => {
  */
 export const canAccessResource = (user, userRoles, resource, permission, ownerField = 'owner') => {
 	// Admin can access any resource
-	if (userRoles.includes(ROLES.ADMIN)) {
+	if (userRoles && userRoles.includes(ROLES.ADMIN)) {
 		return true;
 	}
 
@@ -222,4 +264,41 @@ export const canAccessResource = (user, userRoles, resource, permission, ownerFi
 
 	// Check if user has the required permission
 	return hasPermission(userRoles, permission);
+};
+
+/**
+ * Get all permissions for a given role
+ * @param {string} role - Role to get permissions for
+ * @returns {Array} Array of permissions for the role
+ */
+export const getRolePermissions = (role) => {
+	if (!role || !ROLE_PERMISSIONS[role]) {
+		console.warn(`Role not found: ${role}`);
+		return [];
+	}
+
+	return ROLE_PERMISSIONS[role];
+};
+
+/**
+ * Forcibly determine if a user is an admin or seller by role name
+ * @param {Array} userRoles - User's roles
+ * @returns {boolean} True if user is an admin or seller
+ */
+export const isAdminOrSeller = (userRoles) => {
+	if (!userRoles || !Array.isArray(userRoles)) {
+		return false;
+	}
+
+	// Normalize roles to handle case sensitivity
+	const normalizedRoles = userRoles.map((role) =>
+		typeof role === 'string' ? role.toLowerCase() : role
+	);
+
+	return (
+		normalizedRoles.includes('admin') ||
+		normalizedRoles.includes('seller') ||
+		normalizedRoles.includes(ROLES.ADMIN) ||
+		normalizedRoles.includes(ROLES.SELLER)
+	);
 };

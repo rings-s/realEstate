@@ -1,11 +1,11 @@
 <!--
-  LeafletMap Component
+  Enhanced Map Component
   Reusable Leaflet map component with marker support and location detection
 -->
 <script>
 	import { onMount, onDestroy, createEventDispatcher } from 'svelte';
 	import { t } from '$lib/config/translations';
-	import { language, isRTL } from '$lib/stores/ui';
+	import { language, isRTL, addToast } from '$lib/stores/ui';
 
 	const dispatch = createEventDispatcher();
 
@@ -45,7 +45,7 @@
 
 		try {
 			map = L.map(mapContainer, {
-				center: [latitude, longitude],
+				center: [latitude || 24.774265, longitude || 46.738586],
 				zoom: zoom,
 				dragging: interactive,
 				touchZoom: interactive,
@@ -62,7 +62,7 @@
 					'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 			}).addTo(map);
 
-			if (showMarker) {
+			if (showMarker && latitude && longitude) {
 				addMarker(latitude, longitude);
 			}
 
@@ -124,9 +124,20 @@
 		dispatch('locationchange', { latitude, longitude });
 	}
 
-	$: if (map && marker && L) {
-		marker.setLatLng([latitude, longitude]);
-		map.setView([latitude, longitude], map.getZoom());
+	$: if (map && L) {
+		// Handle changes to latitude/longitude from outside component
+		if (latitude && longitude) {
+			// If we already have a marker, update its position
+			if (marker) {
+				marker.setLatLng([latitude, longitude]);
+			} else if (showMarker) {
+				// If we don't have a marker yet but should show one, add it
+				addMarker(latitude, longitude);
+			}
+
+			// Update map view
+			map.setView([latitude, longitude], map.getZoom());
+		}
 	}
 
 	async function detectLocation() {
@@ -152,19 +163,56 @@
 			const { latitude: lat, longitude: lng } = position.coords;
 
 			if (map) {
-				map.setView([lat, lng], 16);
-				addMarker(lat, lng);
+				map.setView([lat, lng], 16); // Zoom in closer when using current location
+
+				if (showMarker) {
+					addMarker(lat, lng);
+				}
 			}
 
 			latitude = lat;
 			longitude = lng;
 
+			// Show success message
+			addToast(
+				t('location_detected', $language, { default: 'تم تحديد موقعك الحالي بنجاح' }),
+				'success'
+			);
+
 			dispatch('locationdetect', { latitude: lat, longitude: lng });
 		} catch (error) {
 			console.error('Error getting location:', error);
-			locationError = t('geolocation_error', $language, {
-				default: 'فشل في تحديد موقعك. يرجى التأكد من السماح بالوصول إلى الموقع'
-			});
+
+			// Provide more specific error messages
+			let errorMessage;
+
+			switch (error.code) {
+				case 1: // PERMISSION_DENIED
+					errorMessage = t('geolocation_permission_denied', $language, {
+						default:
+							'تم رفض إذن الوصول إلى الموقع. يرجى السماح للموقع بالوصول إلى موقعك من إعدادات المتصفح.'
+					});
+					break;
+				case 2: // POSITION_UNAVAILABLE
+					errorMessage = t('geolocation_unavailable', $language, {
+						default: 'معلومات الموقع غير متوفرة حالياً. حاول مرة أخرى لاحقاً.'
+					});
+					break;
+				case 3: // TIMEOUT
+					errorMessage = t('geolocation_timeout', $language, {
+						default: 'انتهت مهلة طلب تحديد الموقع. تحقق من اتصالك بالإنترنت وحاول مرة أخرى.'
+					});
+					break;
+				default:
+					errorMessage = t('geolocation_error', $language, {
+						default: 'فشل في تحديد موقعك. يرجى التأكد من السماح بالوصول إلى الموقع'
+					});
+			}
+
+			locationError = errorMessage;
+
+			// Show error toast
+			addToast(errorMessage, 'error');
 		} finally {
 			isLocating = false;
 		}
@@ -192,7 +240,7 @@
 	{#if showLocationButton}
 		<div class="mt-2">
 			<button
-				class="btn btn-sm variant-ghost-primary"
+				class="btn btn-sm variant-filled-primary"
 				on:click={detectLocation}
 				disabled={isLocating}
 			>
@@ -227,8 +275,18 @@
 	{/if}
 
 	{#if locationError}
-		<div class="mt-2 text-error-500 text-sm">
+		<div class="mt-2 text-error-500 text-sm bg-error-500/20 p-2 rounded-token">
 			{locationError}
+		</div>
+	{/if}
+
+	<!-- Coordinates display -->
+	{#if latitude && longitude}
+		<div class="mt-2 text-sm text-surface-600-300-token">
+			<span class="font-medium">
+				{t('coordinates', $language, { default: 'الإحداثيات' })}:
+			</span>
+			{latitude.toFixed(6)}, {longitude.toFixed(6)}
 		</div>
 	{/if}
 </div>

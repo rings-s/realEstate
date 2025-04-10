@@ -1,7 +1,3 @@
-<!--
-  Modified properties/add/+page.svelte to fix authentication issues
-  and improve form submission handling
--->
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -10,7 +6,7 @@
 	import { properties } from '$lib/stores/properties';
 	import { isAuthenticated, currentUser, userRoles } from '$lib/stores/auth';
 	import { hasPermission, PERMISSIONS } from '$lib/utils/permissions';
-	import { isTokenExpired, getAccessToken } from '$lib/utils/tokenManager';
+	import { getAccessToken, isTokenExpired } from '$lib/utils/tokenManager';
 
 	import PropertyForm from '$lib/components/property/PropertyForm.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
@@ -21,49 +17,59 @@
 	let error = null;
 	let unauthorized = false;
 	let initialCheckDone = false;
+	let uploadedImages = [];
 
-	// Check if user has permission to create properties
-	$: canCreateProperty = hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY);
+	// Check permissions for creating properties
+	// This looks at the role-based permissions structure to see if the user can create properties
+	$: canCreateProperty = $isAuthenticated && hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY);
 
-	// Enhanced authentication check
-	function checkAuthentication() {
-		console.log('Checking authentication status...');
+	// Enhanced authentication and permission check
+	async function checkAuthAndPermissions() {
+		console.log('Checking authentication and permissions...');
 
-		// First check if we have the auth store value
+		// First check if store says we're authenticated
 		if (!$isAuthenticated) {
-			console.log('Not authenticated according to store');
-
-			// Double-check with token directly as a fallback
+			// Double-check with token as fallback
 			const token = getAccessToken();
 			if (token && !isTokenExpired()) {
-				console.log('Token exists and is valid, setting authenticated');
-				// We have a valid token despite the store saying otherwise
+				console.log('Token exists and is valid, updating authentication state');
 				isAuthenticated.set(true);
-				return true;
+				// Wait for the store to update
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			} else {
+				console.log('No valid authentication found, redirecting to login');
+				goto('/auth/login?redirect=/properties/add');
+				return false;
 			}
+		}
 
-			console.log('No valid token found, redirecting to login');
-			goto('/auth/login?redirect=/properties/add');
+		// Now check if user has the CREATE_PROPERTY permission
+		const hasCreatePermission = hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY);
+
+		// Also look for SELLER or AGENT roles which should be able to create properties
+		const isSellerOrAgent =
+			$userRoles.includes('seller') || $userRoles.includes('agent') || $userRoles.includes('admin');
+
+		if (!hasCreatePermission && !isSellerOrAgent) {
+			console.log('User lacks permission to create properties');
+			unauthorized = true;
+			error = t('no_permission', $language, { default: 'ليس لديك صلاحية لإضافة عقار' });
 			return false;
 		}
 
-		console.log('User is authenticated');
+		console.log('User has permission to create properties');
 		return true;
 	}
 
-	onMount(() => {
-		// Check if user is authenticated
-		if (!checkAuthentication()) {
+	onMount(async () => {
+		// Check authentication and permissions
+		const hasPermission = await checkAuthAndPermissions();
+		initialCheckDone = true;
+
+		if (!hasPermission) {
+			console.log('Permission check failed');
 			return;
 		}
-
-		// Check if user has permission to create properties
-		if (!canCreateProperty) {
-			console.log('User lacks permission to create properties');
-			unauthorized = true;
-		}
-
-		initialCheckDone = true;
 	});
 
 	// Handle form submission
@@ -78,6 +84,20 @@
 			// Create new property
 			const newProperty = await properties.createProperty(propertyData);
 			console.log('Property created successfully:', newProperty);
+
+			// Handle any pending image uploads
+			if (uploadedImages.length > 0 && newProperty.id) {
+				for (const imageData of uploadedImages) {
+					try {
+						await properties.uploadImage(newProperty.id, imageData.file, {
+							isPrimary: imageData.isPrimary,
+							caption: imageData.caption
+						});
+					} catch (imgErr) {
+						console.error('Error uploading image after property creation:', imgErr);
+					}
+				}
+			}
 
 			// Show success message
 			addToast(
@@ -100,20 +120,35 @@
 		}
 	}
 
-	// Handle property image upload
-	async function handleImageUpload(event) {
+	// Handle property image selection before the property is created
+	function handleImageUpload(event) {
 		const { propertyId, formData, imageIndex } = event.detail;
 
-		try {
-			// In the add page, we don't have propertyId yet, handle this differently
-			console.log('Image will be uploaded after property creation');
-		} catch (err) {
-			console.error('Error handling image:', err);
+		// Store image info for uploading after property creation
+		if (!propertyId) {
+			// Extract file and metadata from formData
+			const file = formData.get('image');
+			const isPrimary = formData.get('is_primary') === 'true';
+			const caption = formData.get('caption') || '';
+
+			// Add to pending uploads
+			uploadedImages.push({
+				file,
+				isPrimary,
+				caption
+			});
+
+			console.log('Image queued for upload after property creation:', {
+				isPrimary,
+				caption,
+				fileName: file ? file.name : 'unknown'
+			});
+
 			addToast(
-				t('image_upload_error', $language, {
-					default: 'فشل في تحميل الصورة'
+				t('image_queued', $language, {
+					default: 'سيتم تحميل الصورة بعد إنشاء العقار'
 				}),
-				'error'
+				'info'
 			);
 		}
 	}
@@ -147,7 +182,9 @@
 		<div class="card p-6 text-center">
 			<Alert
 				type="error"
-				message={t('no_permission', $language, { default: 'ليس لديك صلاحية لإضافة عقار' })}
+				message={t('no_permission', $language, {
+					default: 'ليس لديك صلاحية لإضافة عقار. يجب أن تكون بائع عقارات أو وكيل عقاري للقيام بذلك.'
+				})}
 			/>
 			<div class="mt-4">
 				<a href="/properties" class="btn variant-filled">
@@ -157,7 +194,7 @@
 		</div>
 	{:else}
 		<!-- Property Form -->
-		<div class="card p-6 mb-6">
+		<div class="card">
 			<PropertyForm
 				{loading}
 				{error}

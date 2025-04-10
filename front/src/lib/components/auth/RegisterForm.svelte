@@ -1,12 +1,17 @@
+<!--
+  Updated RegisterForm Component
+  With complete roles from permissions utils
+-->
 <script>
+	import { onMount } from 'svelte';
 	import { createEventDispatcher } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { language, isRTL, textClass, uiStore } from '$lib/stores/ui';
 	import { t } from '$lib/config/translations';
 	import { User, Mail, Lock, Eye, EyeOff, Phone, Calendar, Users } from 'lucide-svelte';
 	import * as authService from '$lib/services/authService';
-	import { ROLES } from '$lib/utils/permissions';
-	import { fade } from 'svelte/transition';
+	import { ROLES, ROLE_NAMES } from '$lib/utils/permissions';
+	import { isAuthenticated } from '$lib/stores/auth';
 
 	const dispatch = createEventDispatcher();
 
@@ -27,7 +32,24 @@
 	let loading = false;
 	let error = '';
 	let success = false;
-	let validationErrors = {};
+
+	// Available roles for registration
+	// We'll exclude the ADMIN role as it's typically assigned by existing admins
+	const availableRoles = [
+		{ code: ROLES.BUYER, name: ROLE_NAMES[ROLES.BUYER] },
+		{ code: ROLES.SELLER, name: ROLE_NAMES[ROLES.SELLER] },
+		{ code: ROLES.AGENT, name: ROLE_NAMES[ROLES.AGENT] },
+		{ code: ROLES.INSPECTOR, name: ROLE_NAMES[ROLES.INSPECTOR] },
+		{ code: ROLES.LEGAL, name: ROLE_NAMES[ROLES.LEGAL] },
+		{ code: ROLES.APPRAISER, name: ROLE_NAMES[ROLES.APPRAISER] }
+	];
+
+	// Redirect if already authenticated
+	onMount(() => {
+		if ($isAuthenticated) {
+			goto('/dashboard');
+		}
+	});
 
 	// Toggle password visibility
 	const togglePassword = () => {
@@ -42,74 +64,42 @@
 	async function handleSubmit() {
 		error = '';
 		success = false;
-		validationErrors = {};
 
 		// Form validation
-		const requiredFields = {
-			email,
-			password,
-			confirm_password,
-			first_name,
-			last_name,
-			role
-		};
-
-		// Check required fields
-		let missingFields = [];
-		for (const [field, value] of Object.entries(requiredFields)) {
-			if (!value) {
-				missingFields.push(field);
-			}
-		}
-
-		if (missingFields.length > 0) {
+		if (!email || !password || !confirm_password || !first_name || !last_name || !role) {
 			error = t('fill_required_fields', $language, { default: 'يرجى ملء جميع الحقول المطلوبة' });
-			validationErrors = missingFields.reduce((acc, field) => {
-				acc[field] = true;
-				return acc;
-			}, {});
 			return;
 		}
 
-		// Password validation
 		if (password !== confirm_password) {
-			error = t('passwords_not_match', $language);
-			validationErrors.confirm_password = true;
+			error = t('passwords_not_match', $language, { default: 'كلمات المرور غير متطابقة' });
 			return;
 		}
 
 		if (password.length < 8) {
-			error = t('password_too_short', $language);
-			validationErrors.password = true;
+			error = t('password_too_short', $language, { default: 'كلمة المرور قصيرة جداً' });
 			return;
 		}
 
-		// Terms validation
 		if (!agreeTerms) {
 			error = t('terms_required', $language, { default: 'يجب الموافقة على الشروط والأحكام' });
-			validationErrors.agreeTerms = true;
 			return;
 		}
 
 		loading = true;
 
 		try {
-			// Prepare data object for registration
-			const userData = {
+			// Call register service
+			const response = await authService.register({
 				email,
 				password,
 				confirm_password,
 				first_name,
 				last_name,
-				role
-			};
-
-			// Add optional fields if provided
-			if (phone_number) userData.phone_number = phone_number;
-			if (date_of_birth) userData.date_of_birth = date_of_birth;
-
-			// Call register service
-			await authService.register(userData);
+				phone_number,
+				role,
+				date_of_birth: date_of_birth || undefined
+			});
 
 			// Show success message
 			success = true;
@@ -124,326 +114,286 @@
 			goto(`/auth/verify-email?email=${encodeURIComponent(email)}`);
 		} catch (err) {
 			console.error('Registration error:', err);
-
-			// Handle validation errors from the backend
-			if (err.details && typeof err.details === 'object') {
-				validationErrors = err.details;
-
-				// Create a readable error message from validation errors
-				const errorMessages = [];
-				for (const [field, message] of Object.entries(err.details)) {
-					const fieldName = t(field, $language, { default: field });
-					errorMessages.push(`${fieldName}: ${message}`);
-				}
-
-				error = errorMessages.join('. ');
-			} else {
-				error =
-					err.message ||
-					t('registration_failed', $language, { default: 'فشل التسجيل. يرجى المحاولة مرة أخرى.' });
-			}
+			error =
+				err.message ||
+				t('registration_failed', $language, { default: 'فشل التسجيل. يرجى المحاولة مرة أخرى.' });
 		} finally {
 			loading = false;
 		}
 	}
 </script>
 
-<div class="card p-5 w-full max-w-md mx-auto shadow-lg">
-	<header class="text-center mb-5">
-		<h2 class="text-2xl font-bold">{t('register', $language)}</h2>
-		<p class="text-surface-600-300-token text-sm mt-1">
-			{t('register_subtitle', $language, { default: 'إنشاء حساب جديد للوصول إلى المنصة' })}
-		</p>
-	</header>
+<svelte:head>
+	<title>{t('register', $language)} | {t('app_name', $language)}</title>
+</svelte:head>
 
-	<!-- Error message -->
-	{#if error}
-		<div class="alert variant-filled-error mb-4" transition:fade={{ duration: 200 }}>
-			<div class="text-sm">{error}</div>
-		</div>
-	{/if}
+<div class="container mx-auto py-12 px-4">
+	<div class="card p-6 w-full max-w-lg mx-auto">
+		<header class="text-center mb-6">
+			<h2 class="h2">{t('register', $language, { default: 'تسجيل حساب جديد' })}</h2>
+			<p class="text-surface-600-300-token">
+				{t('register_subtitle', $language, { default: 'إنشاء حساب جديد للوصول إلى المنصة' })}
+			</p>
+		</header>
 
-	<!-- Success message -->
-	{#if success}
-		<div class="alert variant-filled-success mb-4" transition:fade={{ duration: 200 }}>
-			<div class="text-sm">
-				{t('verification_sent', $language, {
-					default: 'تم إرسال رمز التحقق إلى بريدك الإلكتروني.'
-				})}
+		<!-- Error message -->
+		{#if error}
+			<div class="alert variant-filled-error mb-4">
+				<div>{error}</div>
 			</div>
-		</div>
-	{/if}
+		{/if}
 
-	<form on:submit|preventDefault={handleSubmit} class={$textClass}>
-		<!-- Name Fields (2 columns) -->
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-			<!-- First Name -->
-			<label class="label">
-				<span class="text-sm font-medium">{t('first_name', $language)}</span>
+		<!-- Success message -->
+		{#if success}
+			<div class="alert variant-filled-success mb-4">
+				<div>
+					{t('verification_sent', $language, {
+						default: 'تم إرسال رمز التحقق إلى بريدك الإلكتروني.'
+					})}
+				</div>
+			</div>
+		{/if}
+
+		<form on:submit|preventDefault={handleSubmit} class={$textClass}>
+			<!-- Name Fields (2 columns) -->
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+				<!-- First Name -->
+				<label class="label">
+					<span>{t('first_name', $language, { default: 'الاسم الأول' })}</span>
+					<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+						<div class="input-group-shim">
+							<User class="w-5 h-5" />
+						</div>
+						<input
+							type="text"
+							bind:value={first_name}
+							placeholder={t('first_name_placeholder', $language, { default: 'الاسم الأول' })}
+							class="input"
+							dir={$isRTL ? 'rtl' : 'ltr'}
+							required
+						/>
+					</div>
+				</label>
+
+				<!-- Last Name -->
+				<label class="label">
+					<span>{t('last_name', $language, { default: 'اسم العائلة' })}</span>
+					<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+						<div class="input-group-shim">
+							<User class="w-5 h-5" />
+						</div>
+						<input
+							type="text"
+							bind:value={last_name}
+							placeholder={t('last_name_placeholder', $language, { default: 'اسم العائلة' })}
+							class="input"
+							dir={$isRTL ? 'rtl' : 'ltr'}
+							required
+						/>
+					</div>
+				</label>
+			</div>
+
+			<!-- Email Field -->
+			<label class="label mt-4">
+				<span>{t('email', $language, { default: 'البريد الإلكتروني' })}</span>
 				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-					<div class="input-group-shim flex items-center justify-center">
-						<User class="w-4 h-4" />
+					<div class="input-group-shim">
+						<Mail class="w-5 h-5" />
 					</div>
 					<input
-						type="text"
-						bind:value={first_name}
-						placeholder={t('first_name_placeholder', $language, { default: 'الاسم الأول' })}
-						class="input h-9 text-sm {validationErrors.first_name ? 'input-error' : ''}"
+						type="email"
+						bind:value={email}
+						placeholder={t('email_placeholder', $language, { default: 'أدخل بريدك الإلكتروني' })}
+						class="input"
 						dir={$isRTL ? 'rtl' : 'ltr'}
+						autocomplete="email"
 						required
 					/>
 				</div>
 			</label>
 
-			<!-- Last Name -->
-			<label class="label">
-				<span class="text-sm font-medium">{t('last_name', $language)}</span>
-				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-					<div class="input-group-shim flex items-center justify-center">
-						<User class="w-4 h-4" />
-					</div>
-					<input
-						type="text"
-						bind:value={last_name}
-						placeholder={t('last_name_placeholder', $language, { default: 'اسم العائلة' })}
-						class="input h-9 text-sm {validationErrors.last_name ? 'input-error' : ''}"
-						dir={$isRTL ? 'rtl' : 'ltr'}
-						required
-					/>
-				</div>
-			</label>
-		</div>
-
-		<!-- Email Field -->
-		<label class="label mt-3">
-			<span class="text-sm font-medium">{t('email', $language)}</span>
-			<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-				<div class="input-group-shim flex items-center justify-center">
-					<Mail class="w-4 h-4" />
-				</div>
-				<input
-					type="email"
-					bind:value={email}
-					placeholder={t('email_placeholder', $language, { default: 'أدخل بريدك الإلكتروني' })}
-					class="input h-9 text-sm {validationErrors.email ? 'input-error' : ''}"
-					dir={$isRTL ? 'rtl' : 'ltr'}
-					autocomplete="email"
-					required
-				/>
-			</div>
-		</label>
-
-		<!-- Password Fields (2 columns) -->
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-			<!-- Password -->
-			<label class="label">
-				<span class="text-sm font-medium">{t('password', $language)}</span>
-				<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
-					<div class="input-group-shim flex items-center justify-center">
-						<Lock class="w-4 h-4" />
-					</div>
-					{#if showPassword}
-						<input
-							type="text"
-							bind:value={password}
-							placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
-							class="input h-9 text-sm {validationErrors.password ? 'input-error' : ''}"
-							dir={$isRTL ? 'rtl' : 'ltr'}
-							required
-							minlength="8"
-						/>
-					{:else}
-						<input
-							type="password"
-							bind:value={password}
-							placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
-							class="input h-9 text-sm {validationErrors.password ? 'input-error' : ''}"
-							dir={$isRTL ? 'rtl' : 'ltr'}
-							required
-							minlength="8"
-						/>
-					{/if}
-					<button
-						type="button"
-						class="input-group-shim flex items-center justify-center"
-						on:click={togglePassword}
-					>
-						{#if showPassword}
-							<EyeOff class="w-4 h-4" />
-						{:else}
-							<Eye class="w-4 h-4" />
-						{/if}
-					</button>
-				</div>
-				{#if validationErrors.password}
-					<div class="text-xs text-error-500 mt-1">
-						{t('password_requirements', $language, {
-							default: 'يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل'
-						})}
-					</div>
-				{/if}
-			</label>
-
-			<!-- Confirm Password -->
-			<label class="label">
-				<span class="text-sm font-medium">{t('confirm_password', $language)}</span>
-				<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
-					<div class="input-group-shim flex items-center justify-center">
-						<Lock class="w-4 h-4" />
-					</div>
-					{#if showConfirmPassword}
-						<input
-							type="text"
-							bind:value={confirm_password}
-							placeholder={t('confirm_password_placeholder', $language, {
-								default: 'تأكيد كلمة المرور'
-							})}
-							class="input h-9 text-sm {validationErrors.confirm_password ? 'input-error' : ''}"
-							dir={$isRTL ? 'rtl' : 'ltr'}
-							required
-						/>
-					{:else}
-						<input
-							type="password"
-							bind:value={confirm_password}
-							placeholder={t('confirm_password_placeholder', $language, {
-								default: 'تأكيد كلمة المرور'
-							})}
-							class="input h-9 text-sm {validationErrors.confirm_password ? 'input-error' : ''}"
-							dir={$isRTL ? 'rtl' : 'ltr'}
-							required
-						/>
-					{/if}
-					<button
-						type="button"
-						class="input-group-shim flex items-center justify-center"
-						on:click={toggleConfirmPassword}
-					>
-						{#if showConfirmPassword}
-							<EyeOff class="w-4 h-4" />
-						{:else}
-							<Eye class="w-4 h-4" />
-						{/if}
-					</button>
-				</div>
-				{#if validationErrors.confirm_password}
-					<div class="text-xs text-error-500 mt-1">
-						{t('passwords_not_match', $language, {
-							default: 'كلمات المرور غير متطابقة'
-						})}
-					</div>
-				{/if}
-			</label>
-		</div>
-
-		<!-- Optional Fields -->
-		<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
 			<!-- Phone Number -->
-			<label class="label">
-				<span class="text-sm font-medium">{t('phone_number', $language)}</span>
+			<label class="label mt-4">
+				<span>{t('phone_number', $language, { default: 'رقم الهاتف' })}</span>
 				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-					<div class="input-group-shim flex items-center justify-center">
-						<Phone class="w-4 h-4" />
+					<div class="input-group-shim">
+						<Phone class="w-5 h-5" />
 					</div>
 					<input
 						type="tel"
 						bind:value={phone_number}
 						placeholder={t('phone_placeholder', $language, { default: 'رقم الهاتف (اختياري)' })}
-						class="input h-9 text-sm {validationErrors.phone_number ? 'input-error' : ''}"
+						class="input"
 						dir={$isRTL ? 'rtl' : 'ltr'}
 						autocomplete="tel"
 					/>
 				</div>
-				{#if validationErrors.phone_number}
-					<div class="text-xs text-error-500 mt-1">
-						{t('invalid_phone', $language, { default: 'يجب أن يكون رقم الهاتف بصيغة صحيحة' })}
+			</label>
+
+			<!-- Date of Birth -->
+			<label class="label mt-4">
+				<span>{t('date_of_birth', $language, { default: 'تاريخ الميلاد' })}</span>
+				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
+					<div class="input-group-shim">
+						<Calendar class="w-5 h-5" />
 					</div>
-				{/if}
+					<input
+						type="date"
+						bind:value={date_of_birth}
+						class="input"
+						dir={$isRTL ? 'rtl' : 'ltr'}
+					/>
+				</div>
 			</label>
 
 			<!-- Role Selection -->
-			<label class="label">
-				<span class="text-sm font-medium">{t('role', $language)}</span>
+			<label class="label mt-4">
+				<span>{t('role', $language, { default: 'الدور' })}</span>
 				<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-					<div class="input-group-shim flex items-center justify-center">
-						<Users class="w-4 h-4" />
+					<div class="input-group-shim">
+						<Users class="w-5 h-5" />
 					</div>
-					<select
-						bind:value={role}
-						class="select h-9 text-sm {validationErrors.role ? 'input-error' : ''}"
-						dir={$isRTL ? 'rtl' : 'ltr'}
-						required
-					>
-						<option value={ROLES.BUYER}>{t('buyer', $language)}</option>
-						<option value={ROLES.SELLER}>{t('seller', $language)}</option>
-						<option value={ROLES.AGENT}>{t('agent', $language)}</option>
+					<select bind:value={role} class="select" dir={$isRTL ? 'rtl' : 'ltr'} required>
+						{#each availableRoles as roleOption}
+							<option value={roleOption.code}>
+								{t(roleOption.code, $language, { default: roleOption.name })}
+							</option>
+						{/each}
 					</select>
 				</div>
 			</label>
-		</div>
 
-		<!-- Date of Birth (optional) -->
-		<label class="label mt-3">
-			<span class="text-sm font-medium">{t('date_of_birth', $language)}</span>
-			<div class="input-group input-group-divider grid-cols-[auto_1fr]">
-				<div class="input-group-shim flex items-center justify-center">
-					<Calendar class="w-4 h-4" />
-				</div>
-				<input
-					type="date"
-					bind:value={date_of_birth}
-					class="input h-9 text-sm {validationErrors.date_of_birth ? 'input-error' : ''}"
-					dir={$isRTL ? 'rtl' : 'ltr'}
-				/>
+			<!-- Password Fields -->
+			<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+				<!-- Password -->
+				<label class="label">
+					<span>{t('password', $language, { default: 'كلمة المرور' })}</span>
+					<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
+						<div class="input-group-shim">
+							<Lock class="w-5 h-5" />
+						</div>
+						{#if showPassword}
+							<input
+								type="text"
+								bind:value={password}
+								placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
+								class="input"
+								dir={$isRTL ? 'rtl' : 'ltr'}
+								required
+							/>
+						{:else}
+							<input
+								type="password"
+								bind:value={password}
+								placeholder={t('password_placeholder', $language, { default: 'أدخل كلمة المرور' })}
+								class="input"
+								dir={$isRTL ? 'rtl' : 'ltr'}
+								required
+							/>
+						{/if}
+						<button type="button" class="input-group-shim" on:click={togglePassword}>
+							{#if showPassword}
+								<EyeOff class="w-5 h-5" />
+							{:else}
+								<Eye class="w-5 h-5" />
+							{/if}
+						</button>
+					</div>
+				</label>
+
+				<!-- Confirm Password -->
+				<label class="label">
+					<span>{t('confirm_password', $language, { default: 'تأكيد كلمة المرور' })}</span>
+					<div class="input-group input-group-divider grid-cols-[auto_1fr_auto]">
+						<div class="input-group-shim">
+							<Lock class="w-5 h-5" />
+						</div>
+						{#if showConfirmPassword}
+							<input
+								type="text"
+								bind:value={confirm_password}
+								placeholder={t('confirm_password_placeholder', $language, {
+									default: 'تأكيد كلمة المرور'
+								})}
+								class="input"
+								dir={$isRTL ? 'rtl' : 'ltr'}
+								required
+							/>
+						{:else}
+							<input
+								type="password"
+								bind:value={confirm_password}
+								placeholder={t('confirm_password_placeholder', $language, {
+									default: 'تأكيد كلمة المرور'
+								})}
+								class="input"
+								dir={$isRTL ? 'rtl' : 'ltr'}
+								required
+							/>
+						{/if}
+						<button type="button" class="input-group-shim" on:click={toggleConfirmPassword}>
+							{#if showConfirmPassword}
+								<EyeOff class="w-5 h-5" />
+							{:else}
+								<Eye class="w-5 h-5" />
+							{/if}
+						</button>
+					</div>
+				</label>
 			</div>
-		</label>
 
-		<!-- Terms and Conditions -->
-		<label
-			class="flex items-center mt-4 space-x-2 {$isRTL ? 'flex-row-reverse space-x-reverse' : ''}"
-		>
-			<input
-				type="checkbox"
-				bind:checked={agreeTerms}
-				class="checkbox {validationErrors.agreeTerms ? 'checkbox-error' : ''}"
-				required
-			/>
-			<span class="text-sm">
-				{t('agree_terms', $language, { default: 'أوافق على' })}
-				<a href="/terms" class="anchor">{t('terms_and_conditions', $language)}</a>
-			</span>
-		</label>
+			<!-- Terms and Conditions -->
+			<label
+				class="flex items-center mt-6 space-x-2 {$isRTL ? 'flex-row-reverse space-x-reverse' : ''}"
+			>
+				<input type="checkbox" class="checkbox" bind:checked={agreeTerms} required />
+				<span>
+					{t('agree_terms', $language, { default: 'أوافق على' })}
+					<a href="/terms" class="anchor"
+						>{t('terms_and_conditions', $language, { default: 'الشروط والأحكام' })}</a
+					>
+				</span>
+			</label>
 
-		<!-- Submit Button -->
-		<button type="submit" class="btn variant-filled-primary w-full h-10 mt-5" disabled={loading}>
-			{#if loading}
-				<span class="loading-spinner h-4 w-4 mr-2"></span>
-				<span>{t('registering', $language, { default: 'جاري التسجيل...' })}</span>
-			{:else}
-				{t('register', $language)}
-			{/if}
-		</button>
-	</form>
+			<!-- Submit Button -->
+			<button type="submit" class="btn variant-filled-primary w-full mt-6" disabled={loading}>
+				{#if loading}
+					<div class="spinner-icon {$isRTL ? 'ml-2' : 'mr-2'}"></div>
+					{t('registering', $language, { default: 'جاري التسجيل...' })}
+				{:else}
+					{t('register', $language, { default: 'تسجيل' })}
+				{/if}
+			</button>
+		</form>
 
-	<!-- Login Link -->
-	<div class="mt-5 text-center">
-		<p class="text-sm">
-			{t('have_account', $language, { default: 'لديك حساب بالفعل؟' })}
-			<a href="/auth/login" class="anchor">{t('login', $language)}</a>
-		</p>
+		<!-- Login Link -->
+		<div class="mt-6 text-center">
+			<p>
+				{t('have_account', $language, { default: 'لديك حساب بالفعل؟' })}
+				<a href="/auth/login" class="anchor">{t('login', $language, { default: 'تسجيل الدخول' })}</a
+				>
+			</p>
+		</div>
 	</div>
 </div>
 
 <style>
-	.loading-spinner {
-		border: 2px solid rgba(255, 255, 255, 0.2);
-		border-top-color: currentColor;
+	.spinner-icon {
+		border: 2px solid #f3f3f3;
+		border-top: 2px solid currentColor;
 		border-radius: 50%;
-		animation: loading-spinner 0.8s linear infinite;
+		width: 1em;
+		height: 1em;
+		animation: spin 1s linear infinite;
+		display: inline-block;
 	}
 
-	@keyframes loading-spinner {
-		to {
+	@keyframes spin {
+		0% {
+			transform: rotate(0deg);
+		}
+		100% {
 			transform: rotate(360deg);
 		}
 	}

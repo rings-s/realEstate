@@ -12,6 +12,7 @@ from django.core.validators import (
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from accounts.models import CustomUser, Role
+from django.core.exceptions import ValidationError
 
 
 # -------------------------------------------------------------------------
@@ -513,7 +514,8 @@ class Property(BaseModel):
 
         # Generate slug if not provided
         if not self.slug:
-            self.slug = slugify(self.title)
+            from .utils import arabic_slugify
+            self.slug = arabic_slugify(self.title)
             # Ensure uniqueness
             original_slug = self.slug
             count = 1
@@ -535,6 +537,7 @@ class Property(BaseModel):
 
         # Save the model
         super().save(*args, **kwargs)
+
 
 
 class PropertyImage(BaseImageModel):

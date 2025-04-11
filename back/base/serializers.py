@@ -9,6 +9,7 @@ from accounts.models import Role
 from accounts.serializers import (
     RoleSerializer, UserProfileSerializer
 )
+import json
 
 User = get_user_model()
 
@@ -246,6 +247,8 @@ class PropertyImageSerializer(BaseModelSerializer):
         return obj.property.title if obj.property else None
 
 
+# Update the Property serializer in base/serializers.py
+
 class PropertySerializer(BaseModelSerializer):
     """Serializer for Property model"""
     images = PropertyImageSerializer(many=True, read_only=True, label=_('الصور'))
@@ -270,35 +273,7 @@ class PropertySerializer(BaseModelSerializer):
             'owner': {'write_only': True, 'label': _('المالك')},
             'property_number': {'read_only': True, 'label': _('رقم العقار')},
             'slug': {'read_only': True, 'label': _('الرابط المختصر')},
-            'title': {'label': _('العنوان')},
-            'property_type': {'label': _('نوع العقار')},
-            'status': {'label': _('الحالة')},
-            'location': {'label': _('الموقع الجغرافي')},
-            'address': {'label': _('العنوان')},
-            'city': {'label': _('المدينة')},
-            'state': {'label': _('المنطقة/المحافظة')},
-            'postal_code': {'label': _('الرمز البريدي')},
-            'country': {'label': _('الدولة')},
-            'description': {'label': _('الوصف')},
-            'features': {'label': _('المميزات')},
-            'amenities': {'label': _('المرافق')},
-            'rooms': {'label': _('الغرف')},
-            'specifications': {'label': _('المواصفات')},
-            'size_sqm': {'label': _('المساحة (متر مربع)')},
-            'bedrooms': {'label': _('عدد غرف النوم')},
-            'bathrooms': {'label': _('عدد الحمامات')},
-            'parking_spaces': {'label': _('أماكن وقوف السيارات')},
-            'year_built': {'label': _('سنة البناء')},
-            'market_value': {'label': _('القيمة السوقية')},
-            'minimum_bid': {'label': _('الحد الأدنى للمزايدة')},
-            'pricing_details': {'label': _('تفاصيل التسعير')},
-            'is_published': {'label': _('منشور')},
-            'is_featured': {'label': _('مميز')},
-            'is_verified': {'label': _('موثق')},
-            'meta_title': {'label': _('عنوان الميتا')},
-            'meta_description': {'label': _('وصف الميتا')},
-            'cover_image': {'label': _('صورة الغلاف')},
-            'metadata': {'label': _('بيانات إضافية')},
+            # Other field options...
         }
 
     def get_cover_image_url(self, obj):
@@ -312,6 +287,61 @@ class PropertySerializer(BaseModelSerializer):
             raise serializers.ValidationError(_("يجب أن تكون بيانات الموقع على شكل قاموس."))
         return value
 
+    def to_internal_value(self, data):
+        """
+        Handle JSON fields properly before validation
+        """
+        # Handle JSON fields if they come as strings
+        json_fields = ['features', 'amenities', 'rooms', 'specifications', 'location', 'pricing_details', 'metadata']
+
+        data_copy = data.copy()
+        for field in json_fields:
+            if field in data_copy and isinstance(data_copy[field], str):
+                try:
+                    # Try to parse if it's a JSON string
+                    data_copy[field] = json.loads(data_copy[field])
+                except (json.JSONDecodeError, ValueError):
+                    # If it's not valid JSON, handle appropriately
+                    if field in ['features', 'amenities', 'rooms']:
+                        # For array fields
+                        data_copy[field] = []
+                    else:
+                        # For object fields
+                        data_copy[field] = {}
+
+        return super().to_internal_value(data_copy)
+
+    def to_representation(self, instance):
+        """
+        Ensure JSON fields are properly serialized
+        """
+        representation = super().to_representation(instance)
+
+        # Ensure array fields are properly serialized
+        array_fields = ['features', 'amenities', 'rooms']
+        for field in array_fields:
+            value = representation.get(field)
+            if value is None:
+                representation[field] = []
+            elif isinstance(value, str):
+                try:
+                    representation[field] = json.loads(value)
+                except (json.JSONDecodeError, ValueError):
+                    representation[field] = []
+
+        # Ensure object fields are properly serialized
+        object_fields = ['specifications', 'location', 'pricing_details', 'metadata']
+        for field in object_fields:
+            value = representation.get(field)
+            if value is None:
+                representation[field] = {}
+            elif isinstance(value, str):
+                try:
+                    representation[field] = json.loads(value)
+                except (json.JSONDecodeError, ValueError):
+                    representation[field] = {}
+
+        return representation
 
 class PropertyViewSerializer(BaseModelSerializer):
     """Serializer for PropertyView model"""

@@ -1,9 +1,9 @@
 <script>
-	import { onMount } from 'svelte';
+	// PropertyForm.svelte - Script Section
+	import { onMount, createEventDispatcher } from 'svelte';
 	import { t } from '$lib/config/translations';
 	import { language, isRTL, addToast } from '$lib/stores/ui';
 	import { PROPERTY_TYPES, PROPERTY_STATUS } from '$lib/config/constants';
-	import { createEventDispatcher } from 'svelte';
 	import { fade } from 'svelte/transition';
 	import Alert from '$lib/components/common/Alert.svelte';
 	import Map from './Map.svelte';
@@ -28,7 +28,12 @@
 		Image,
 		Settings,
 		Camera,
-		Loader
+		Loader,
+		ArrowRight,
+		ArrowLeft,
+		Save,
+		ChevronRight,
+		ChevronLeft
 	} from 'lucide-svelte';
 	import { formatPropertyData } from '$lib/services/propertyService';
 
@@ -118,6 +123,51 @@
 		{ id: 'publishing', label: $language === 'ar' ? 'النشر' : 'Publishing', icon: Settings }
 	];
 
+	// Field-specific error handling
+	let fieldErrors = {};
+
+	// Extract field errors from the error message
+	$: {
+		fieldErrors = {};
+		if (error) {
+			// Handle ApiError objects with details
+			if (error.details && typeof error.details === 'object') {
+				fieldErrors = error.details;
+			}
+			// Handle string error messages that might contain field errors
+			else if (typeof error === 'string') {
+				// Try to extract field: message format
+				const fieldErrorRegex = /(\w+):\s+(.+?)(?=\.\s+\w+:|$)/g;
+				let match;
+
+				while ((match = fieldErrorRegex.exec(error)) !== null) {
+					const [, field, message] = match;
+					fieldErrors[field] = message;
+				}
+			}
+		}
+	}
+
+	// Function to get field error
+	function getFieldError(fieldName) {
+		if (!fieldErrors || !fieldName) return null;
+
+		// Check for direct match
+		if (fieldErrors[fieldName]) {
+			return fieldErrors[fieldName];
+		}
+
+		// Check for case insensitive match
+		const lowerFieldName = fieldName.toLowerCase();
+		for (const [key, value] of Object.entries(fieldErrors)) {
+			if (key.toLowerCase() === lowerFieldName) {
+				return value;
+			}
+		}
+
+		return null;
+	}
+
 	// Initialize form with existing property data
 	$: if (property) {
 		formData = {
@@ -191,6 +241,48 @@
 	// Set map loaded when location tab is active
 	$: if (activeTab === 'location') {
 		mapLoaded = true;
+	}
+
+	// Move to next tab
+	function goToNextTab() {
+		const currentIndex = tabs.findIndex((tab) => tab.id === activeTab);
+		if (currentIndex < tabs.length - 1) {
+			// Basic validation before moving to next tab
+			let canProceed = true;
+
+			// Validate basic-info tab
+			if (activeTab === 'basic-info' && !formData.title.trim()) {
+				addToast(t('title_required', $language, { default: 'العنوان مطلوب' }), 'warning');
+				canProceed = false;
+			}
+
+			// Validate location tab
+			if (activeTab === 'location' && (!formData.address.trim() || !formData.city.trim())) {
+				addToast(
+					t('address_city_required', $language, { default: 'العنوان والمدينة مطلوبان' }),
+					'warning'
+				);
+				canProceed = false;
+			}
+
+			// Validate details tab
+			if (activeTab === 'details' && !formData.description.trim()) {
+				addToast(t('description_required', $language, { default: 'الوصف مطلوب' }), 'warning');
+				canProceed = false;
+			}
+
+			if (canProceed) {
+				activeTab = tabs[currentIndex + 1].id;
+			}
+		}
+	}
+
+	// Move to previous tab
+	function goToPrevTab() {
+		const currentIndex = tabs.findIndex((tab) => tab.id === activeTab);
+		if (currentIndex > 0) {
+			activeTab = tabs[currentIndex - 1].id;
+		}
 	}
 
 	// Set location in form data from Map component event
@@ -295,28 +387,31 @@
 		console.log('Form Data:', JSON.parse(JSON.stringify(formData)));
 
 		try {
+			// Set submit attempted to true for validation
+			submitAttempted = true;
+
 			// Explicit validation
 			if (!formData.title || !formData.title.trim()) {
-				console.error('Validation Error: Title is required');
-				addToast('العنوان مطلوب', 'error');
+				activeTab = 'basic-info';
+				addToast(t('title_required', $language, { default: 'العنوان مطلوب' }), 'error');
 				return;
 			}
 
 			if (!formData.address || !formData.address.trim()) {
-				console.error('Validation Error: Address is required');
-				addToast('العنوان مطلوب', 'error');
+				activeTab = 'location';
+				addToast(t('address_required', $language, { default: 'العنوان مطلوب' }), 'error');
 				return;
 			}
 
 			if (!formData.city || !formData.city.trim()) {
-				console.error('Validation Error: City is required');
-				addToast('المدينة مطلوبة', 'error');
+				activeTab = 'location';
+				addToast(t('city_required', $language, { default: 'المدينة مطلوبة' }), 'error');
 				return;
 			}
 
 			if (!formData.description || !formData.description.trim()) {
-				console.error('Validation Error: Description is required');
-				addToast('الوصف مطلوب', 'error');
+				activeTab = 'details';
+				addToast(t('description_required', $language, { default: 'الوصف مطلوب' }), 'error');
 				return;
 			}
 
@@ -331,6 +426,9 @@
 				status: formData.status,
 				address: formData.address,
 				city: formData.city,
+				state: formData.state,
+				postal_code: formData.postal_code,
+				country: formData.country,
 				description: formData.description,
 
 				// Convert numeric fields safely
@@ -346,10 +444,16 @@
 				location: formData.location || {},
 				features: formData.features || [],
 				amenities: formData.amenities || [],
+				rooms: formData.rooms || [],
+				specifications: formData.specifications || {},
+				pricing_details: formData.pricing_details || {},
+				metadata: formData.metadata || {},
 
 				// Publishing options
 				is_published: formData.is_published || false,
-				is_featured: formData.is_featured || false
+				is_featured: formData.is_featured || false,
+				meta_title: formData.meta_title || '',
+				meta_description: formData.meta_description || ''
 			};
 
 			// Log the prepared data
@@ -359,77 +463,21 @@
 			const formattedData = formatPropertyData(propertyData);
 			console.log('Formatted Property Data:', JSON.parse(JSON.stringify(formattedData)));
 
-			// Comprehensive error handling in dispatch
-			try {
-				const submitResult = await new Promise((resolve, reject) => {
-					// Use a timeout to catch any synchronous errors
-					setTimeout(() => {
-						try {
-							dispatch(
-								'submit',
-								{
-									property: formattedData,
-									images
-								},
-								{
-									detail: {
-										onSuccess: resolve,
-										onError: reject
-									}
-								}
-							);
-						} catch (dispatchError) {
-							console.error('Dispatch Synchronous Error:', dispatchError);
-							reject(dispatchError);
-						}
-					}, 0);
-				});
-
-				console.log('Submit Result:', submitResult);
-			} catch (submitError) {
-				console.error('Submission Error:', submitError);
-
-				// Detailed error logging
-				if (submitError.response) {
-					// The request was made and the server responded with a status code
-					console.error('Error Response Data:', submitError.response.data);
-					console.error('Error Response Status:', submitError.response.status);
-					console.error('Error Response Headers:', submitError.response.headers);
-
-					// Show specific backend error message
-					const errorMessage =
-						submitError.response.data?.error ||
-						submitError.response.data?.message ||
-						'حدث خطأ غير متوقع';
-
-					addToast(errorMessage, 'error');
-				} else if (submitError.request) {
-					// The request was made but no response was received
-					console.error('No Response Received:', submitError.request);
-					addToast('لا يوجد استجابة من الخادم', 'error');
-				} else {
-					// Something happened in setting up the request
-					console.error('Error:', submitError.message);
-					addToast(submitError.message, 'error');
-				}
-
-				// Set error state
-				error = submitError.message || 'فشل في إنشاء العقار';
-				throw submitError;
-			}
+			// Dispatch submission event
+			dispatch('submit', {
+				property: formattedData,
+				images
+			});
 		} catch (err) {
-			// Catch-all error handling
-			console.error('Unhandled Submission Error:', err);
-
-			// Provide a user-friendly error message
-			const errorMessage = err.message || 'حدث خطأ غير متوقع أثناء إرسال البيانات';
-			addToast(errorMessage, 'error');
-
-			// Set error state
-			error = errorMessage;
-		} finally {
-			// Always ensure loading state is reset
+			// Set error and loading states
+			error = err.message || 'An error occurred';
 			loading = false;
+
+			// Log detailed error
+			console.error('Form submission error:', err);
+
+			// Show error toast
+			addToast(error, 'error');
 		}
 	}
 
@@ -572,6 +620,11 @@
 		}));
 	}
 
+	// Handle cancel
+	function handleCancel() {
+		dispatch('cancel');
+	}
+
 	// Get current year for year_built validation
 	const currentYear = new Date().getFullYear();
 
@@ -619,7 +672,9 @@
 						</span>
 						<input
 							type="text"
-							class="input {!formData.title && submitAttempted ? 'input-error' : ''}"
+							class="input {getFieldError('title') || (!formData.title && submitAttempted)
+								? 'input-error'
+								: ''}"
 							bind:value={formData.title}
 							maxlength={maxTitleLength}
 							required
@@ -628,7 +683,11 @@
 						<span class="text-sm text-surface-500-400-token {$isRTL ? 'text-left' : 'text-right'}">
 							{formData.title.length}/{maxTitleLength}
 						</span>
-						{#if !formData.title && submitAttempted}
+						{#if getFieldError('title')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('title')}
+							</span>
+						{:else if !formData.title && submitAttempted}
 							<span class="text-error-500 text-sm">
 								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
 							</span>
@@ -642,7 +701,10 @@
 							<span class="text-error-500">*</span>
 						</span>
 						<select
-							class="select {!formData.property_type && submitAttempted ? 'select-error' : ''}"
+							class="select {getFieldError('property_type') ||
+							(!formData.property_type && submitAttempted)
+								? 'select-error'
+								: ''}"
 							bind:value={formData.property_type}
 							required
 						>
@@ -652,7 +714,11 @@
 								>
 							{/each}
 						</select>
-						{#if !formData.property_type && submitAttempted}
+						{#if getFieldError('property_type')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('property_type')}
+							</span>
+						{:else if !formData.property_type && submitAttempted}
 							<span class="text-error-500 text-sm">
 								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
 							</span>
@@ -666,7 +732,9 @@
 							<span class="text-error-500">*</span>
 						</span>
 						<select
-							class="select {!formData.status && submitAttempted ? 'select-error' : ''}"
+							class="select {getFieldError('status') || (!formData.status && submitAttempted)
+								? 'select-error'
+								: ''}"
 							bind:value={formData.status}
 							required
 						>
@@ -676,7 +744,11 @@
 								</option>
 							{/each}
 						</select>
-						{#if !formData.status && submitAttempted}
+						{#if getFieldError('status')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('status')}
+							</span>
+						{:else if !formData.status && submitAttempted}
 							<span class="text-error-500 text-sm">
 								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
 							</span>
@@ -760,22 +832,32 @@
 						<span>{t('latitude', $language, { default: 'خط العرض' })}</span>
 						<input
 							type="number"
-							class="input"
+							class="input {getFieldError('location.latitude') ? 'input-error' : ''}"
 							bind:value={formData.location.latitude}
 							step="any"
 							placeholder={t('latitude_placeholder', $language, { default: 'مثال: 24.774265' })}
 						/>
+						{#if getFieldError('location.latitude')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('location.latitude')}
+							</span>
+						{/if}
 					</label>
 
 					<label class="label">
 						<span>{t('longitude', $language, { default: 'خط الطول' })}</span>
 						<input
 							type="number"
-							class="input"
+							class="input {getFieldError('location.longitude') ? 'input-error' : ''}"
 							bind:value={formData.location.longitude}
 							step="any"
 							placeholder={t('longitude_placeholder', $language, { default: 'مثال: 46.738586' })}
 						/>
+						{#if getFieldError('location.longitude')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('location.longitude')}
+							</span>
+						{/if}
 					</label>
 				</div>
 
@@ -790,7 +872,9 @@
 						<div class="relative">
 							<input
 								type="text"
-								class="input {!formData.address && submitAttempted ? 'input-error' : ''}"
+								class="input {getFieldError('address') || (!formData.address && submitAttempted)
+									? 'input-error'
+									: ''}"
 								bind:value={formData.address}
 								required
 								placeholder={t('address_placeholder', $language, {
@@ -803,7 +887,11 @@
 								</div>
 							{/if}
 						</div>
-						{#if !formData.address && submitAttempted}
+						{#if getFieldError('address')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('address')}
+							</span>
+						{:else if !formData.address && submitAttempted}
 							<span class="text-error-500 text-sm">
 								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
 							</span>
@@ -819,7 +907,9 @@
 						<div class="relative">
 							<input
 								type="text"
-								class="input {!formData.city && submitAttempted ? 'input-error' : ''}"
+								class="input {getFieldError('city') || (!formData.city && submitAttempted)
+									? 'input-error'
+									: ''}"
 								bind:value={formData.city}
 								required
 								placeholder={t('city_placeholder', $language, { default: 'أدخل اسم المدينة' })}
@@ -830,7 +920,11 @@
 								</div>
 							{/if}
 						</div>
-						{#if !formData.city && submitAttempted}
+						{#if getFieldError('city')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('city')}
+							</span>
+						{:else if !formData.city && submitAttempted}
 							<span class="text-error-500 text-sm">
 								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
 							</span>
@@ -842,12 +936,17 @@
 						<span>{t('state', $language, { default: 'المنطقة/المحافظة' })}</span>
 						<input
 							type="text"
-							class="input"
+							class="input {getFieldError('state') ? 'input-error' : ''}"
 							bind:value={formData.state}
 							placeholder={t('state_placeholder', $language, {
 								default: 'أدخل اسم المنطقة أو المحافظة'
 							})}
 						/>
+						{#if getFieldError('state')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('state')}
+							</span>
+						{/if}
 					</label>
 
 					<!-- Postal Code -->
@@ -855,12 +954,17 @@
 						<span>{t('postal_code', $language, { default: 'الرمز البريدي' })}</span>
 						<input
 							type="text"
-							class="input"
+							class="input {getFieldError('postal_code') ? 'input-error' : ''}"
 							bind:value={formData.postal_code}
 							placeholder={t('postal_code_placeholder', $language, {
 								default: 'أدخل الرمز البريدي'
 							})}
 						/>
+						{#if getFieldError('postal_code')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('postal_code')}
+							</span>
+						{/if}
 					</label>
 
 					<!-- Country -->
@@ -868,10 +972,15 @@
 						<span>{t('country', $language, { default: 'الدولة' })}</span>
 						<input
 							type="text"
-							class="input"
+							class="input {getFieldError('country') ? 'input-error' : ''}"
 							bind:value={formData.country}
 							placeholder={t('country_placeholder', $language, { default: 'أدخل اسم الدولة' })}
 						/>
+						{#if getFieldError('country')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('country')}
+							</span>
+						{/if}
 					</label>
 				</div>
 			</div>
@@ -893,7 +1002,10 @@
 							<span class="text-error-500">*</span>
 						</span>
 						<textarea
-							class="textarea {!formData.description && submitAttempted ? 'textarea-error' : ''}"
+							class="textarea {getFieldError('description') ||
+							(!formData.description && submitAttempted)
+								? 'textarea-error'
+								: ''}"
 							bind:value={formData.description}
 							rows="6"
 							maxlength={maxDescriptionLength}
@@ -905,7 +1017,11 @@
 						<span class="text-sm text-surface-500-400-token {$isRTL ? 'text-left' : 'text-right'}">
 							{formData.description.length}/{maxDescriptionLength}
 						</span>
-						{#if !formData.description && submitAttempted}
+						{#if getFieldError('description')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('description')}
+							</span>
+						{:else if !formData.description && submitAttempted}
 							<span class="text-error-500 text-sm">
 								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
 							</span>
@@ -919,12 +1035,17 @@
 						<span>{t('size_sqm', $language, { default: 'المساحة (متر مربع)' })}</span>
 						<input
 							type="number"
-							class="input"
+							class="input {getFieldError('size_sqm') ? 'input-error' : ''}"
 							bind:value={formData.size_sqm}
 							min="0"
 							step="0.01"
 							placeholder={t('size_placeholder', $language, { default: 'أدخل المساحة' })}
 						/>
+						{#if getFieldError('size_sqm')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('size_sqm')}
+							</span>
+						{/if}
 					</label>
 
 					<!-- Bedrooms -->
@@ -932,12 +1053,17 @@
 						<span>{t('bedrooms', $language, { default: 'غرف النوم' })}</span>
 						<input
 							type="number"
-							class="input"
+							class="input {getFieldError('bedrooms') ? 'input-error' : ''}"
 							bind:value={formData.bedrooms}
 							min="0"
 							step="1"
 							placeholder={t('bedrooms_placeholder', $language, { default: 'عدد غرف النوم' })}
 						/>
+						{#if getFieldError('bedrooms')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('bedrooms')}
+							</span>
+						{/if}
 					</label>
 
 					<!-- Bathrooms -->
@@ -945,12 +1071,17 @@
 						<span>{t('bathrooms', $language, { default: 'الحمامات' })}</span>
 						<input
 							type="number"
-							class="input"
+							class="input {getFieldError('bathrooms') ? 'input-error' : ''}"
 							bind:value={formData.bathrooms}
 							min="0"
 							step="1"
 							placeholder={t('bathrooms_placeholder', $language, { default: 'عدد الحمامات' })}
 						/>
+						{#if getFieldError('bathrooms')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('bathrooms')}
+							</span>
+						{/if}
 					</label>
 
 					<!-- Parking Spaces -->
@@ -958,12 +1089,17 @@
 						<span>{t('parking_spaces', $language, { default: 'مواقف السيارات' })}</span>
 						<input
 							type="number"
-							class="input"
+							class="input {getFieldError('parking_spaces') ? 'input-error' : ''}"
 							bind:value={formData.parking_spaces}
 							min="0"
 							step="1"
 							placeholder={t('parking_placeholder', $language, { default: 'عدد المواقف' })}
 						/>
+						{#if getFieldError('parking_spaces')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('parking_spaces')}
+							</span>
+						{/if}
 					</label>
 
 					<!-- Year Built -->
@@ -971,13 +1107,18 @@
 						<span>{t('year_built', $language, { default: 'سنة البناء' })}</span>
 						<input
 							type="number"
-							class="input"
+							class="input {getFieldError('year_built') ? 'input-error' : ''}"
 							bind:value={formData.year_built}
 							min="1900"
 							max={currentYear}
 							step="1"
 							placeholder={t('year_built_placeholder', $language, { default: 'سنة بناء العقار' })}
 						/>
+						{#if getFieldError('year_built')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('year_built')}
+							</span>
+						{/if}
 					</label>
 
 					<!-- Market Value -->
@@ -985,7 +1126,7 @@
 						<span>{t('market_value', $language, { default: 'القيمة السوقية' })}</span>
 						<input
 							type="number"
-							class="input"
+							class="input {getFieldError('market_value') ? 'input-error' : ''}"
 							bind:value={formData.market_value}
 							min="0"
 							step="0.01"
@@ -993,6 +1134,11 @@
 								default: 'القيمة السوقية للعقار'
 							})}
 						/>
+						{#if getFieldError('market_value')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('market_value')}
+							</span>
+						{/if}
 					</label>
 
 					<!-- Minimum Bid -->
@@ -1000,7 +1146,7 @@
 						<span>{t('minimum_bid', $language, { default: 'الحد الأدنى للمزايدة' })}</span>
 						<input
 							type="number"
-							class="input"
+							class="input {getFieldError('minimum_bid') ? 'input-error' : ''}"
 							bind:value={formData.minimum_bid}
 							min="0"
 							step="0.01"
@@ -1008,6 +1154,11 @@
 								default: 'الحد الأدنى للمزايدة'
 							})}
 						/>
+						{#if getFieldError('minimum_bid')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('minimum_bid')}
+							</span>
+						{/if}
 					</label>
 				</div>
 			</div>
@@ -1276,25 +1427,35 @@
 							<span>{t('meta_title', $language, { default: 'عنوان الميتا' })}</span>
 							<input
 								type="text"
-								class="input"
+								class="input {getFieldError('meta_title') ? 'input-error' : ''}"
 								bind:value={formData.meta_title}
 								placeholder={t('meta_title_placeholder', $language, {
 									default: 'عنوان الميتا لمحركات البحث'
 								})}
 							/>
+							{#if getFieldError('meta_title')}
+								<span class="text-error-500 text-sm">
+									{getFieldError('meta_title')}
+								</span>
+							{/if}
 						</label>
 
 						<!-- Meta Description -->
 						<label class="label">
 							<span>{t('meta_description', $language, { default: 'وصف الميتا' })}</span>
 							<textarea
-								class="textarea"
+								class="textarea {getFieldError('meta_description') ? 'textarea-error' : ''}"
 								bind:value={formData.meta_description}
 								rows="3"
 								placeholder={t('meta_description_placeholder', $language, {
 									default: 'وصف الميتا لمحركات البحث'
 								})}
 							></textarea>
+							{#if getFieldError('meta_description')}
+								<span class="text-error-500 text-sm">
+									{getFieldError('meta_description')}
+								</span>
+							{/if}
 						</label>
 					</div>
 				</div>
@@ -1302,12 +1463,42 @@
 		{/if}
 	</Tabs>
 
+	<!-- Tab Navigation Buttons -->
+	<div class="flex justify-between mb-4">
+		<!-- Previous button -->
+		<button
+			type="button"
+			class="btn variant-ghost"
+			on:click={goToPrevTab}
+			disabled={tabs.findIndex((tab) => tab.id === activeTab) === 0}
+		>
+			{#if $isRTL}
+				<ChevronRight class="w-5 h-5 mr-1" />
+			{:else}
+				<ChevronLeft class="w-5 h-5 mr-1" />
+			{/if}
+			{t('previous', $language, { default: 'السابق' })}
+		</button>
+
+		<!-- Next button -->
+		{#if tabs.findIndex((tab) => tab.id === activeTab) < tabs.length - 1}
+			<button type="button" class="btn variant-filled-primary" on:click={goToNextTab}>
+				{t('next', $language, { default: 'التالي' })}
+				{#if $isRTL}
+					<ChevronLeft class="w-5 h-5 ml-1" />
+				{:else}
+					<ChevronRight class="w-5 h-5 ml-1" />
+				{/if}
+			</button>
+		{/if}
+	</div>
+
 	<!-- Form Actions -->
 	<div class="flex justify-end gap-2">
 		<button
 			type="button"
 			class="btn variant-ghost-surface"
-			on:click={() => dispatch('cancel')}
+			on:click={handleCancel}
 			disabled={loading}
 		>
 			{t('cancel', $language, { default: 'إلغاء' })}
@@ -1315,6 +1506,8 @@
 		<button type="submit" class="btn variant-filled-primary" disabled={loading}>
 			{#if loading}
 				<div class="spinner-icon {$isRTL ? 'ml-2' : 'mr-2'}"></div>
+			{:else}
+				<Save class="w-5 h-5 {$isRTL ? 'ml-2' : 'mr-2'}" />
 			{/if}
 			{property
 				? t('update_property', $language, { default: 'تحديث العقار' })

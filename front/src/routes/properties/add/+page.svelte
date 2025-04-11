@@ -181,46 +181,75 @@
 	// Form submission handler
 
 	// Parent component submit handler
+	// Parent component submit handler
 	async function handleSubmit(event) {
+		loading = true;
+		error = null;
+
 		try {
 			const { property, images } = event.detail;
 
-			console.log('Received Property Data:', property);
-			console.log('Received Images:', images);
+			console.log('Submitting Property Data:', property);
 
-			try {
-				// Attempt to create property
-				const newProperty = await properties.createProperty(property);
-
-				// Success handling
-				addToast('تم إنشاء العقار بنجاح', 'success');
-
-				// Upload images if any
-				if (images && images.length > 0) {
-					await uploadPropertyImages(newProperty.id, images);
-				}
-
-				// Navigate to new property page
-				goto(`/properties/${newProperty.slug}`);
-			} catch (error) {
-				// Detailed error logging
-				console.error('Property Creation Error:', error);
-
-				// Detailed error message extraction
-				let errorMessage = 'فشل إنشاء العقار';
-				if (error.message) {
-					errorMessage = error.message;
-				}
-
-				// Add toast with error details
-				addToast(errorMessage, 'error');
-
-				// Optional: rethrow to maintain error propagation
-				throw error;
+			if (!property) {
+				throw new Error('No property data provided');
 			}
-		} catch (err) {
-			console.error('Unexpected Error:', err);
-			addToast('حدث خطأ غير متوقع', 'error');
+
+			// Ensure user is authenticated
+			if (!$isAuthenticated) {
+				const authResult = await ensureAuthenticated();
+				if (!authResult) {
+					throw new Error('Authentication required');
+				}
+			}
+
+			// Create property
+			const newProperty = await properties.createProperty(property);
+
+			// Success handling
+			addToast(t('property_created', $language, { default: 'تم إنشاء العقار بنجاح' }), 'success');
+
+			// Upload images if any
+			if (images && images.length > 0) {
+				await uploadPropertyImages(newProperty.id, images);
+			}
+
+			// Navigate to new property page
+			goto(`/properties/${newProperty.slug}`);
+		} catch (error) {
+			// Log the detailed error
+			console.error('Property Creation Error:', error);
+
+			// Handle API errors with details
+			if (error.details && typeof error.details === 'object') {
+				// Extract field-specific errors for form display
+				const fieldErrors = [];
+
+				Object.entries(error.details).forEach(([field, messages]) => {
+					let fieldMessage;
+
+					if (Array.isArray(messages)) {
+						fieldMessage = messages.join(', ');
+					} else if (typeof messages === 'string') {
+						fieldMessage = messages;
+					} else {
+						fieldMessage = 'Invalid value';
+					}
+
+					fieldErrors.push(`${field}: ${fieldMessage}`);
+				});
+
+				// Set error for the form to display
+				error = fieldErrors.join('. ');
+			} else {
+				// Use message from error object or default
+				error = error.message || 'An unexpected error occurred';
+			}
+
+			// Show error toast
+			addToast(error, 'error');
+		} finally {
+			loading = false;
 		}
 	}
 	// Simple cancellation handler

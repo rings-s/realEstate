@@ -9,6 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 import logging
+import json
 
 from .models import (
     Property, PropertyImage, Auction, AuctionImage, Bid, Document, Contract,
@@ -67,13 +68,8 @@ class SmallResultsSetPagination(PageNumberPagination):
 # Property Views
 # -------------------------------------------------------------------------
 
+# In views.py
 class PropertyListCreateView(generics.ListCreateAPIView):
-    """
-    List all properties or create a new property.
-
-    GET: List all properties based on user role and permissions
-    POST: Create a new property (requires verification and permission)
-    """
     serializer_class = PropertySerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
@@ -84,39 +80,61 @@ class PropertyListCreateView(generics.ListCreateAPIView):
     ordering = ['-is_featured', '-created_at']
 
     def get_queryset(self):
-        user = self.request.user
-        if user.has_role('admin'):
-            return Property.objects.all()
-        if user.has_role('seller') or user.has_role('owner'):
-            own_properties = Q(owner=user)
-            published_properties = Q(is_published=True)
-            return Property.objects.filter(own_properties | published_properties)
-        return Property.objects.filter(is_published=True)
+        try:
+            user = self.request.user
+            if user.has_role('admin'):
+                return Property.objects.all()
+            if user.has_role('seller') or user.has_role('owner'):
+                own_properties = Q(owner=user)
+                published_properties = Q(is_published=True)
+                return Property.objects.filter(own_properties | published_properties)
+            return Property.objects.filter(is_published=True)
+        except Exception as e:
+            logger.error(f"Error in PropertyListCreateView.get_queryset: {str(e)}")
+            # Return empty queryset as fallback
+            from django.db.models.query import EmptyQuerySet
+            return Property.objects.none()
 
-    @api_verified_user_required
+    # Remove decorators from perform_create and just use it directly
     def perform_create(self, serializer):
+        # Check authentication and permissions within the method
+        if not self.request.user.is_authenticated:
+            from rest_framework.exceptions import NotAuthenticated
+            raise NotAuthenticated(_('Please log in to access this resource.'))
+
+        if not self.request.user.is_verified:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(_('Your account must be verified to create properties.'))
+
         if not check_user_permission(self.request.user, 'can_create_property'):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied(_('You do not have permission to create properties.'))
+
         serializer.save(owner=self.request.user)
 
-    @log_api_calls
-    @api_verified_user_required
-    @api_permission_required('can_create_property')
+    # Remove all decorators from create method
     def create(self, request, *args, **kwargs):
+        # Just call the parent implementation which will call our perform_create
         return super().create(request, *args, **kwargs)
 
 class PropertyDetailView(generics.RetrieveAPIView):
     """
-    Retrieve a property.
+    Retrieve a property using slug field (with Arabic support).
 
     GET: Get detailed information about a specific property
     """
     serializer_class = PropertySerializer
     permission_classes = [IsAuthenticated]
-    lookup_field = 'slug'
+    lookup_field = 'slug'  # This tells DRF to use slug instead of pk
+    lookup_url_kwarg = 'slug'  # This is the URL parameter name
 
     def get_queryset(self):
+        """
+        Filter properties based on user role.
+        - Admins see all properties
+        - Sellers/Owners see their own properties and published ones
+        - Other users see only published properties
+        """
         user = self.request.user
         if user.has_role('admin'):
             return Property.objects.all()
@@ -128,7 +146,64 @@ class PropertyDetailView(generics.RetrieveAPIView):
 
     @timing_decorator
     def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
+        """
+        Override retrieve to track property views and add custom data
+        """
+        instance = self.get_object()
+
+        # Increment view count
+        instance.view_count = getattr(instance, 'view_count', 0) + 1
+        instance.save(update_fields=['view_count'])
+
+        # Get standard serializer data
+        serializer = self.get_serializer(instance)
+        data = serializer.data
+
+        # Add additional context data if needed
+        if hasattr(instance, 'auctions') and instance.auctions.exists():
+            # Add active auctions info if any
+            active_auctions = instance.auctions.filter(
+                status__in=['scheduled', 'live'],
+                is_published=True
+            ).order_by('start_date')
+
+            if active_auctions.exists():
+                data['active_auction'] = {
+                    'id': active_auctions[0].id,
+                    'uuid': str(active_auctions[0].uuid),
+                    'title': active_auctions[0].title,
+                    'start_date': active_auctions[0].start_date,
+                    'end_date': active_auctions[0].end_date,
+                    'current_bid': active_auctions[0].current_bid,
+                    'status': active_auctions[0].status,
+                }
+
+        # Log the view for analytics (optional)
+        if hasattr(request, 'user') and request.user.is_authenticated:
+            self._log_property_view(request, instance)
+
+        return Response(data)
+
+    def _log_property_view(self, request, property_obj):
+        """
+        Helper method to log property views for analytics
+        """
+        # Optional: Record property view for analytics
+        from .models import PropertyView
+        try:
+            PropertyView.objects.create(
+                property=property_obj,
+                user=request.user,
+                ip_address=self.request.META.get('REMOTE_ADDR', ''),
+                user_agent=self.request.META.get('HTTP_USER_AGENT', '')
+            )
+        except Exception as e:
+            # Log error but don't interrupt response
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to log property view: {str(e)}")
+
+
 
 class PropertyEditView(generics.UpdateAPIView):
     """
@@ -326,7 +401,7 @@ class AuctionDetailView(generics.RetrieveAPIView):
     queryset = Auction.objects.all()
     serializer_class = AuctionSerializer
     permission_classes = [IsAuthenticated]
-    lookup_field = 'slug'
+    lookup_field = 'uuid'  # Changed from 'slug' to 'uuid'
 
     def get_queryset(self):
         user = self.request.user
@@ -350,6 +425,7 @@ class AuctionDetailView(generics.RetrieveAPIView):
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
+
 class AuctionEditView(generics.UpdateAPIView):
     """
     Update an auction.
@@ -360,7 +436,7 @@ class AuctionEditView(generics.UpdateAPIView):
     queryset = Auction.objects.all()
     serializer_class = AuctionSerializer
     permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
-    lookup_field = 'slug'
+    lookup_field = 'uuid'  # Changed from 'slug' to 'uuid'
 
     @log_api_calls
     @api_verified_user_required
@@ -384,6 +460,7 @@ class AuctionEditView(generics.UpdateAPIView):
             )
         return super().partial_update(request, *args, **kwargs)
 
+
 class AuctionDeleteView(generics.DestroyAPIView):
     """
     Delete an auction.
@@ -393,13 +470,13 @@ class AuctionDeleteView(generics.DestroyAPIView):
     queryset = Auction.objects.all()
     serializer_class = AuctionSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
-    lookup_field = 'slug'
+    lookup_field = 'uuid'  # Changed from 'slug' to 'uuid'
 
     @log_api_calls
     @api_verified_user_required
-    @api_role_required('admin')
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
+
 
 class AuctionImageListCreateView(generics.ListCreateAPIView):
     """

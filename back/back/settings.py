@@ -32,7 +32,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    
+
     # Third-party apps
     'corsheaders',
     'rest_framework',
@@ -41,8 +41,8 @@ INSTALLED_APPS = [
     'django_filters',
     'channels',
     'phonenumber_field',
-    
-    
+
+
     # Project apps
     'accounts.apps.AccountsConfig',
     'base.apps.BaseConfig',
@@ -106,10 +106,13 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Internationalization
-LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
+
+LANGUAGE_CODE = 'ar'  # Or your preferred language code
+USE_I18N = True
+USE_L10N = True
 
 # Custom user model
 AUTH_USER_MODEL = 'accounts.CustomUser'
@@ -215,3 +218,18 @@ if not DEBUG:
     CSRF_COOKIE_HTTPONLY = True
     CSRF_COOKIE_SAMESITE = 'Lax'
     SESSION_COOKIE_SAMESITE = 'Lax'
+
+
+
+
+
+
+
+
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}

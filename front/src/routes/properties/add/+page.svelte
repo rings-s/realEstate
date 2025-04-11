@@ -2,135 +2,159 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { t } from '$lib/config/translations';
-	import { language, isRTL, addToast } from '$lib/stores/ui';
+	import { language, isRTL, addToast, pageLoading } from '$lib/stores/ui';
 	import { properties } from '$lib/stores/properties';
-	import { isAuthenticated, currentUser, userRoles } from '$lib/stores/auth';
-	import { hasPermission, PERMISSIONS, ROLES } from '$lib/utils/permissions';
-	import { isTokenExpired, getAccessToken, getUserFromToken } from '$lib/utils/tokenManager';
+	import {
+		isAuthenticated,
+		currentUser,
+		userRoles,
+		checkAuth,
+		refreshToken
+	} from '$lib/stores/auth';
+	import { canCreateProperty } from '$lib/utils/permissions';
 	import * as propertyService from '$lib/services/propertyService';
+	import tokenManager from '$lib/utils/tokenManager';
 
 	import PropertyForm from '$lib/components/property/PropertyForm.svelte';
 	import Alert from '$lib/components/common/Alert.svelte';
-	import { Building, ArrowLeft, Save } from 'lucide-svelte';
+	import { Building, ArrowLeft } from 'lucide-svelte';
 
-	// Local state
+	// Configuration constants
+	const DEFAULT_REDIRECT = '/properties/add';
+
+	// Local state management
 	let loading = false;
 	let error = null;
 	let unauthorized = false;
 	let initialCheckDone = false;
 	let selectedImages = [];
 
-	// Check permissions in a more robust way
-	$: canCreateProperty =
-		$userRoles &&
-		($userRoles.includes(ROLES.ADMIN) ||
-			$userRoles.includes(ROLES.SELLER) ||
-			$userRoles.includes(ROLES.AGENT) ||
-			hasPermission($userRoles, PERMISSIONS.CREATE_PROPERTY));
+	// Reactive permission check - ensure this has a default value of true until roles are loaded
+	$: hasCreatePermission =
+		$userRoles && $userRoles.length > 0 ? canCreateProperty($userRoles) : true;
 
-	// Enhanced authentication check with token validation
-	async function checkAuthentication() {
-		console.log('Checking authentication status...');
+	// Enhanced authentication check with expiry handling
+	async function ensureAuthenticated() {
+		// Set loading state
+		loading = true;
+		pageLoading.set(true);
 
-		// First check if we have the auth store value
-		if (!$isAuthenticated) {
-			console.log('Not authenticated according to store');
+		try {
+			console.log('Checking authentication...');
 
-			// Double-check with token directly as a fallback
-			const token = getAccessToken();
-			if (token && !isTokenExpired()) {
-				console.log('Token exists and is valid, setting authenticated');
+			// First check current auth state
+			if (!$isAuthenticated) {
+				console.log('Not authenticated according to store. Checking token directly...');
 
-				// Get user info from token
-				const userInfo = getUserFromToken();
-				if (userInfo && userInfo.roles) {
-					// Update the stores manually since they might not be initialized yet
+				// Check if we have a token
+				const token = tokenManager.getAccessToken();
+				if (!token) {
+					console.log('No token found, redirecting to login');
+					goto('/auth/login?redirect=' + DEFAULT_REDIRECT);
+					return false;
+				}
+
+				// Check if token is expired
+				if (tokenManager.isTokenExpired()) {
+					// Try to refresh token
+					const refreshResult = await refreshToken();
+
+					if (!refreshResult) {
+						console.log('Token refresh failed, redirecting to login');
+						goto('/auth/login?redirect=' + DEFAULT_REDIRECT);
+						return false;
+					}
+
+					console.log('Token refreshed successfully');
+				} else {
+					// Token exists and is valid, set authenticated state
 					isAuthenticated.set(true);
-					userRoles.set(userInfo.roles);
-					currentUser.set(userInfo);
-
-					// Wait a moment for store updates to propagate
-					await new Promise((resolve) => setTimeout(resolve, 100));
-					return true;
 				}
 			}
 
-			console.log('No valid token found, redirecting to login');
-			goto('/auth/login?redirect=/properties/add');
-			return false;
-		}
+			// Validate that auth state is correct
+			const isAuthValid = checkAuth();
+			console.log('Auth check result:', isAuthValid);
 
-		// Also check if user roles are loaded, which is required for permission check
-		if (!$userRoles || $userRoles.length === 0) {
-			console.log('User authenticated but roles not loaded');
-
-			// Try to get roles from token
-			const userInfo = getUserFromToken();
-			if (userInfo && userInfo.roles && userInfo.roles.length > 0) {
-				console.log('Setting roles from token:', userInfo.roles);
-				userRoles.set(userInfo.roles);
-
-				// Wait a moment for store updates to propagate
-				await new Promise((resolve) => setTimeout(resolve, 100));
-			} else {
-				console.log('No roles found in token, will check permissions later');
+			if (!isAuthValid) {
+				console.log('Auth invalid, redirecting to login');
+				goto('/auth/login?redirect=' + DEFAULT_REDIRECT);
+				return false;
 			}
-		}
 
-		console.log('User is authenticated with roles:', $userRoles);
-		return true;
+			console.log('Authentication confirmed. Roles:', $userRoles);
+			return true;
+		} catch (error) {
+			console.error('Authentication check error:', error);
+			goto('/auth/login?redirect=' + DEFAULT_REDIRECT);
+			return false;
+		} finally {
+			loading = false;
+			pageLoading.set(false);
+			initialCheckDone = true;
+		}
 	}
 
-	// Initialize component on mount
-	onMount(async () => {
-		// Check if user is authenticated
-		if (!(await checkAuthentication())) {
-			return;
-		}
-
-		// Check if user has permission to create properties after a short delay
-		// to ensure stores are properly updated
-		setTimeout(() => {
-			if (!canCreateProperty) {
-				console.log('User lacks permission to create properties. Roles:', $userRoles);
-				unauthorized = true;
-			}
-			initialCheckDone = true;
-		}, 200);
-	});
-
-	// Upload images for a property
+	// Robust image upload handler
 	async function uploadPropertyImages(propertyId, images) {
-		if (!propertyId || !images || images.length === 0) {
-			return;
+		if (!propertyId || !images?.length) {
+			return [];
 		}
 
-		console.log(`Uploading ${images.length} images for property ID ${propertyId}`);
+		// Track upload progress
 		let successCount = 0;
-		let errorCount = 0;
+		let failureCount = 0;
+		const totalImages = images.length;
+		const uploadResults = [];
 
-		// Upload each image sequentially
+		// Start upload process notification
+		addToast(
+			t('uploading_images', $language, {
+				default: 'جاري رفع الصور...',
+				count: totalImages
+			}),
+			'info'
+		);
+
+		// Process images sequentially
 		for (let i = 0; i < images.length; i++) {
 			const image = images[i];
 
-			if (!image.file) continue;
+			// Skip already uploaded images or images without files
+			if (!image.file || image.uploaded) {
+				continue;
+			}
 
 			try {
+				// Upload the image with metadata
 				const result = await propertyService.uploadPropertyImage(propertyId, image.file, {
-					isPrimary: image.is_primary,
+					isPrimary: image.is_primary || i === 0, // Make first image primary by default
 					caption: image.caption || '',
 					order: i
 				});
 
-				console.log(`Uploaded image ${i + 1}/${images.length}`, result);
+				uploadResults.push(result);
 				successCount++;
-			} catch (err) {
-				console.error(`Error uploading image ${i + 1}/${images.length}:`, err);
-				errorCount++;
+
+				// Update progress
+				if (i % 2 === 0 || i === images.length - 1) {
+					addToast(
+						t('image_upload_progress', $language, {
+							default: 'تم رفع {{count}} من {{total}} صور',
+							count: successCount,
+							total: totalImages
+						}),
+						'info',
+						3000
+					);
+				}
+			} catch (error) {
+				console.error(`Error uploading image ${i + 1}:`, error);
+				failureCount++;
 			}
 		}
 
-		console.log(`Image upload complete: ${successCount} succeeded, ${errorCount} failed`);
+		// Final upload status notification
 		if (successCount > 0) {
 			addToast(
 				t('images_uploaded', $language, {
@@ -141,92 +165,129 @@
 			);
 		}
 
-		if (errorCount > 0) {
+		if (failureCount > 0) {
 			addToast(
 				t('some_images_failed', $language, {
 					default: 'فشل رفع {{count}} صور',
-					count: errorCount
+					count: failureCount
 				}),
 				'error'
 			);
 		}
+
+		return uploadResults;
 	}
 
-	// Handle form submission
+	// Form submission handler
+
+	// Parent component submit handler
 	async function handleSubmit(event) {
 		try {
-			const { property: propertyData, images } = event.detail;
-			selectedImages = images; // Store images for later upload
-			loading = true;
-			error = null;
+			const { property, images } = event.detail;
 
-			console.log('Submitting property data:', propertyData);
-			console.log('Selected images:', selectedImages.length);
+			console.log('Received Property Data:', property);
+			console.log('Received Images:', images);
 
-			// Verify authentication before submission
-			if (!$isAuthenticated) {
-				if (!(await checkAuthentication())) {
-					throw new Error(
-						t('auth_required', $language, {
-							default: 'يرجى تسجيل الدخول لإنشاء عقار'
-						})
-					);
+			try {
+				// Attempt to create property
+				const newProperty = await properties.createProperty(property);
+
+				// Success handling
+				addToast('تم إنشاء العقار بنجاح', 'success');
+
+				// Upload images if any
+				if (images && images.length > 0) {
+					await uploadPropertyImages(newProperty.id, images);
 				}
+
+				// Navigate to new property page
+				goto(`/properties/${newProperty.slug}`);
+			} catch (error) {
+				// Detailed error logging
+				console.error('Property Creation Error:', error);
+
+				// Detailed error message extraction
+				let errorMessage = 'فشل إنشاء العقار';
+				if (error.message) {
+					errorMessage = error.message;
+				}
+
+				// Add toast with error details
+				addToast(errorMessage, 'error');
+
+				// Optional: rethrow to maintain error propagation
+				throw error;
 			}
-
-			// Create new property
-			const newProperty = await properties.createProperty(propertyData);
-			console.log('Property created successfully:', newProperty);
-
-			// Upload images if any
-			if (selectedImages.length > 0) {
-				await uploadPropertyImages(newProperty.id, selectedImages);
-			}
-
-			// Show success message
-			addToast(
-				t('property_created', $language, {
-					default: 'تم إنشاء العقار بنجاح'
-				}),
-				'success'
-			);
-
-			// Redirect to property detail page
-			goto(`/properties/${newProperty.slug}`);
 		} catch (err) {
-			console.error('Error creating property:', err);
-			error =
-				err.message ||
-				t('create_property_error', $language, {
-					default: 'حدث خطأ أثناء إنشاء العقار'
-				});
-			loading = false;
-
-			// If authentication error, redirect to login
-			if (err.message?.includes('authentication') || err.status === 401) {
-				addToast(
-					t('auth_required', $language, {
-						default: 'يرجى تسجيل الدخول لإنشاء عقار'
-					}),
-					'error'
-				);
-
-				setTimeout(() => {
-					goto('/auth/login?redirect=/properties/add');
-				}, 1500);
-			}
+			console.error('Unexpected Error:', err);
+			addToast('حدث خطأ غير متوقع', 'error');
 		}
 	}
-
-	// Handle cancel
+	// Simple cancellation handler
 	function handleCancel() {
 		goto('/properties');
 	}
+
+	// Safe mount handler
+	onMount(async () => {
+		// Prevent multiple initializations
+		if (initialCheckDone) return;
+
+		try {
+			pageLoading.set(true);
+			console.log('Component mounted, checking authentication...');
+
+			// Perform initial authentication check
+			const authResult = await ensureAuthenticated();
+
+			// Set as done after authentication check regardless of outcome
+			initialCheckDone = true;
+
+			if (authResult) {
+				// Check if user can create properties
+				console.log('Authentication successful, checking permissions...');
+				console.log('User roles:', $userRoles);
+
+				// Properly check permissions with a delay to ensure roles are loaded
+				if ($userRoles && $userRoles.length > 0) {
+					// Only check permissions if roles are loaded
+					unauthorized = !canCreateProperty($userRoles);
+					if (unauthorized) {
+						console.warn('Insufficient permissions to create properties');
+					}
+				} else {
+					// If roles aren't loaded yet, wait for them
+					const checkPermissionsInterval = setInterval(() => {
+						if ($userRoles && $userRoles.length > 0) {
+							clearInterval(checkPermissionsInterval);
+							unauthorized = !canCreateProperty($userRoles);
+							if (unauthorized) {
+								console.warn('Insufficient permissions to create properties');
+							}
+							pageLoading.set(false);
+						}
+					}, 250);
+
+					// Safety timeout to prevent infinite waiting
+					setTimeout(() => {
+						clearInterval(checkPermissionsInterval);
+						pageLoading.set(false);
+					}, 5000);
+				}
+			} else {
+				pageLoading.set(false);
+			}
+		} catch (error) {
+			console.error('Initialization error:', error);
+			pageLoading.set(false);
+			initialCheckDone = true;
+		}
+	});
 </script>
 
 <div class="container mx-auto px-4 py-6">
 	<div class="flex justify-between items-center mb-6">
-		<h1 class="h2 {$isRTL ? 'text-right' : 'text-left'}">
+		<h1 class="h2 flex items-center {$isRTL ? 'text-right' : 'text-left'}">
 			<Building class="inline-block w-8 h-8 {$isRTL ? 'ml-2' : 'mr-2'} text-primary-500" />
 			{t('add_property', $language, { default: 'إضافة عقار' })}
 		</h1>
@@ -237,17 +298,23 @@
 		</a>
 	</div>
 
-	{#if !initialCheckDone}
+	{#if $pageLoading}
+		<div class="card p-6 text-center animate-pulse">
+			<div class="spinner-icon mx-auto mb-4"></div>
+			<p>{t('loading', $language, { default: 'جاري التحميل...' })}</p>
+		</div>
+	{:else if !initialCheckDone}
 		<!-- Loading state while checking authentication -->
 		<div class="card p-6 text-center">
 			<div class="spinner-icon mx-auto mb-4"></div>
-			<p>{t('loading', $language, { default: 'جاري التحميل...' })}</p>
+			<p>{t('checking_permissions', $language, { default: 'جاري التحقق من الصلاحيات...' })}</p>
 		</div>
 	{:else if unauthorized}
 		<div class="card p-6 text-center">
 			<Alert
 				type="error"
 				message={t('no_permission', $language, { default: 'ليس لديك صلاحية لإضافة عقار' })}
+				dismissible={false}
 			/>
 			<div class="mt-4">
 				<a href="/properties" class="btn variant-filled">
@@ -257,8 +324,18 @@
 		</div>
 	{:else}
 		<!-- Enhanced Property Form with Tabs -->
-		<div class="mb-6">
-			<PropertyForm {loading} {error} on:submit={handleSubmit} on:cancel={handleCancel} />
+		<div class="card variant-filled-surface p-0 overflow-hidden">
+			<header class="bg-primary-500 text-white p-4">
+				<h3 class="h3">{t('create_new_property', $language, { default: 'إنشاء عقار جديد' })}</h3>
+				<p class="text-sm opacity-80">
+					{t('property_form_description', $language, {
+						default: 'أدخل معلومات العقار بالتفصيل. الحقول المطلوبة مميزة بعلامة *'
+					})}
+				</p>
+			</header>
+			<div class="p-4">
+				<PropertyForm {loading} {error} on:submit={handleSubmit} on:cancel={handleCancel} />
+			</div>
 		</div>
 	{/if}
 </div>

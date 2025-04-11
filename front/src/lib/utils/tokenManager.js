@@ -1,59 +1,31 @@
 /**
  * Token Manager
- * Handles JWT token storage, retrieval, and validation
+ * Utility for managing JWT tokens and authentication state
  */
 
 import { browser } from '$app/environment';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY, TOKEN_EXPIRY_KEY, USER_KEY } from '$lib/config/constants';
+import { isAuthenticated, currentUser } from '$lib/stores/auth';
 
-// Token storage keys - make sure these match what's used in layout.svelte
-const ACCESS_TOKEN_KEY = 'access_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
-const TOKEN_EXPIRY_KEY = 'token_expiry';
-
-/**
- * Set tokens in localStorage (or sessionStorage for more security)
- * @param {Object} tokens - Object containing access and refresh tokens
- * @param {string} tokens.access - Access token
- * @param {string} tokens.refresh - Refresh token
- */
-export const setTokens = (tokens) => {
-	if (!browser) return;
-
-	const { access, refresh } = tokens;
-
-	// Store tokens
-	localStorage.setItem(ACCESS_TOKEN_KEY, access);
-	localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
-
-	// Calculate expiry time (typically 1 hour from now for access token)
-	const expiry = new Date();
-	expiry.setHours(expiry.getHours() + 1); // Default to 1 hour
-
-	localStorage.setItem(TOKEN_EXPIRY_KEY, expiry.toISOString());
+// Check if token exists
+export const hasToken = () => {
+	if (!browser) return false;
+	return Boolean(localStorage.getItem(TOKEN_KEY));
 };
 
-/**
- * Get the access token from storage
- * @returns {string|null} The access token or null if not found
- */
+// Get access token
 export const getAccessToken = () => {
 	if (!browser) return null;
-	return localStorage.getItem(ACCESS_TOKEN_KEY);
+	return localStorage.getItem(TOKEN_KEY);
 };
 
-/**
- * Get the refresh token from storage
- * @returns {string|null} The refresh token or null if not found
- */
+// Get refresh token
 export const getRefreshToken = () => {
 	if (!browser) return null;
 	return localStorage.getItem(REFRESH_TOKEN_KEY);
 };
 
-/**
- * Check if the access token has expired
- * @returns {boolean} True if token has expired, false otherwise
- */
+// Check if token is expired
 export const isTokenExpired = () => {
 	if (!browser) return true;
 
@@ -64,39 +36,73 @@ export const isTokenExpired = () => {
 		const expiryDate = new Date(expiry);
 		const now = new Date();
 		return now >= expiryDate;
-	} catch (e) {
-		console.error('Error parsing token expiry date:', e);
+	} catch (error) {
+		console.error('Error parsing token expiry date:', error);
 		return true; // If we can't parse the date, consider the token expired
 	}
 };
 
-/**
- * Check if user is authenticated (has valid tokens)
- * @returns {boolean} True if authenticated, false otherwise
- */
-export const isAuthenticated = () => {
-	if (!browser) return false;
+// Set tokens in localStorage
+export const setTokens = ({ access, refresh }) => {
+	if (!browser) return;
 
-	const accessToken = getAccessToken();
-	return !!accessToken && !isTokenExpired();
+	if (access) {
+		localStorage.setItem(TOKEN_KEY, access);
+
+		// Calculate token expiry (1 hour from now)
+		const expiry = new Date();
+		expiry.setHours(expiry.getHours() + 1);
+		localStorage.setItem(TOKEN_EXPIRY_KEY, expiry.toISOString());
+	}
+
+	if (refresh) {
+		localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+	}
+
+	// Update authentication state
+	isAuthenticated.set(true);
 };
 
-/**
- * Clear all authentication tokens from storage
- */
+// Set user data
+export const setUserData = (userData) => {
+	if (!browser || !userData) return;
+
+	try {
+		localStorage.setItem(USER_KEY, JSON.stringify(userData));
+		currentUser.set(userData);
+	} catch (error) {
+		console.error('Error storing user data:', error);
+	}
+};
+
+// Get user data from localStorage
+export const getUserData = () => {
+	if (!browser) return null;
+
+	try {
+		const userData = localStorage.getItem(USER_KEY);
+		return userData ? JSON.parse(userData) : null;
+	} catch (error) {
+		console.error('Error parsing user data:', error);
+		return null;
+	}
+};
+
+// Clear all tokens and user data
 export const clearTokens = () => {
 	if (!browser) return;
 
-	localStorage.removeItem(ACCESS_TOKEN_KEY);
+	localStorage.removeItem(TOKEN_KEY);
 	localStorage.removeItem(REFRESH_TOKEN_KEY);
 	localStorage.removeItem(TOKEN_EXPIRY_KEY);
+	localStorage.removeItem(USER_KEY);
+
+	// Update authentication state
+	isAuthenticated.set(false);
+	currentUser.set(null);
 };
 
-/**
- * Parse JWT token to get payload
- * @param {string} token - JWT token
- * @returns {Object|null} Decoded token payload or null if invalid
- */
+// Parse token payload
 export const parseToken = (token) => {
 	if (!token) return null;
 
@@ -112,25 +118,37 @@ export const parseToken = (token) => {
 
 		return JSON.parse(jsonPayload);
 	} catch (error) {
-		console.error('Failed to parse token:', error);
+		console.error('Error parsing token:', error);
 		return null;
 	}
 };
 
-/**
- * Get user information from the stored token
- * @returns {Object|null} User information or null if not authenticated
- */
-export const getUserFromToken = () => {
-	const token = getAccessToken();
-	if (!token) return null;
+// Get token expiry time in seconds
+export const getTokenExpiryTime = () => {
+	if (!browser) return 0;
 
-	const payload = parseToken(token);
-	if (!payload) return null;
+	const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+	if (!expiry) return 0;
 
-	return {
-		id: payload.user_id,
-		email: payload.email,
-		roles: payload.roles || []
-	};
+	try {
+		const expiryDate = new Date(expiry);
+		const now = new Date();
+		return Math.floor((expiryDate.getTime() - now.getTime()) / 1000);
+	} catch (error) {
+		console.error('Error calculating token expiry time:', error);
+		return 0;
+	}
+};
+
+export default {
+	hasToken,
+	getAccessToken,
+	getRefreshToken,
+	isTokenExpired,
+	setTokens,
+	setUserData,
+	getUserData,
+	clearTokens,
+	parseToken,
+	getTokenExpiryTime
 };

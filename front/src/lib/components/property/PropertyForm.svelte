@@ -4,10 +4,17 @@
 	import { language, isRTL, addToast } from '$lib/stores/ui';
 	import { PROPERTY_TYPES, PROPERTY_STATUS } from '$lib/config/constants';
 	import { createEventDispatcher } from 'svelte';
+	import { fade } from 'svelte/transition';
 	import Alert from '$lib/components/common/Alert.svelte';
-	import Map from '$lib/components/property/Map.svelte';
+	import Map from './Map.svelte';
 	import Tabs from '$lib/components/common/Tabs.svelte';
 	import PropertyImages from '$lib/components/property/PropertyImages.svelte';
+	import {
+		validateProperty,
+		validateNumeric,
+		hasErrors,
+		getErrorMessage
+	} from '$lib/utils/validators';
 	import {
 		Building,
 		MapPin,
@@ -19,7 +26,9 @@
 		X,
 		Home,
 		Image,
-		Settings
+		Settings,
+		Camera,
+		Loader
 	} from 'lucide-svelte';
 	import { formatPropertyData } from '$lib/services/propertyService';
 
@@ -38,7 +47,6 @@
 	export let maxFileSize = 5;
 	// Max number of images allowed
 	export let maxImages = 10;
-	// Auto-upload images immediately
 	// Max text field lengths
 	export let maxTitleLength = 100;
 	export let maxDescriptionLength = 2000;
@@ -91,6 +99,8 @@
 	let submitAttempted = false;
 	let locationError = null;
 	let activeTab = 'basic-info';
+	let mapLoaded = false;
+	let fetchingAddress = false;
 	let tabs = [
 		{
 			id: 'basic-info',
@@ -129,9 +139,9 @@
 			postal_code: property.postal_code || '',
 			country: property.country || 'المملكة العربية السعودية',
 			description: property.description || '',
-			features: property.features || [],
-			amenities: property.amenities || [],
-			rooms: property.rooms || [],
+			features: Array.isArray(property.features) ? property.features : [],
+			amenities: Array.isArray(property.amenities) ? property.amenities : [],
+			rooms: Array.isArray(property.rooms) ? property.rooms : [],
 			specifications: property.specifications || {},
 			size_sqm: property.size_sqm || '',
 			bedrooms: property.bedrooms || '',
@@ -178,14 +188,70 @@
 		formData.location.country = formData.country;
 	}
 
+	// Set map loaded when location tab is active
+	$: if (activeTab === 'location') {
+		mapLoaded = true;
+	}
+
 	// Set location in form data from Map component event
-	function handleLocationChange(event) {
+	async function handleLocationChange(event) {
 		const { latitude, longitude } = event.detail;
 		formData.location.latitude = latitude;
 		formData.location.longitude = longitude;
 
 		// Clear any previous location errors
 		locationError = null;
+
+		// Try to fetch address information for these coordinates
+		fetchAddressFromCoordinates(latitude, longitude);
+	}
+
+	// Fetch address information from coordinates using Nominatim
+	async function fetchAddressFromCoordinates(lat, lng) {
+		if (!lat || !lng) return;
+
+		fetchingAddress = true;
+		try {
+			const response = await fetch(
+				`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+			);
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch address information');
+			}
+
+			const data = await response.json();
+
+			// Update form data with address details
+			if (data.address) {
+				// Only update fields that are empty or when explicitly asked to update
+				if (!formData.address || formData.address.trim() === '') {
+					const road = data.address.road || '';
+					const houseNumber = data.address.house_number || '';
+					formData.address = [road, houseNumber].filter(Boolean).join(', ');
+				}
+
+				if (!formData.city || formData.city.trim() === '') {
+					formData.city = data.address.city || data.address.town || data.address.village || '';
+				}
+
+				if (!formData.state || formData.state.trim() === '') {
+					formData.state = data.address.state || data.address.province || '';
+				}
+
+				if (!formData.postal_code || formData.postal_code.trim() === '') {
+					formData.postal_code = data.address.postcode || '';
+				}
+
+				if (!formData.country || formData.country === 'المملكة العربية السعودية') {
+					formData.country = data.address.country || 'المملكة العربية السعودية';
+				}
+			}
+		} catch (error) {
+			console.error('Error fetching address:', error);
+		} finally {
+			fetchingAddress = false;
+		}
 	}
 
 	// Clear location data
@@ -224,40 +290,145 @@
 
 	// Handle form submission
 	async function handleSubmit() {
-		if (!validate()) {
-			addToast(
-				t('form_validation_error', $language, { default: 'يرجى ملء جميع الحقول المطلوبة' }),
-				'error'
-			);
-			return;
-		}
+		// Enable detailed logging
+		console.log('Form Submission Started');
+		console.log('Form Data:', JSON.parse(JSON.stringify(formData)));
 
 		try {
+			// Explicit validation
+			if (!formData.title || !formData.title.trim()) {
+				console.error('Validation Error: Title is required');
+				addToast('العنوان مطلوب', 'error');
+				return;
+			}
+
+			if (!formData.address || !formData.address.trim()) {
+				console.error('Validation Error: Address is required');
+				addToast('العنوان مطلوب', 'error');
+				return;
+			}
+
+			if (!formData.city || !formData.city.trim()) {
+				console.error('Validation Error: City is required');
+				addToast('المدينة مطلوبة', 'error');
+				return;
+			}
+
+			if (!formData.description || !formData.description.trim()) {
+				console.error('Validation Error: Description is required');
+				addToast('الوصف مطلوب', 'error');
+				return;
+			}
+
+			// Start loading state
 			loading = true;
 			error = null;
 
-			// Convert numeric fields to proper format
+			// Prepare data for submission
 			const propertyData = {
-				...formData,
-				size_sqm: formData.size_sqm ? parseFloat(formData.size_sqm) : null,
-				bedrooms: formData.bedrooms ? parseInt(formData.bedrooms, 10) : null,
-				bathrooms: formData.bathrooms ? parseInt(formData.bathrooms, 10) : null,
-				parking_spaces: formData.parking_spaces ? parseInt(formData.parking_spaces, 10) : null,
-				year_built: formData.year_built ? parseInt(formData.year_built, 10) : null,
-				market_value: formData.market_value ? parseFloat(formData.market_value) : null,
-				minimum_bid: formData.minimum_bid ? parseFloat(formData.minimum_bid) : null
+				title: formData.title,
+				property_type: formData.property_type,
+				status: formData.status,
+				address: formData.address,
+				city: formData.city,
+				description: formData.description,
+
+				// Convert numeric fields safely
+				size_sqm: formData.size_sqm ? Number(formData.size_sqm) : null,
+				bedrooms: formData.bedrooms ? Number(formData.bedrooms) : null,
+				bathrooms: formData.bathrooms ? Number(formData.bathrooms) : null,
+				parking_spaces: formData.parking_spaces ? Number(formData.parking_spaces) : null,
+				year_built: formData.year_built ? Number(formData.year_built) : null,
+				market_value: formData.market_value ? Number(formData.market_value) : null,
+				minimum_bid: formData.minimum_bid ? Number(formData.minimum_bid) : null,
+
+				// JSON fields
+				location: formData.location || {},
+				features: formData.features || [],
+				amenities: formData.amenities || [],
+
+				// Publishing options
+				is_published: formData.is_published || false,
+				is_featured: formData.is_featured || false
 			};
+
+			// Log the prepared data
+			console.log('Prepared Property Data:', JSON.parse(JSON.stringify(propertyData)));
 
 			// Format data for API
 			const formattedData = formatPropertyData(propertyData);
+			console.log('Formatted Property Data:', JSON.parse(JSON.stringify(formattedData)));
 
-			// Submit data to parent component
-			dispatch('submit', { property: formattedData, images });
+			// Comprehensive error handling in dispatch
+			try {
+				const submitResult = await new Promise((resolve, reject) => {
+					// Use a timeout to catch any synchronous errors
+					setTimeout(() => {
+						try {
+							dispatch(
+								'submit',
+								{
+									property: formattedData,
+									images
+								},
+								{
+									detail: {
+										onSuccess: resolve,
+										onError: reject
+									}
+								}
+							);
+						} catch (dispatchError) {
+							console.error('Dispatch Synchronous Error:', dispatchError);
+							reject(dispatchError);
+						}
+					}, 0);
+				});
+
+				console.log('Submit Result:', submitResult);
+			} catch (submitError) {
+				console.error('Submission Error:', submitError);
+
+				// Detailed error logging
+				if (submitError.response) {
+					// The request was made and the server responded with a status code
+					console.error('Error Response Data:', submitError.response.data);
+					console.error('Error Response Status:', submitError.response.status);
+					console.error('Error Response Headers:', submitError.response.headers);
+
+					// Show specific backend error message
+					const errorMessage =
+						submitError.response.data?.error ||
+						submitError.response.data?.message ||
+						'حدث خطأ غير متوقع';
+
+					addToast(errorMessage, 'error');
+				} else if (submitError.request) {
+					// The request was made but no response was received
+					console.error('No Response Received:', submitError.request);
+					addToast('لا يوجد استجابة من الخادم', 'error');
+				} else {
+					// Something happened in setting up the request
+					console.error('Error:', submitError.message);
+					addToast(submitError.message, 'error');
+				}
+
+				// Set error state
+				error = submitError.message || 'فشل في إنشاء العقار';
+				throw submitError;
+			}
 		} catch (err) {
-			console.error('Error preparing property data:', err);
-			error = err.message || t('save_error', $language, { default: 'حدث خطأ أثناء حفظ العقار' });
-			dispatch('error', err);
+			// Catch-all error handling
+			console.error('Unhandled Submission Error:', err);
+
+			// Provide a user-friendly error message
+			const errorMessage = err.message || 'حدث خطأ غير متوقع أثناء إرسال البيانات';
+			addToast(errorMessage, 'error');
+
+			// Set error state
+			error = errorMessage;
 		} finally {
+			// Always ensure loading state is reset
 			loading = false;
 		}
 	}
@@ -295,6 +466,112 @@
 		formData.amenities = [...formData.amenities];
 	}
 
+	// File input references
+	let fileInput;
+
+	// Handle file selection
+	function handleFileSelection(files) {
+		if (!files || files.length === 0) return;
+
+		// Process files
+		for (let i = 0; i < files.length; i++) {
+			if (images.length >= maxImages) {
+				addToast(
+					t('max_images_reached', $language, {
+						default: 'تم الوصول إلى الحد الأقصى للصور ({{max}})',
+						max: maxImages
+					}),
+					'warning'
+				);
+				break;
+			}
+
+			const file = files[i];
+			if (file.size > maxFileSize * 1024 * 1024) {
+				addToast(
+					t('file_too_large', $language, {
+						default: 'حجم الملف كبير جداً: {{filename}}. الحد الأقصى هو {{max}}MB',
+						filename: file.name,
+						max: maxFileSize
+					}),
+					'error'
+				);
+				continue;
+			}
+
+			// Create preview URL
+			const url = URL.createObjectURL(file);
+			images = [
+				...images,
+				{
+					id: null,
+					file,
+					url,
+					is_primary: images.length === 0, // First image is primary
+					caption: '',
+					uploaded: false,
+					progress: 0
+				}
+			];
+		}
+	}
+
+	// Handle file input change
+	function handleFileInputChange(event) {
+		const files = event.target.files;
+		handleFileSelection(files);
+		event.target.value = ''; // Reset input to allow selecting the same file again
+	}
+
+	// Handle drag and drop
+	function handleDrop(event) {
+		event.preventDefault();
+		const files = event.dataTransfer.files;
+		handleFileSelection(files);
+		event.target.classList.remove('border-primary-500', 'bg-primary-500/10');
+	}
+
+	// Handle drag over
+	function handleDragOver(event) {
+		event.preventDefault();
+		event.target.classList.add('border-primary-500', 'bg-primary-500/10');
+	}
+
+	// Handle drag leave
+	function handleDragLeave(event) {
+		event.preventDefault();
+		event.target.classList.remove('border-primary-500', 'bg-primary-500/10');
+	}
+
+	// Remove image from preview
+	function removeImage(index) {
+		const imageToRemove = images[index];
+
+		// Revoke object URL if this is a local preview
+		if (imageToRemove.url && !imageToRemove.uploaded) {
+			URL.revokeObjectURL(imageToRemove.url);
+		}
+
+		// Remove the image
+		images = images.filter((_, i) => i !== index);
+
+		// If we removed the primary image, set the first one as primary
+		if (imageToRemove.is_primary && images.length > 0) {
+			images = images.map((img, idx) => ({
+				...img,
+				is_primary: idx === 0
+			}));
+		}
+	}
+
+	// Set an image as primary
+	function setImageAsPrimary(index) {
+		images = images.map((img, i) => ({
+			...img,
+			is_primary: i === index
+		}));
+	}
+
 	// Get current year for year_built validation
 	const currentYear = new Date().getFullYear();
 
@@ -313,7 +590,7 @@
 >
 	<!-- Form error display -->
 	{#if error}
-		<Alert type="error" message={error} />
+		<Alert type="error" message={error} dismissible={true} />
 	{/if}
 
 	<!-- Tabs Navigation -->
@@ -441,22 +718,38 @@
 					{/if}
 
 					<!-- Use the Map component -->
-					<Map
-						latitude={formData.location.latitude}
-						longitude={formData.location.longitude}
-						height="400px"
-						width="100%"
-						showMarker={true}
-						draggableMarker={true}
-						showLocationButton={true}
-						interactive={true}
-						on:locationchange={handleLocationChange}
-						classes="mb-4"
-					/>
+					{#if mapLoaded}
+						<Map
+							latitude={formData.location.latitude}
+							longitude={formData.location.longitude}
+							height="400px"
+							width="100%"
+							showMarker={true}
+							draggableMarker={true}
+							showLocationButton={true}
+							interactive={true}
+							on:locationchange={handleLocationChange}
+							classes="mb-4"
+						/>
+					{:else}
+						<div
+							class="h-[400px] w-full bg-surface-200-700-token rounded-lg flex items-center justify-center mb-4"
+						>
+							<button
+								type="button"
+								class="btn variant-filled-primary"
+								on:click={() => (mapLoaded = true)}
+							>
+								<MapPin class="w-5 h-5 {$isRTL ? 'ml-2' : 'mr-2'}" />
+								{t('load_map', $language, { default: 'تحميل الخريطة' })}
+							</button>
+						</div>
+					{/if}
 
 					<p class="text-sm text-surface-500-400-token mt-1">
 						{t('map_instructions', $language, {
-							default: 'انقر على الخريطة لتحديد موقع العقار أو أدخل الإحداثيات يدوياً'
+							default:
+								'انقر على الخريطة لتحديد موقع العقار أو استخدم زر تحديد الموقع للكشف عن موقعك الحالي'
 						})}
 					</p>
 				</div>
@@ -486,6 +779,7 @@
 					</label>
 				</div>
 
+				<!-- Address Information -->
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
 					<!-- Address -->
 					<label class="label md:col-span-2">
@@ -493,15 +787,22 @@
 							{t('address', $language, { default: 'العنوان' })}
 							<span class="text-error-500">*</span>
 						</span>
-						<input
-							type="text"
-							class="input {!formData.address && submitAttempted ? 'input-error' : ''}"
-							bind:value={formData.address}
-							required
-							placeholder={t('address_placeholder', $language, {
-								default: 'أدخل عنوان العقار الكامل'
-							})}
-						/>
+						<div class="relative">
+							<input
+								type="text"
+								class="input {!formData.address && submitAttempted ? 'input-error' : ''}"
+								bind:value={formData.address}
+								required
+								placeholder={t('address_placeholder', $language, {
+									default: 'أدخل عنوان العقار الكامل'
+								})}
+							/>
+							{#if fetchingAddress}
+								<div class="absolute {$isRTL ? 'left-3' : 'right-3'} top-1/2 -translate-y-1/2">
+									<Loader class="w-5 h-5 animate-spin text-primary-500" />
+								</div>
+							{/if}
+						</div>
 						{#if !formData.address && submitAttempted}
 							<span class="text-error-500 text-sm">
 								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
@@ -515,13 +816,20 @@
 							{t('city', $language, { default: 'المدينة' })}
 							<span class="text-error-500">*</span>
 						</span>
-						<input
-							type="text"
-							class="input {!formData.city && submitAttempted ? 'input-error' : ''}"
-							bind:value={formData.city}
-							required
-							placeholder={t('city_placeholder', $language, { default: 'أدخل اسم المدينة' })}
-						/>
+						<div class="relative">
+							<input
+								type="text"
+								class="input {!formData.city && submitAttempted ? 'input-error' : ''}"
+								bind:value={formData.city}
+								required
+								placeholder={t('city_placeholder', $language, { default: 'أدخل اسم المدينة' })}
+							/>
+							{#if fetchingAddress}
+								<div class="absolute {$isRTL ? 'left-3' : 'right-3'} top-1/2 -translate-y-1/2">
+									<Loader class="w-5 h-5 animate-spin text-primary-500" />
+								</div>
+							{/if}
+						</div>
 						{#if !formData.city && submitAttempted}
 							<span class="text-error-500 text-sm">
 								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
@@ -830,14 +1138,17 @@
 						on:update={handleImagesUpdate}
 					/>
 				{:else}
-					<!-- Simple image upload for new properties -->
+					<!-- Image upload area -->
 					<div class="mb-4">
 						<label
 							for="property-images"
-							class="block w-full h-32 border-2 border-dashed border-surface-300-600-token rounded-token cursor-pointer hover:bg-surface-hover-token transition-colors"
+							class="block w-full h-40 border-2 border-dashed border-surface-300-600-token rounded-token cursor-pointer hover:bg-surface-hover-token transition-colors"
+							on:dragover={handleDragOver}
+							on:dragleave={handleDragLeave}
+							on:drop={handleDrop}
 						>
 							<div class="flex flex-col items-center justify-center h-full">
-								<Image class="w-10 h-10 text-surface-500-400-token mb-2" />
+								<Camera class="w-12 h-12 text-surface-500-400-token mb-2" />
 								<h3 class="font-medium text-center">
 									{t('add_property_images', $language, { default: 'إضافة صور للعقار' })}
 								</h3>
@@ -848,71 +1159,36 @@
 								</p>
 								<p class="text-xs text-surface-500-400-token text-center">
 									{t('image_requirements', $language, {
-										default: 'PNG، JPG، GIF حتى 5 ميجابايت | {{remaining}} صور متبقية',
+										default: 'PNG، JPG، GIF حتى {{max}}MB | {{remaining}} صور متبقية',
+										max: maxFileSize,
 										remaining: maxImages - images.length
 									})}
 								</p>
-
-								<input
-									id="property-images"
-									type="file"
-									accept="image/jpeg,image/png,image/gif,image/webp"
-									multiple
-									class="hidden"
-									on:change={(event) => {
-										// Handle file selection
-										const files = event.target.files;
-										if (files && files.length > 0) {
-											// Process files
-											for (let i = 0; i < files.length; i++) {
-												if (images.length >= maxImages) break;
-
-												const file = files[i];
-												if (file.size > maxFileSize * 1024 * 1024) {
-													imageError = t('file_too_large', $language, {
-														default: 'حجم الملف كبير جداً: {{filename}}. الحد الأقصى هو 5 ميجابايت',
-														filename: file.name
-													});
-													continue;
-												}
-
-												// Create preview URL
-												const url = URL.createObjectURL(file);
-												images = [
-													...images,
-													{
-														id: null,
-														file,
-														url,
-														is_primary: images.length === 0, // First image is primary
-														caption: '',
-														uploaded: false,
-														progress: 0
-													}
-												];
-											}
-										}
-										// Reset input
-										event.target.value = '';
-									}}
-									aria-hidden="true"
-								/>
 							</div>
 						</label>
-						<p class="text-sm text-surface-500-400-token mt-2">
+						<input
+							id="property-images"
+							bind:this={fileInput}
+							type="file"
+							accept="image/jpeg,image/png,image/gif,image/webp"
+							multiple
+							class="hidden"
+							on:change={handleFileInputChange}
+						/>
+						<p class="text-sm text-surface-500-400-token mt-2 text-center">
 							{t('image_count', $language, {
-								default: '{current}/{max} صور',
+								default: '{{current}}/{{max}} صور',
 								current: images.length,
 								max: maxImages
 							})}
 						</p>
 					</div>
 
-					<!-- Preview of selected images -->
+					<!-- Image previews -->
 					{#if images.length > 0}
 						<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
 							{#each images as image, i}
-								<div class="relative group">
+								<div class="relative group" transition:fade>
 									<!-- Image preview -->
 									<div
 										class="aspect-square bg-cover bg-center rounded-token overflow-hidden border {image.is_primary
@@ -923,7 +1199,7 @@
 										<!-- Primary badge -->
 										{#if image.is_primary}
 											<div class="absolute top-2 {$isRTL ? 'right-2' : 'left-2'} z-10">
-												<span class="badge variant-filled-primary">
+												<span class="badge variant-filled-primary text-xs">
 													{t('primary', $language, { default: 'الرئيسية' })}
 												</span>
 											</div>
@@ -932,20 +1208,14 @@
 
 									<!-- Image actions -->
 									<div
-										class="absolute bottom-0 inset-x-0 p-2 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex justify-between"
+										class="absolute bottom-0 inset-x-0 p-2 bg-black bg-opacity-70 opacity-0 group-hover:opacity-100 transition-opacity flex justify-between"
 									>
 										<!-- Set as primary button -->
 										{#if !image.is_primary}
 											<button
 												type="button"
-												class="btn btn-sm variant-ghost-primary"
-												on:click={() => {
-													// Update primary status
-													images = images.map((img, idx) => ({
-														...img,
-														is_primary: idx === i
-													}));
-												}}
+												class="btn btn-sm variant-ghost-primary p-1"
+												on:click={() => setImageAsPrimary(i)}
 												aria-label={t('set_as_primary', $language, {
 													default: 'تعيين كصورة رئيسية'
 												})}
@@ -959,19 +1229,8 @@
 										<!-- Remove button -->
 										<button
 											type="button"
-											class="btn btn-sm variant-ghost-error"
-											on:click={() => {
-												// Remove image
-												images = images.filter((_, idx) => idx !== i);
-
-												// If we removed the primary image, set the first one as primary
-												if (image.is_primary && images.length > 0) {
-													images = images.map((img, idx) => ({
-														...img,
-														is_primary: idx === 0
-													}));
-												}
-											}}
+											class="btn btn-sm variant-ghost-error p-1"
+											on:click={() => removeImage(i)}
 											aria-label={t('remove_image', $language, { default: 'إزالة الصورة' })}
 										>
 											<Trash2 class="w-4 h-4" />

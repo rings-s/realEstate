@@ -33,15 +33,15 @@ export const ENDPOINTS = {
 
 	// Property endpoints
 	PROPERTY: {
-		LIST: '/api/properties/',
-		DETAIL: (slug) => `/api/properties/${slug}/`,
-		CREATE: '/api/properties/',
-		UPDATE: (slug) => `/api/properties/${slug}/edit/`,
-		DELETE: (slug) => `/api/properties/${slug}/delete/`,
-		IMAGES: (propertyId) => `/api/properties/${propertyId}/images/`,
-		IMAGE_DETAIL: (imageId) => `/api/property-images/${imageId}/`,
-		IMAGE_UPDATE: (imageId) => `/api/property-images/${imageId}/edit/`,
-		IMAGE_DELETE: (imageId) => `/api/property-images/${imageId}/delete/`
+		LIST: '/properties/',
+		DETAIL: (slug) => `/properties/${slug}/`,
+		CREATE: '/properties/',
+		UPDATE: (slug) => `/properties/${slug}/edit/`,
+		DELETE: (slug) => `/properties/${slug}/delete/`,
+		IMAGES: (propertyId) => `/properties/${propertyId}/images/`,
+		IMAGE_DETAIL: (imageId) => `/property-images/${imageId}/`,
+		IMAGE_UPDATE: (imageId) => `/property-images/${imageId}/edit/`,
+		IMAGE_DELETE: (imageId) => `/property-images/${imageId}/delete/`
 	},
 
 	// Auction endpoints
@@ -93,9 +93,9 @@ export const ENDPOINTS = {
 		THREAD_UPDATE: (threadId) => `/api/threads/${threadId}/edit/`,
 		THREAD_DELETE: (threadId) => `/api/threads/${threadId}/delete/`,
 		THREAD_PARTICIPANTS: (threadId) => `/api/threads/${threadId}/participants/`,
-		PARTICIPANT_DETAIL: (participantId) => `/api/thread-participants/${participantId}/`,
-		PARTICIPANT_UPDATE: (participantId) => `/api/thread-participants/${participantId}/edit/`,
-		PARTICIPANT_DELETE: (participantId) => `/api/thread-participants/${participantId}/delete/`,
+		PARTICIPANT_DETAIL: (participantId) => `/thread-participants/${participantId}/`,
+		PARTICIPANT_UPDATE: (participantId) => `/thread-participants/${participantId}/edit/`,
+		PARTICIPANT_DELETE: (participantId) => `/thread-participants/${participantId}/delete/`,
 		MESSAGES: (threadId) => `/api/threads/${threadId}/messages/`,
 		MESSAGE_DETAIL: (messageId) => `/api/messages/${messageId}/`,
 		MESSAGE_UPDATE: (messageId) => `/api/messages/${messageId}/edit/`,

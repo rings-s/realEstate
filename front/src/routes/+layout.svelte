@@ -24,12 +24,8 @@
 	import { isAuthenticated, currentUser } from '$lib/stores/auth';
 
 	// Import token manager
-	import {
-		isTokenExpired,
-		getAccessToken,
-		getRefreshToken,
-		clearTokens
-	} from '$lib/utils/tokenManager';
+	import tokenManager from '$lib/utils/tokenManager';
+	import { API_URL } from '$lib/config/constants';
 
 	// Import utils
 	import { t } from '$lib/config/translations';
@@ -60,7 +56,7 @@
 	function checkTokenExpiration() {
 		if (!browser) return;
 
-		if (isTokenExpired()) {
+		if (tokenManager.isTokenExpired()) {
 			// If token expires, try to refresh it
 			doRefreshToken();
 		}
@@ -69,7 +65,7 @@
 	// Refresh token function
 	async function doRefreshToken() {
 		try {
-			const refreshToken = getRefreshToken();
+			const refreshToken = tokenManager.getRefreshToken();
 
 			if (!refreshToken) {
 				handleAuthFailure();
@@ -92,7 +88,7 @@
 			const data = await response.json();
 
 			// Store new tokens using the tokenManager function
-			setTokens({
+			tokenManager.setTokens({
 				access: data.access,
 				refresh: refreshToken // Keep the same refresh token
 			});
@@ -110,7 +106,7 @@
 
 	// Handle authentication failure
 	function handleAuthFailure() {
-		clearTokens();
+		tokenManager.clearTokens();
 		isAuthenticated.set(false);
 		currentUser.set(null);
 
@@ -137,12 +133,11 @@
 		if (browser) {
 			// Initialize language from localStorage
 			const savedLanguage = localStorage.getItem('language') || 'ar';
-			language.set(savedLanguage);
+			theme.set(savedLanguage === 'ar' ? 'rtl' : 'ltr');
 			document.documentElement.setAttribute('lang', savedLanguage);
 
 			// Initialize direction based on language
 			const direction = savedLanguage === 'ar' ? 'rtl' : 'ltr';
-			isRTL.set(direction === 'rtl');
 			document.documentElement.setAttribute('dir', direction);
 
 			// Initialize theme from localStorage - Skeleton UI v2 uses data-theme attribute
@@ -161,11 +156,11 @@
 			pageLoading.set(true);
 
 			// Check for token and validate
-			const token = getAccessToken();
+			const token = tokenManager.getAccessToken();
 
 			if (token) {
 				// Check if token is expired
-				if (isTokenExpired()) {
+				if (tokenManager.isTokenExpired()) {
 					// Try to refresh token
 					const refreshed = await doRefreshToken();
 

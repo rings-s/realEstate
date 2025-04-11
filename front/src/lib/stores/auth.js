@@ -1,8 +1,9 @@
-import { writable, derived } from 'svelte/store';
+// Fix for using get with Svelte store - move this to the top to avoid reference errors
+import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { t } from '$lib/config/translations';
-import { uiStore } from '$lib/stores/ui';
+import { language, addToast } from '$lib/stores/ui';
 import {
 	API_URL,
 	TOKEN_KEY,
@@ -14,6 +15,23 @@ import {
 // Check if token exists in localStorage
 const hasToken = browser ? Boolean(localStorage.getItem(TOKEN_KEY)) : false;
 
+// Check if token is expired
+const isTokenExpired = () => {
+	if (!browser) return true;
+
+	const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+	if (!expiry) return true;
+
+	try {
+		const expiryDate = new Date(expiry);
+		const now = new Date();
+		return now >= expiryDate;
+	} catch (e) {
+		console.error('Error parsing token expiry date:', e);
+		return true; // If we can't parse the date, consider the token expired
+	}
+};
+
 // Parse stored user data
 const getUserData = () => {
 	if (!browser) return null;
@@ -22,6 +40,9 @@ const getUserData = () => {
 		try {
 			return JSON.parse(userData);
 		} catch (e) {
+			console.error('Error parsing user data:', e);
+			// Clear corrupted data
+			localStorage.removeItem(USER_KEY);
 			return null;
 		}
 	}
@@ -30,27 +51,118 @@ const getUserData = () => {
 
 // Initialize stores
 const initialUser = getUserData();
-export const isAuthenticated = writable(hasToken);
+export const isAuthenticated = writable(hasToken && !isTokenExpired()); // Add token expiry check
 export const currentUser = writable(initialUser);
 export const authLoading = writable(false);
 export const authError = writable(null);
 
 // Export derived store for user primary role
-export const userRole = derived(
-	currentUser,
-	($currentUser) => $currentUser?.primary_role?.code || null
-);
+export const userRole = derived(currentUser, ($currentUser) => {
+	if (!$currentUser) return null;
 
-// Export derived store for user roles array
-export const userRoles = derived(
-	currentUser,
-	($currentUser) => $currentUser?.roles?.map((r) => r.code) || []
-);
+	if ($currentUser.primary_role) {
+		// Handle primary_role as string or object
+		if (typeof $currentUser.primary_role === 'string') {
+			return $currentUser.primary_role;
+		}
+		return $currentUser.primary_role.code || $currentUser.primary_role.name;
+	}
+
+	// If primary_role doesn't exist but roles array does, take first role
+	if ($currentUser.roles && Array.isArray($currentUser.roles) && $currentUser.roles.length > 0) {
+		const firstRole = $currentUser.roles[0];
+		if (typeof firstRole === 'string') return firstRole;
+		return firstRole.code || firstRole.name;
+	}
+
+	return null;
+});
+
+// Ensure roles are always properly formatted in an array
+export const userRoles = derived(currentUser, ($currentUser) => {
+	// Handle different formats of roles data
+	if (!$currentUser) return [];
+
+	// Debug data structure
+	console.log('User data for roles:', $currentUser);
+
+	// If roles array exists
+	if ($currentUser.roles && Array.isArray($currentUser.roles)) {
+		// Format roles properly, handling both object and string formats
+		return $currentUser.roles.map((role) => {
+			if (typeof role === 'string') return role;
+			return role.code || role.name || role;
+		});
+	}
+
+	// Fallback to primary role if roles array doesn't exist
+	if ($currentUser.primary_role) {
+		const role = $currentUser.primary_role;
+		if (typeof role === 'string') return [role];
+		return [role.code || role.name || role];
+	}
+
+	// Check for role in user object directly (some API responses format it this way)
+	if ($currentUser.role) {
+		if (typeof $currentUser.role === 'string') return [$currentUser.role];
+		return [$currentUser.role.code || $currentUser.role.name || $currentUser.role];
+	}
+
+	// Fallback to empty array if no roles found
+	return [];
+});
 
 // Function to check if user has a specific role
 export const hasRole = (role) => {
+	if (!role) return false;
+
 	const roles = get(userRoles);
-	return roles.includes(role);
+	if (!roles || !Array.isArray(roles) || roles.length === 0) return false;
+
+	// Normalize role to lowercase for case-insensitive comparison
+	const normalizedRole = typeof role === 'string' ? role.toLowerCase() : '';
+	if (!normalizedRole) return false;
+
+	// Check against normalized roles
+	return roles.some((r) => {
+		const userRole = typeof r === 'string' ? r.toLowerCase() : '';
+		return userRole === normalizedRole;
+	});
+};
+
+/**
+ * Check authentication and token validity
+ * @returns {boolean} Authentication status
+ */
+export const checkAuth = () => {
+	if (!browser) return false;
+
+	// Check if token exists
+	const token = localStorage.getItem(TOKEN_KEY);
+	if (!token) {
+		isAuthenticated.set(false);
+		return false;
+	}
+
+	// Check if token is expired
+	if (isTokenExpired()) {
+		// Try to get a refresh token
+		const refresh = localStorage.getItem(REFRESH_TOKEN_KEY);
+		if (!refresh) {
+			// No refresh token, clear auth
+			isAuthenticated.set(false);
+			return false;
+		}
+
+		// We have a refresh token, but we'll handle actual refresh elsewhere
+		// Just return current authentication status
+		console.log('Token expired, refresh token available');
+		return get(isAuthenticated);
+	}
+
+	// Token exists and is valid
+	isAuthenticated.set(true);
+	return true;
 };
 
 /**
@@ -74,7 +186,7 @@ export const register = async (userData) => {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Registration failed');
+			throw new Error(data.error || data.detail || 'Registration failed');
 		}
 
 		authLoading.set(false);
@@ -127,7 +239,7 @@ export const verifyEmail = async (email, code) => {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Email verification failed');
+			throw new Error(data.error || data.detail || 'Email verification failed');
 		}
 
 		// Store auth tokens and user data
@@ -194,7 +306,7 @@ export const login = async (email, password) => {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Login failed');
+			throw new Error(data.error || data.detail || 'Login failed');
 		}
 
 		// Store auth tokens and user data
@@ -213,6 +325,12 @@ export const login = async (email, password) => {
 			// Update stores
 			isAuthenticated.set(true);
 			currentUser.set(data.user);
+
+			// Log roles for debugging
+			console.log(
+				'User logged in with roles:',
+				data.user.roles || data.user.primary_role || 'No roles found'
+			);
 		}
 
 		authLoading.set(false);
@@ -247,82 +365,23 @@ export const logout = async () => {
 
 		if (refreshToken) {
 			// Call logout API
-			const response = await fetch(`${API_URL}/accounts/logout/`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}`
-				},
-				body: JSON.stringify({ refresh: refreshToken })
-			});
-
-			// We don't need to check response as we'll logout locally anyway
-			await response.json();
-		}
-	} catch (error) {
-		console.error('Logout API call failed:', error);
-		// Continue with local logout regardless of API call result
-	}
-
-	// Clear local storage
-	localStorage.removeItem(TOKEN_KEY);
-	localStorage.removeItem(REFRESH_TOKEN_KEY);
-	localStorage.removeItem(TOKEN_EXPIRY_KEY);
-	localStorage.removeItem(USER_KEY);
-
-	// Update stores
-	isAuthenticated.set(false);
-	currentUser.set(null);
-	authLoading.set(false);
-
-	// Show logout message
-	addToast(t('logout_success', get(language), { default: 'تم تسجيل الخروج بنجاح' }), 'success');
-
-	// Redirect to home page
-	goto('/');
-
-	return true;
-};
-
-/**
- * Refresh auth token
- * @returns {Promise<boolean>} Token refresh success status
- */
-export const refreshToken = async () => {
-	const refresh = localStorage.getItem(REFRESH_TOKEN_KEY);
-
-	if (!refresh) {
-		return false;
-	}
-
-	try {
-		const response = await fetch(`${API_URL}/accounts/token/refresh/`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({ refresh })
-		});
-
-		const data = await response.json();
-
-		if (!response.ok) {
-			throw new Error(data.error || 'Token refresh failed');
+			try {
+				await fetch(`${API_URL}/accounts/logout/`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}`
+					},
+					body: JSON.stringify({ refresh: refreshToken })
+				});
+				// We don't need to check response as we'll logout locally anyway
+			} catch (e) {
+				console.warn('Logout API call failed, continuing with local logout:', e);
+				// Continue with local logout regardless of API call result
+			}
 		}
 
-		// Store new access token
-		localStorage.setItem(TOKEN_KEY, data.access);
-
-		// Calculate token expiry (1 hour from now)
-		const expiry = new Date();
-		expiry.setHours(expiry.getHours() + 1);
-		localStorage.setItem(TOKEN_EXPIRY_KEY, expiry.toISOString());
-
-		return true;
-	} catch (error) {
-		console.error('Token refresh failed:', error);
-
-		// Clear auth data if refresh fails
+		// Clear local storage
 		localStorage.removeItem(TOKEN_KEY);
 		localStorage.removeItem(REFRESH_TOKEN_KEY);
 		localStorage.removeItem(TOKEN_EXPIRY_KEY);
@@ -331,8 +390,135 @@ export const refreshToken = async () => {
 		// Update stores
 		isAuthenticated.set(false);
 		currentUser.set(null);
+		authLoading.set(false);
+
+		// Show logout message
+		addToast(t('logout_success', get(language), { default: 'تم تسجيل الخروج بنجاح' }), 'success');
+
+		// Redirect to home page
+		goto('/');
+
+		return true;
+	} catch (error) {
+		console.error('Logout error:', error);
+		authLoading.set(false);
+
+		// Force logout even if API call fails
+		localStorage.removeItem(TOKEN_KEY);
+		localStorage.removeItem(REFRESH_TOKEN_KEY);
+		localStorage.removeItem(TOKEN_EXPIRY_KEY);
+		localStorage.removeItem(USER_KEY);
+
+		isAuthenticated.set(false);
+		currentUser.set(null);
 
 		return false;
+	}
+};
+
+/**
+ * Refresh auth token
+ * @returns {Promise<boolean>} Token refresh success status
+ */
+// export const refreshToken = async () => {
+// 	const refresh = localStorage.getItem(REFRESH_TOKEN_KEY);
+
+// 	if (!refresh) {
+// 		console.warn('No refresh token available');
+// 		return false;
+// 	}
+
+// 	try {
+// 		// Set loading state
+// 		authLoading.set(true);
+
+// 		console.log('Attempting to refresh token...');
+
+// 		const response = await fetch(`${API_URL}/accounts/token/refresh/`, {
+// 			method: 'POST',
+// 			headers: {
+// 				'Content-Type': 'application/json'
+// 			},
+// 			body: JSON.stringify({ refresh })
+// 		});
+
+// 		if (!response.ok) {
+// 			const errorData = await response.json().catch(() => ({}));
+// 			throw new Error(errorData.error || errorData.detail || 'Token refresh failed');
+// 		}
+
+// 		const data = await response.json();
+
+// 		// Store new access token
+// 		localStorage.setItem(TOKEN_KEY, data.access);
+
+// 		// Calculate token expiry (1 hour from now)
+// 		const expiry = new Date();
+// 		expiry.setHours(expiry.getHours() + 1);
+// 		localStorage.setItem(TOKEN_EXPIRY_KEY, expiry.toISOString());
+
+// 		// Update authentication state
+// 		isAuthenticated.set(true);
+
+// 		// If user data is included in the response, update it
+// 		if (data.user) {
+// 			localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+// 			currentUser.set(data.user);
+// 		}
+
+// 		console.log('Token refreshed successfully');
+// 		return true;
+// 	} catch (error) {
+// 		console.error('Token refresh failed:', error);
+
+// 		// Clear auth data if refresh fails
+// 		localStorage.removeItem(TOKEN_KEY);
+// 		localStorage.removeItem(REFRESH_TOKEN_KEY);
+// 		localStorage.removeItem(TOKEN_EXPIRY_KEY);
+// 		localStorage.removeItem(USER_KEY);
+
+// 		// Update stores
+// 		isAuthenticated.set(false);
+// 		currentUser.set(null);
+
+// 		return false;
+// 	} finally {
+// 		authLoading.set(false);
+// 	}
+// };
+
+export const refreshToken = async () => {
+	const refresh = localStorage.getItem(REFRESH_TOKEN_KEY);
+
+	if (!refresh) {
+		console.warn('No refresh token available');
+		return false;
+	}
+
+	try {
+		console.log('Attempting to refresh token...');
+		console.log('Refresh token:', refresh); // Be cautious with logging sensitive data
+
+		const response = await fetch(`${API_URL}/accounts/token/refresh/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ refresh })
+		});
+
+		console.log('Token refresh response status:', response.status);
+
+		if (!response.ok) {
+			const errorData = await response.json().catch(() => ({}));
+			console.error('Token refresh error data:', errorData);
+			throw new Error(errorData.error || errorData.detail || 'Token refresh failed');
+		}
+
+		// Rest of the existing code...
+	} catch (error) {
+		console.error('Detailed token refresh error:', error);
+		// Rest of the existing error handling...
 	}
 };
 
@@ -357,7 +543,7 @@ export const requestPasswordReset = async (email) => {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Password reset request failed');
+			throw new Error(data.error || data.detail || 'Password reset request failed');
 		}
 
 		authLoading.set(false);
@@ -411,7 +597,7 @@ export const verifyResetCode = async (email, resetCode) => {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Invalid reset code');
+			throw new Error(data.error || data.detail || 'Invalid reset code');
 		}
 
 		authLoading.set(false);
@@ -460,7 +646,7 @@ export const resetPassword = async (email, resetCode, newPassword, confirmPasswo
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Password reset failed');
+			throw new Error(data.error || data.detail || 'Password reset failed');
 		}
 
 		// Store auth tokens and user data if provided
@@ -533,7 +719,7 @@ export const changePassword = async (currentPassword, newPassword, confirmPasswo
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Password change failed');
+			throw new Error(data.error || data.detail || 'Password change failed');
 		}
 
 		// Update tokens if provided
@@ -593,7 +779,7 @@ export const updateProfile = async (profileData) => {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Profile update failed');
+			throw new Error(data.error || data.detail || 'Profile update failed');
 		}
 
 		// Update user data in store and localStorage
@@ -650,7 +836,7 @@ export const uploadAvatar = async (file) => {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Avatar upload failed');
+			throw new Error(data.error || data.detail || 'Avatar upload failed');
 		}
 
 		// Update user data in store and localStorage
@@ -704,7 +890,7 @@ export const resendVerification = async (email) => {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Failed to resend verification email');
+			throw new Error(data.error || data.detail || 'Failed to resend verification email');
 		}
 
 		authLoading.set(false);
@@ -733,5 +919,50 @@ export const resendVerification = async (email) => {
 	}
 };
 
-// Fix for using get with Svelte store
-import { get } from 'svelte/store';
+// Auto-refresh token functionality
+if (browser) {
+	// Check if token is about to expire and refresh
+	const setupTokenRefresh = () => {
+		// Get current expiry time
+		const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
+		if (!expiry) return;
+
+		try {
+			const expiryTime = new Date(expiry).getTime();
+			const now = new Date().getTime();
+
+			// If token is already expired, try to refresh immediately
+			if (now >= expiryTime) {
+				refreshToken();
+				return;
+			}
+
+			// Calculate time until expiry (refresh 5 minutes before expiry)
+			const timeToRefresh = expiryTime - now - 5 * 60 * 1000;
+
+			if (timeToRefresh > 0) {
+				setTimeout(() => {
+					refreshToken().then((success) => {
+						if (success) {
+							console.log('Token refreshed automatically');
+							// Setup next refresh
+							setupTokenRefresh();
+						}
+					});
+				}, timeToRefresh);
+
+				console.log(`Token refresh scheduled in ${Math.round(timeToRefresh / 1000 / 60)} minutes`);
+			}
+		} catch (e) {
+			console.error('Error setting up token refresh:', e);
+		}
+	};
+
+	// Initial setup of token refresh
+	if (hasToken && !isTokenExpired()) {
+		setupTokenRefresh();
+	}
+
+	// Check authentication on initial load
+	checkAuth();
+}

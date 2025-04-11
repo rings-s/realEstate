@@ -11,7 +11,8 @@ export const ROLES = {
 	INSPECTOR: 'inspector',
 	LEGAL: 'legal',
 	AGENT: 'agent',
-	APPRAISER: 'appraiser'
+	APPRAISER: 'appraiser',
+	OWNER: 'owner'
 };
 
 // Role display names
@@ -22,7 +23,8 @@ export const ROLE_NAMES = {
 	[ROLES.INSPECTOR]: 'Inspector',
 	[ROLES.LEGAL]: 'Legal Representative',
 	[ROLES.AGENT]: 'Real Estate Agent',
-	[ROLES.APPRAISER]: 'Appraiser'
+	[ROLES.APPRAISER]: 'Appraiser',
+	[ROLES.OWNER]: 'Property Owner'
 };
 
 // Permission definitions
@@ -87,6 +89,20 @@ export const ROLE_PERMISSIONS = {
 		PERMISSIONS.VIEW_OWN_ANALYTICS
 	],
 
+	// Owner permissions (same as Seller)
+	[ROLES.OWNER]: [
+		PERMISSIONS.VIEW_PROPERTIES,
+		PERMISSIONS.CREATE_PROPERTY,
+		PERMISSIONS.EDIT_OWN_PROPERTY,
+		PERMISSIONS.DELETE_OWN_PROPERTY,
+		PERMISSIONS.VIEW_AUCTIONS,
+		PERMISSIONS.CREATE_AUCTION,
+		PERMISSIONS.MANAGE_OWN_AUCTIONS,
+		PERMISSIONS.UPLOAD_DOCUMENTS,
+		PERMISSIONS.MANAGE_OWN_CONTRACTS,
+		PERMISSIONS.VIEW_OWN_ANALYTICS
+	],
+
 	// Buyer permissions
 	[ROLES.BUYER]: [
 		PERMISSIONS.VIEW_PROPERTIES,
@@ -135,12 +151,11 @@ export const ROLE_PERMISSIONS = {
 };
 
 /**
- * Check if user has permission based on their roles
+ * Safely check if user has permission based on their roles
  * @param {Array} userRoles - User's roles
  * @param {string} permission - Permission to check
  * @returns {boolean} True if user has permission
  */
-
 export const hasPermission = (userRoles, permission) => {
 	// Handle edge cases gracefully
 	if (!userRoles || !Array.isArray(userRoles) || userRoles.length === 0) {
@@ -153,33 +168,40 @@ export const hasPermission = (userRoles, permission) => {
 		return false;
 	}
 
-	// Debug log - uncomment if needed
-	// console.log(`Checking permission ${permission} for roles:`, userRoles);
+	// Debug log
+	console.log(`Checking permission ${permission} for roles:`, userRoles);
 
 	// Admin has all permissions - check first for efficiency
-	if (userRoles.includes(ROLES.ADMIN)) {
-		return true;
-	}
-
-	// Handle case sensitivity issues for role names
-	const normalizedUserRoles = userRoles.map((role) =>
-		typeof role === 'string' ? role.toLowerCase() : role
-	);
-
-	if (normalizedUserRoles.includes('admin')) {
+	if (
+		userRoles.some((role) => {
+			const roleName = typeof role === 'string' ? role.toLowerCase() : '';
+			return roleName === 'admin';
+		})
+	) {
 		return true;
 	}
 
 	// Check each role the user has
 	for (const role of userRoles) {
-		// Handle case where role doesn't exist in our mappings
-		if (!ROLE_PERMISSIONS[role]) {
-			console.warn(`Role not found in permission mappings: ${role}`);
+		// Handle role as string or object
+		const roleName = typeof role === 'string' ? role : role?.code || role?.name;
+		if (!roleName) continue;
+
+		// Handle case sensitivity
+		const normalizedRoleName = roleName.toLowerCase();
+
+		// Check if role exists in our mappings
+		const roleKey = Object.keys(ROLES).find(
+			(key) => ROLES[key].toLowerCase() === normalizedRoleName
+		);
+
+		if (!roleKey) {
+			console.warn(`Role not found in permission mappings: ${roleName}`);
 			continue;
 		}
 
-		const rolePermissions = ROLE_PERMISSIONS[role] || [];
-		if (rolePermissions.includes(permission)) {
+		const roleValue = ROLES[roleKey];
+		if (ROLE_PERMISSIONS[roleValue] && ROLE_PERMISSIONS[roleValue].includes(permission)) {
 			return true;
 		}
 	}
@@ -254,7 +276,13 @@ export const isOwner = (user, resource, ownerField = 'owner') => {
  */
 export const canAccessResource = (user, userRoles, resource, permission, ownerField = 'owner') => {
 	// Admin can access any resource
-	if (userRoles && userRoles.includes(ROLES.ADMIN)) {
+	if (
+		userRoles &&
+		userRoles.some((role) => {
+			const roleName = typeof role === 'string' ? role.toLowerCase() : '';
+			return roleName === 'admin';
+		})
+	) {
 		return true;
 	}
 
@@ -268,38 +296,50 @@ export const canAccessResource = (user, userRoles, resource, permission, ownerFi
 };
 
 /**
- * Get all permissions for a given role
- * @param {string} role - Role to get permissions for
- * @returns {Array} Array of permissions for the role
- */
-export const getRolePermissions = (role) => {
-	if (!role || !ROLE_PERMISSIONS[role]) {
-		console.warn(`Role not found: ${role}`);
-		return [];
-	}
-
-	return ROLE_PERMISSIONS[role];
-};
-
-/**
- * Forcibly determine if a user is an admin or seller by role name
+ * Forcibly determine if a user is an admin or seller/owner by role name
  * @param {Array} userRoles - User's roles
- * @returns {boolean} True if user is an admin or seller
+ * @returns {boolean} True if user is an admin or seller/owner
  */
 export const isAdminOrSeller = (userRoles) => {
 	if (!userRoles || !Array.isArray(userRoles)) {
 		return false;
 	}
 
-	// Normalize roles to handle case sensitivity
-	const normalizedRoles = userRoles.map((role) =>
-		typeof role === 'string' ? role.toLowerCase() : role
-	);
+	// Check for admin, seller, or owner roles
+	return userRoles.some((role) => {
+		// Normalize role to lowercase string
+		const normalizedRole =
+			typeof role === 'string'
+				? role.toLowerCase()
+				: (role?.code || role?.name || '').toLowerCase();
 
+		return normalizedRole === 'admin' || normalizedRole === 'seller' || normalizedRole === 'owner';
+	});
+};
+
+/**
+ * Enhanced function to check if a user can create properties
+ * @param {Array} userRoles - User's roles
+ * @returns {boolean} True if user can create properties
+ */
+export const canCreateProperty = (userRoles) => {
+	// Quick check for empty roles
+	if (!userRoles || !Array.isArray(userRoles) || userRoles.length === 0) {
+		return false;
+	}
+
+	// Creator roles that can always create properties
+	const creatorRoleNames = ['admin', 'seller', 'agent', 'owner'];
+
+	// Normalize and check each role
 	return (
-		normalizedRoles.includes('admin') ||
-		normalizedRoles.includes('seller') ||
-		normalizedRoles.includes(ROLES.ADMIN) ||
-		normalizedRoles.includes(ROLES.SELLER)
+		userRoles.some((role) => {
+			const roleName =
+				typeof role === 'string'
+					? role.toLowerCase()
+					: (role?.code || role?.name || '').toLowerCase();
+
+			return creatorRoleNames.includes(roleName);
+		}) || hasPermission(userRoles, PERMISSIONS.CREATE_PROPERTY)
 	);
 };

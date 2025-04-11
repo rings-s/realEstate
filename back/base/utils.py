@@ -4,6 +4,7 @@ import time
 import random
 import string
 from datetime import datetime, timedelta
+from decimal import Decimal
 from io import BytesIO
 from PIL import Image
 from django.utils import timezone
@@ -14,7 +15,6 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.utils.text import slugify
 from accounts.models import Role
-
 
 # -------------------------------------------------------------------------
 # File and Image Handling Utilities
@@ -34,7 +34,6 @@ def generate_unique_filename(original_filename):
     unique_name = f"{uuid.uuid4()}{ext}"
     return unique_name
 
-
 def create_thumbnail(image_file, size=(200, 200), format='JPEG', quality=85):
     """
     Create a thumbnail from an image file.
@@ -46,36 +45,27 @@ def create_thumbnail(image_file, size=(200, 200), format='JPEG', quality=85):
         quality (int): Compression quality (1-100)
 
     Returns:
-        ContentFile: Django ContentFile with the thumbnail
+        ContentFile: Django ContentFile with the thumbnail or None if failed
     """
     if not image_file:
         return None
 
     try:
         img = Image.open(image_file)
-
-        # Convert to RGB if needed (for PNG with transparency)
         if img.mode not in ('L', 'RGB', 'RGBA'):
             img = img.convert('RGB')
-
-        # Create thumbnail
         img.thumbnail(size, Image.LANCZOS)
-
-        # Save to BytesIO
         thumb_io = BytesIO()
         save_kwargs = {'format': format}
         if format in ('JPEG', 'JPG'):
             save_kwargs['quality'] = quality
             save_kwargs['optimize'] = True
-
         img.save(thumb_io, **save_kwargs)
         thumb_io.seek(0)
-
         return ContentFile(thumb_io.getvalue())
     except Exception as e:
         print(f"Error creating thumbnail: {str(e)}")
         return None
-
 
 def get_file_size_in_kb(file_obj):
     """
@@ -89,12 +79,10 @@ def get_file_size_in_kb(file_obj):
     """
     if not file_obj:
         return 0
-
     try:
         return file_obj.size // 1024
     except (AttributeError, IOError):
         return 0
-
 
 def validate_image_file(file_obj, max_size_mb=5, allowed_extensions=None):
     """
@@ -114,19 +102,16 @@ def validate_image_file(file_obj, max_size_mb=5, allowed_extensions=None):
     if not file_obj:
         return True
 
-    # Validate size
     max_size_bytes = max_size_mb * 1024 * 1024
     if file_obj.size > max_size_bytes:
         raise ValidationError(_('حجم الملف يتجاوز الحد المسموح به (%(max_size)s ميجابايت).') % {'max_size': max_size_mb})
 
-    # Validate extension
     if allowed_extensions:
         ext = os.path.splitext(file_obj.name)[1].lower().lstrip('.')
         if ext not in allowed_extensions:
             raise ValidationError(_('نوع الملف غير مدعوم. الأنواع المدعومة: %(ext_list)s.') % {'ext_list': ', '.join(allowed_extensions)})
 
     return True
-
 
 # -------------------------------------------------------------------------
 # String and Text Utilities
@@ -145,7 +130,6 @@ def generate_random_code(length=6, chars=string.digits):
     """
     return ''.join(random.choice(chars) for _ in range(length))
 
-
 def generate_slug(text, model_class, max_length=255):
     """
     Generate a unique slug for a model.
@@ -160,21 +144,16 @@ def generate_slug(text, model_class, max_length=255):
     """
     original_slug = slugify(text)[:max_length]
     slug = original_slug
-
-    # Check if slug already exists
     counter = 1
     while model_class.objects.filter(slug=slug).exists():
         suffix = f"-{counter}"
         slug = f"{original_slug[:max_length - len(suffix)]}{suffix}"
         counter += 1
-
     return slug
-
 
 def sanitize_html(html_content):
     """
     Sanitize HTML content to prevent XSS attacks.
-    Uses bleach library if available, or basic string replacement.
 
     Args:
         html_content (str): HTML content to sanitize
@@ -188,9 +167,8 @@ def sanitize_html(html_content):
         allowed_attrs = {'a': ['href', 'title', 'target']}
         return bleach.clean(html_content, tags=allowed_tags, attributes=allowed_attrs, strip=True)
     except ImportError:
-        # Basic sanitization if bleach is not available
         replacements = [
-            ('<script', '&lt;script'),
+            ('<script', '<script'),
             ('javascript:', 'no-script:'),
             ('onerror=', 'no-error='),
             ('onclick=', 'no-click='),
@@ -200,7 +178,6 @@ def sanitize_html(html_content):
         for old, new in replacements:
             html_content = html_content.replace(old, new)
         return html_content
-
 
 # -------------------------------------------------------------------------
 # Date and Time Utilities
@@ -221,7 +198,6 @@ def format_datetime(dt, format_str="%Y-%m-%d %H:%M:%S"):
         return ""
     return dt.strftime(format_str)
 
-
 def get_time_remaining(end_date):
     """
     Calculate time remaining until end_date.
@@ -233,30 +209,16 @@ def get_time_remaining(end_date):
         dict: Time remaining in days, hours, minutes, seconds and total_seconds
     """
     if not end_date:
-        return {
-            'days': 0,
-            'hours': 0,
-            'minutes': 0,
-            'seconds': 0,
-            'total_seconds': 0
-        }
+        return {'days': 0, 'hours': 0, 'minutes': 0, 'seconds': 0, 'total_seconds': 0}
 
     now = timezone.now()
-
     if end_date <= now:
-        return {
-            'days': 0,
-            'hours': 0,
-            'minutes': 0,
-            'seconds': 0,
-            'total_seconds': 0
-        }
+        return {'days': 0, 'hours': 0, 'minutes': 0, 'seconds': 0, 'total_seconds': 0}
 
     time_left = end_date - now
     days = time_left.days
     hours, remainder = divmod(time_left.seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
-
     return {
         'days': days,
         'hours': hours,
@@ -264,7 +226,6 @@ def get_time_remaining(end_date):
         'seconds': seconds,
         'total_seconds': time_left.total_seconds()
     }
-
 
 def is_date_in_range(date, start_date=None, end_date=None):
     """
@@ -280,15 +241,11 @@ def is_date_in_range(date, start_date=None, end_date=None):
     """
     if not date:
         return False
-
     if start_date and date < start_date:
         return False
-
     if end_date and date > end_date:
         return False
-
     return True
-
 
 # -------------------------------------------------------------------------
 # Financial Utilities
@@ -299,24 +256,22 @@ def calculate_fee(amount, percentage):
     Calculate a fee based on a percentage.
 
     Args:
-        amount (float): Base amount
-        percentage (float): Fee percentage
+        amount (Decimal/float): Base amount
+        percentage (Decimal/float): Fee percentage
 
     Returns:
-        float: Fee amount
+        Decimal: Fee amount
     """
     if not amount or not percentage:
-        return 0
-
-    return (amount * percentage) / 100
-
+        return Decimal('0.00')
+    return (Decimal(str(amount)) * Decimal(str(percentage))) / Decimal('100').quantize(Decimal('0.01'))
 
 def format_currency(amount, currency='SAR', locale='ar_SA'):
     """
     Format a currency amount according to locale.
 
     Args:
-        amount (float): Amount to format
+        amount (Decimal/float): Amount to format
         currency (str): Currency code
         locale (str): Locale to use for formatting
 
@@ -325,25 +280,22 @@ def format_currency(amount, currency='SAR', locale='ar_SA'):
     """
     if amount is None:
         return ""
-
+    amount = Decimal(str(amount))
     try:
         import locale as locale_module
         locale_module.setlocale(locale_module.LC_ALL, locale)
-        return locale_module.currency(amount, currency, grouping=True)
+        return locale_module.currency(amount, symbol=currency, grouping=True)
     except (ImportError, locale_module.Error):
-        # Basic formatting if locale module fails
         if locale.startswith('ar'):
             return f"{amount:,.2f} {currency}"
-        else:
-            return f"{currency} {amount:,.2f}"
-
+        return f"{currency} {amount:,.2f}"
 
 def calculate_installments(total_amount, payment_count, interval_days=30):
     """
     Calculate installment amounts and dates.
 
     Args:
-        total_amount (float): Total amount to pay
+        total_amount (Decimal/float): Total amount to pay
         payment_count (int): Number of installments
         interval_days (int): Interval between payments in days
 
@@ -352,34 +304,23 @@ def calculate_installments(total_amount, payment_count, interval_days=30):
     """
     if not total_amount or payment_count < 1:
         return []
-
-    # Calculate per-payment amount, rounded to 2 decimal places
-    payment_amount = round(total_amount / payment_count, 2)
-
-    # Calculate installments
+    total_amount = Decimal(str(total_amount))
+    payment_amount = (total_amount / payment_count).quantize(Decimal('0.01'))
     installments = []
     start_date = timezone.now()
-
     for i in range(payment_count):
         due_date = start_date + timedelta(days=interval_days * (i + 1))
-
-        # Last payment may need adjustment due to rounding
         if i == payment_count - 1:
-            # Calculate the sum of all previous payments
             prev_sum = payment_amount * (payment_count - 1)
-            # Adjust the last payment to make the total exact
-            amount = round(total_amount - prev_sum, 2)
+            amount = (total_amount - prev_sum).quantize(Decimal('0.01'))
         else:
             amount = payment_amount
-
         installments.append({
             'number': i + 1,
             'amount': amount,
             'due_date': due_date
         })
-
     return installments
-
 
 # -------------------------------------------------------------------------
 # Auction and Property Utilities
@@ -394,56 +335,53 @@ def check_auction_status(auction):
 
     Returns:
         str: Current auction status
-    """
-    now = timezone.now()
 
-    # Skip if status is already finalized
+    Raises:
+        ValueError: If auction is None
+    """
+    if auction is None:
+        raise ValueError(_('Auction object cannot be None'))
+    now = timezone.now()
     if auction.status in ['completed', 'cancelled']:
         return auction.status
-
-    # Update status based on current time
     if auction.start_date > now:
         new_status = 'scheduled'
     elif auction.end_date < now:
         new_status = 'ended'
     else:
         new_status = 'live'
-
-    # Update if status changed
     if new_status != auction.status:
         auction.status = new_status
         auction.save(update_fields=['status'])
-
     return auction.status
-
 
 def get_bid_increment_suggestions(current_bid, min_increment=100, count=3, factor=1.5):
     """
     Generate bid increment suggestions based on current bid.
 
     Args:
-        current_bid (float): Current bid amount
-        min_increment (float): Minimum bid increment
+        current_bid (Decimal/float): Current bid amount
+        min_increment (Decimal/float): Minimum bid increment
         count (int): Number of suggestions to generate
         factor (float): Factor to multiply each suggestion
 
     Returns:
-        list: List of suggested bid amounts
+        list: List of Decimal suggested bid amounts
     """
-    if not current_bid:
+    if not current_bid or not min_increment:
         return []
-
+    try:
+        current_bid = Decimal(str(current_bid))
+        min_increment = Decimal(str(min_increment))
+        factor = Decimal(str(factor))
+    except (ValueError, TypeError):
+        return []
     suggestions = []
-    increment = max(min_increment, current_bid * 0.05)  # 5% of current bid or min_increment
-
+    increment = max(min_increment, current_bid * Decimal('0.05'))
     for i in range(count):
         suggestion = current_bid + increment * (factor ** i)
-        # Round to nearest 100
-        suggestion = round(suggestion / 100) * 100
-        suggestions.append(suggestion)
-
+        suggestions.append(suggestion.quantize(Decimal('0.01')))
     return suggestions
-
 
 def get_property_valuation(property_obj, method='average', external_valuations=None):
     """
@@ -455,40 +393,27 @@ def get_property_valuation(property_obj, method='average', external_valuations=N
         external_valuations (list): List of external valuation amounts
 
     Returns:
-        float: Property valuation amount
+        Decimal: Property valuation amount
     """
     if not property_obj:
-        return 0
-
-    # Use market value if available
+        return Decimal('0.00')
     if property_obj.market_value:
-        return property_obj.market_value
-
-    # Collect valuations including external ones
+        return Decimal(str(property_obj.market_value))
     valuations = []
-
-    # Add auction values if available
     for auction in property_obj.auctions.filter(status__in=['completed', 'ended']):
         if auction.current_bid:
-            valuations.append(auction.current_bid)
-
-    # Add external valuations if provided
+            valuations.append(Decimal(str(auction.current_bid)))
     if external_valuations:
-        valuations.extend(external_valuations)
-
-    # Calculate based on method
+        valuations.extend(Decimal(str(v)) for v in external_valuations if v)
     if not valuations:
-        return 0
-
+        return Decimal('0.00')
     if method == 'average':
-        return sum(valuations) / len(valuations)
+        return (sum(valuations) / len(valuations)).quantize(Decimal('0.01'))
     elif method == 'max':
         return max(valuations)
     elif method == 'min':
         return min(valuations)
-    else:
-        return sum(valuations) / len(valuations)  # Default to average
-
+    return (sum(valuations) / len(valuations)).quantize(Decimal('0.01'))
 
 # -------------------------------------------------------------------------
 # Role and Permission Utilities
@@ -506,9 +431,7 @@ def get_user_role_display(user):
     """
     if not user or not hasattr(user, 'roles'):
         return []
-
     return [role.get_name_display() for role in user.roles.all()]
-
 
 def get_user_permissions(user):
     """
@@ -518,22 +441,18 @@ def get_user_permissions(user):
         user: User object
 
     Returns:
-        dict: Dictionary of permissions
+        set: Set of permission strings
     """
-    if not user or not hasattr(user, 'roles'):
-        return {}
-
-    permissions = {}
-
-    # Combine permissions from all roles
+    if not user or not hasattr(user, 'is_authenticated') or not user.is_authenticated:
+        return set()
+    permissions = set()
+    if user.has_role(Role.ADMIN):
+        permissions.update(['can_create_property', 'can_create_auction'])
+        return permissions
     for role in user.roles.all():
-        role_permissions = role.default_permissions
-        for perm_name, perm_value in role_permissions.items():
-            # If permission already exists, set it to True if any role has it as True
-            permissions[perm_name] = permissions.get(perm_name, False) or perm_value
-
+        if role.name in ['seller', 'owner']:
+            permissions.update(['can_create_property', 'can_create_auction'])
     return permissions
-
 
 def check_user_permission(user, permission_name):
     """
@@ -546,10 +465,8 @@ def check_user_permission(user, permission_name):
     Returns:
         bool: True if user has the permission
     """
-    # Admin users have all permissions
+    if not user or not hasattr(user, 'is_authenticated') or not user.is_authenticated:
+        return False
     if user.has_role(Role.ADMIN):
         return True
-
-    # Check user permissions from roles
-    permissions = get_user_permissions(user)
-    return permissions.get(permission_name, False)
+    return permission_name in get_user_permissions(user)

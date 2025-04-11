@@ -50,8 +50,8 @@ function getInitialState() {
 	}
 }
 
-// Create the UI store
-function createUIStore() {
+// Create the UI store with proper writable methods
+const createUIStore = () => {
 	const { subscribe, set, update } = writable(getInitialState());
 
 	return {
@@ -315,26 +315,37 @@ function createUIStore() {
 			});
 		}
 	};
-}
+};
 
 // Create and export the store
 export const uiStore = createUIStore();
 
-// Derived stores for convenient access
-export const theme = derived(uiStore, ($uiStore) => $uiStore.theme);
-export const language = derived(uiStore, ($uiStore) => $uiStore.language);
-export const direction = derived(uiStore, ($uiStore) => $uiStore.direction);
+// Create writable stores for direct use
+export const theme = writable(getInitialState().theme);
+export const language = writable(getInitialState().language);
+export const direction = writable(getInitialState().direction);
 export const isRTL = derived(direction, ($direction) => $direction === 'rtl');
 export const darkMode = derived(theme, ($theme) => $theme === 'dark');
-export const pageLoading = derived(uiStore, ($uiStore) => $uiStore.pageLoading);
-export const notifications = derived(uiStore, ($uiStore) => $uiStore.notifications);
+export const pageLoading = writable(getInitialState().pageLoading);
+export const notifications = writable([]);
 export const unreadNotifications = derived(notifications, ($notifications) =>
 	$notifications.filter((n) => !n.read)
 );
-export const modal = derived(uiStore, ($uiStore) => $uiStore.modal);
-export const sidebar = derived(uiStore, ($uiStore) => $uiStore.sidebar);
-export const toast = derived(uiStore, ($uiStore) => $uiStore.toast);
-export const isSidebarOpen = derived(uiStore, ($uiStore) => $uiStore.sidebar.isOpen);
+export const modal = writable({
+	isOpen: false,
+	component: null,
+	props: {}
+});
+export const sidebar = writable({
+	isOpen: false
+});
+export const toast = writable({
+	isVisible: false,
+	message: '',
+	type: 'info',
+	timeout: 3000
+});
+export const isSidebarOpen = derived(sidebar, ($sidebar) => $sidebar.isOpen);
 
 // Arabic text direction utility
 export const textClass = derived(direction, ($direction) =>
@@ -345,6 +356,19 @@ export const textClass = derived(direction, ($direction) =>
 export const flexClass = derived(direction, ($direction) =>
 	$direction === 'rtl' ? 'justify-end' : 'justify-start'
 );
+
+// Sync main uiStore with individual stores
+// This ensures both approaches work
+uiStore.subscribe((state) => {
+	theme.set(state.theme);
+	language.set(state.language);
+	direction.set(state.direction);
+	pageLoading.set(state.pageLoading);
+	notifications.set(state.notifications);
+	modal.set(state.modal);
+	sidebar.set(state.sidebar);
+	toast.set(state.toast);
+});
 
 // Export convenience functions
 export const addToast = (message, type = 'info', timeout = 3000) =>

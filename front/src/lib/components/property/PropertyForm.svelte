@@ -4,7 +4,7 @@
 	import { onMount, createEventDispatcher } from 'svelte';
 	import { t } from '$lib/config/translations';
 	import { language, isRTL, addToast } from '$lib/stores/ui';
-	import { PROPERTY_TYPES, PROPERTY_STATUS } from '$lib/config/constants';
+	import { PROPERTY_TYPES, PROPERTY_STATUS, API_URL } from '$lib/config/constants';
 	import { fade } from 'svelte/transition';
 	import Alert from '$lib/components/common/Alert.svelte';
 	import Map from './Map.svelte';
@@ -522,6 +522,9 @@
 	let dropTarget;
 
 	// FIXED IMAGE HANDLING: removed duplicated functions and kept only one version
+
+	// Validate image file before adding it
+	// Updated file handling for PropertyForm.svelte
 
 	// Validate image file before adding it
 	function validateImageFile(file) {

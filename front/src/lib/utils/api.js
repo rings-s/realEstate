@@ -378,9 +378,11 @@ export const del = (endpoint, options = {}, secure = true) => {
  * @param {boolean} secure - Whether the request needs authentication
  * @returns {Promise<Object>} Response data
  */
+// Enhanced uploadFiles function in api.js with better error handling
+
 export const uploadFiles = async (endpoint, formData, options = {}, secure = true) => {
 	let attempts = 0;
-	const maxAttempts = options.retryAttempts || 1;
+	const maxAttempts = options.retryAttempts || 2; // Increased to 2 default retries
 	const timeout = options.timeout || 60000; // Default timeout: 60 seconds
 
 	// Clone options to avoid mutating the original
@@ -393,6 +395,11 @@ export const uploadFiles = async (endpoint, formData, options = {}, secure = tru
 	// Keep track of progress callback if provided
 	const onUploadProgress = uploadOptions.onUploadProgress;
 	delete uploadOptions.onUploadProgress;
+
+	// Debug logging for endpoint and auth
+	console.log(`Uploading to endpoint: ${endpoint}`);
+	const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
+	console.log(`Full URL: ${url}`);
 
 	// Function to create AbortController for timeout
 	const createTimeoutController = (ms) => {
@@ -419,6 +426,9 @@ export const uploadFiles = async (endpoint, formData, options = {}, secure = tru
 						const token = getAccessToken();
 						if (token) {
 							headers['Authorization'] = `Bearer ${token}`;
+							console.log(`Added Authorization header with token`);
+						} else {
+							console.warn('No access token available for secure request');
 						}
 					}
 
@@ -427,27 +437,34 @@ export const uploadFiles = async (endpoint, formData, options = {}, secure = tru
 					// Setup upload progress tracking
 					xhr.upload.onprogress = (e) => {
 						if (e.lengthComputable) {
+							const percent = Math.round((e.loaded * 100) / e.total);
+							console.log(`Upload progress: ${percent}%`);
 							onUploadProgress(e);
 						}
 					};
 
 					// Setup completion handlers
 					xhr.onload = () => {
+						console.log(`XHR response received with status: ${xhr.status}`);
 						if (xhr.status >= 200 && xhr.status < 300) {
 							// Success - parse response
 							let response;
 							try {
 								response = JSON.parse(xhr.responseText);
+								console.log('XHR response parsed successfully');
 							} catch (e) {
 								// If not JSON, return text
+								console.log('Response is not JSON, returning text');
 								response = xhr.responseText;
 							}
 							resolve(response);
 						} else {
 							// Error response
+							console.error(`XHR error response: ${xhr.status} ${xhr.statusText}`);
 							let error;
 							try {
 								error = JSON.parse(xhr.responseText);
+								console.error('Error details:', error);
 							} catch (e) {
 								error = { message: xhr.statusText || 'Upload failed' };
 							}
@@ -464,15 +481,17 @@ export const uploadFiles = async (endpoint, formData, options = {}, secure = tru
 					};
 
 					xhr.onerror = () => {
+						console.error('XHR network error occurred');
 						reject(new ApiError('Network error during upload', 0, 'network_error'));
 					};
 
 					xhr.ontimeout = () => {
+						console.error('XHR request timed out');
 						reject(new ApiError('Upload timed out', 0, 'timeout_error'));
 					};
 
 					// Open and send request
-					const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
+					console.log(`Opening XHR connection to: ${url}`);
 					xhr.open('POST', url, true);
 
 					// Set headers
@@ -482,6 +501,9 @@ export const uploadFiles = async (endpoint, formData, options = {}, secure = tru
 
 					// Set timeout
 					xhr.timeout = timeout;
+
+					// Log before sending
+					console.log(`Sending FormData with ${formData.getAll('image').length} images`);
 
 					// Send form data
 					xhr.send(formData);
@@ -493,19 +515,29 @@ export const uploadFiles = async (endpoint, formData, options = {}, secure = tru
 			}
 
 			// Standard fetch API approach if no progress tracking
-			const response = await fetch(
-				endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`,
-				{
-					...uploadOptions,
-					method: 'POST',
-					body: formData,
-					headers: {
-						// Don't set Content-Type, let the browser set it with the boundary
-						...uploadOptions.headers
-					},
-					signal: timeoutController.signal
+			console.log('Using standard fetch API for upload');
+
+			let headers = {};
+			if (secure) {
+				const token = getAccessToken();
+				if (token) {
+					headers['Authorization'] = `Bearer ${token}`;
 				}
-			);
+			}
+
+			const response = await fetch(url, {
+				...uploadOptions,
+				method: 'POST',
+				body: formData,
+				headers: {
+					// Don't set Content-Type, browser will set it with boundary
+					...headers,
+					...uploadOptions.headers
+				},
+				signal: timeoutController.signal
+			});
+
+			console.log(`Fetch response received with status: ${response.status}`);
 
 			// Process response
 			const data = await handleResponse(response);
@@ -519,6 +551,7 @@ export const uploadFiles = async (endpoint, formData, options = {}, secure = tru
 
 			// Handle abort error
 			if (error.name === 'AbortError') {
+				console.error('Request aborted due to timeout');
 				throw new ApiError('Upload request timed out', 0, 'timeout_error');
 			}
 
@@ -527,12 +560,14 @@ export const uploadFiles = async (endpoint, formData, options = {}, secure = tru
 
 			// If we still have retries, wait briefly and retry
 			if (attempts <= maxAttempts) {
-				await new Promise((r) => setTimeout(r, 1000 * attempts));
-				console.log(`Retrying upload (attempt ${attempts}/${maxAttempts})`);
+				const retryDelay = 1000 * attempts; // Exponential backoff
+				console.log(`Retrying upload in ${retryDelay}ms (attempt ${attempts}/${maxAttempts})`);
+				await new Promise((r) => setTimeout(r, retryDelay));
 				continue;
 			}
 
 			// No more retries, rethrow
+			console.error('All upload attempts failed, giving up');
 			throw error;
 		}
 	}

@@ -29,6 +29,7 @@
 		isAllowedFileSize
 	} from '$lib/utils/fileUtils';
 	import { API_URL } from '$lib/config/constants';
+	import * as propertyService from '$lib/services/propertyService';
 
 	const dispatch = createEventDispatcher();
 
@@ -296,6 +297,14 @@
 	/**
 	 * Enhanced uploadImages function for PropertyImages.svelte
 	 */
+	// Updated uploadImages function for PropertyImages.svelte
+	// Replace the existing uploadImages function with this improved version
+
+	// This property service import should be at the top of your file with other imports
+	// import * as propertyService from '$lib/services/propertyService';
+
+	// Updated uploadImages function for PropertyImages.svelte
+	// Replace the existing uploadImages function with this improved version
 	async function uploadImages(files) {
 		// Check if maximum number of images reached
 		if (images.length + files.length > maxImages) {
@@ -355,59 +364,58 @@
 
 		for (let i = 0; i < validFiles.length; i++) {
 			const file = validFiles[i];
-			const formData = new FormData();
-			formData.append('image', file);
-
-			// Set as primary if it's the first image and no other images exist
-			const isPrimary = images.length === 0 && i === 0;
-			formData.append('is_primary', isPrimary ? 'true' : 'false');
-
-			// Set the order based on current images length
-			formData.append('order', (images.length + i).toString());
-
-			// Add caption and alt_text (even if empty)
-			formData.append('caption', '');
-			formData.append('alt_text', '');
 
 			try {
-				// Debug what we're sending
-				console.log('Uploading image with FormData:');
-				for (let [key, value] of formData.entries()) {
-					console.log(`${key}: ${value instanceof File ? value.name : value}`);
-				}
+				console.log(`Uploading image ${i + 1}/${validFiles.length}: ${file.name}`);
 
-				// Simulate upload progress
-				const updateProgress = () => {
-					uploadProgress = Math.min(100, uploadProgress + 5);
-					if (uploadProgress < 100 && isUploading) {
-						setTimeout(updateProgress, 100);
-					}
-				};
-				updateProgress();
+				// Since we're not using the propertyService directly, we'll use fetch with FormData
+				const formData = new FormData();
+				formData.append('image', file);
 
-				// Use fetch directly to have more control over the request
+				// Set as primary if it's the first image and no other images exist
+				const isPrimary = images.length === 0 && i === 0;
+				formData.append('is_primary', isPrimary ? 'true' : 'false');
+
+				// Add caption and alt_text (important!)
+				formData.append('caption', '');
+				formData.append('alt_text', file.name || ''); // Use filename as alt_text by default
+
+				// Add order
+				formData.append('order', (images.length + i).toString());
+
+				// Log what we're sending
+				console.log(`Uploading to property ${propertyId}:`, {
+					filename: file.name,
+					fileType: file.type,
+					fileSize: file.size,
+					isPrimary,
+					order: images.length + i
+				});
+
+				// Get auth token
 				const token = localStorage.getItem('auth_token');
+
+				// Create the request with proper headers
 				const response = await fetch(`${API_URL}/properties/${propertyId}/images/`, {
 					method: 'POST',
 					headers: {
 						Authorization: token ? `Bearer ${token}` : ''
-						// Do NOT set Content-Type; browser will set it with boundary for multipart/form-data
+						// Don't set Content-Type - browser will set it with boundary
 					},
 					body: formData
 				});
 
-				// Check response status
+				// Check for errors
 				if (!response.ok) {
 					const errorData = await response.json();
-					console.error('Image upload error response:', errorData);
 					throw new Error(errorData.error || 'Failed to upload image');
 				}
 
-				const newImage = await response.json();
-				console.log('Image upload success:', newImage);
+				const result = await response.json();
+				console.log('Image upload success:', result);
 
 				// Update local state
-				if (newImage.is_primary) {
+				if (result.is_primary) {
 					// Make sure only this image is primary
 					images = images.map((img) => ({
 						...img,
@@ -415,7 +423,8 @@
 					}));
 				}
 
-				images = [...images, newImage];
+				// Add the new image to the array
+				images = [...images, result];
 
 				// Update progress
 				uploadProgress = ((i + 1) / validFiles.length) * 100;

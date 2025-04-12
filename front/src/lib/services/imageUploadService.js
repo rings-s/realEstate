@@ -1,5 +1,7 @@
 // Update the uploadPropertyImage function in propertyService.js
 
+// Update the uploadPropertyImage function in propertyService.js
+
 export const uploadPropertyImage = async (
 	propertyId,
 	imageFile,
@@ -31,9 +33,8 @@ export const uploadPropertyImage = async (
 			formData.append('caption', caption);
 		}
 
-		if (alt_text) {
-			formData.append('alt_text', alt_text);
-		}
+		// Always include alt_text even if empty
+		formData.append('alt_text', alt_text || '');
 
 		if (order !== undefined && order !== null) {
 			formData.append('order', order.toString());
@@ -50,6 +51,12 @@ export const uploadPropertyImage = async (
 			order
 		});
 
+		// Debug the form data
+		console.log('FormData contents:');
+		for (let [key, value] of formData.entries()) {
+			console.log(`${key}: ${value instanceof File ? value.name : value}`);
+		}
+
 		// Upload with custom config for progress tracking
 		const uploadConfig = {};
 
@@ -63,6 +70,63 @@ export const uploadPropertyImage = async (
 		return await uploadFiles(ENDPOINTS.PROPERTY.IMAGES(propertyId), formData, uploadConfig);
 	} catch (error) {
 		console.error(`Error uploading image for property ${propertyId}:`, error);
+		throw error;
+	}
+};
+
+// Update uploadMultiplePropertyImages to pass alt_text
+export const uploadMultiplePropertyImages = async (propertyId, images, onProgress = null) => {
+	if (!propertyId || !images?.length) {
+		return [];
+	}
+
+	// Track upload progress
+	let successCount = 0;
+	let failureCount = 0;
+	const totalImages = images.length;
+	const uploadResults = [];
+
+	try {
+		// Process images sequentially
+		for (let i = 0; i < images.length; i++) {
+			const image = images[i];
+
+			// Skip already uploaded images or images without files
+			if (!image.file || image.uploaded) {
+				continue;
+			}
+
+			try {
+				// Upload the image with metadata
+				const result = await uploadPropertyImage(propertyId, image.file, {
+					isPrimary: image.is_primary || i === 0, // Make first image primary by default
+					caption: image.caption || '',
+					alt_text: image.alt_text || '', // Now passing alt_text
+					order: i,
+					onProgress: (progress) => {
+						if (onProgress) {
+							onProgress({
+								currentImage: i + 1,
+								totalImages,
+								progress,
+								successCount,
+								failureCount
+							});
+						}
+					}
+				});
+
+				uploadResults.push(result);
+				successCount++;
+			} catch (error) {
+				console.error(`Error uploading image ${i + 1}:`, error);
+				failureCount++;
+			}
+		}
+
+		return uploadResults;
+	} catch (error) {
+		console.error('Error in batch image upload:', error);
 		throw error;
 	}
 };

@@ -349,18 +349,191 @@ export const del = (endpoint, options = {}, secure = true) => {
  * @param {boolean} secure - Whether the request needs authentication
  * @returns {Promise<Object>} Response data
  */
-export const uploadFiles = (endpoint, formData, options = {}, secure = true) => {
-	return apiRequest(
-		endpoint,
-		{
-			...options,
-			method: 'POST',
-			body: formData,
-			headers: {
-				// Don't set Content-Type, let the browser set it with the boundary
-				...options.headers
+// export const uploadFiles = (endpoint, formData, options = {}, secure = true) => {
+// 	return apiRequest(
+// 		endpoint,
+// 		{
+// 			...options,
+// 			method: 'POST',
+// 			body: formData,
+// 			headers: {
+// 				// Don't set Content-Type, let the browser set it with the boundary
+// 				...options.headers
+// 			}
+// 		},
+// 		secure
+// 	);
+// };
+
+/**
+ * Enhanced API Utilities for File Uploads
+ * Add these improvements to your existing api.js file
+ */
+
+/**
+ * Enhanced upload files with timeout and retry capability
+ * @param {string} endpoint - API endpoint
+ * @param {FormData} formData - Form data with files
+ * @param {Object} options - Additional fetch options
+ * @param {boolean} secure - Whether the request needs authentication
+ * @returns {Promise<Object>} Response data
+ */
+export const uploadFiles = async (endpoint, formData, options = {}, secure = true) => {
+	let attempts = 0;
+	const maxAttempts = options.retryAttempts || 1;
+	const timeout = options.timeout || 60000; // Default timeout: 60 seconds
+
+	// Clone options to avoid mutating the original
+	const uploadOptions = { ...options };
+
+	// Extract special options that aren't part of fetch
+	delete uploadOptions.retryAttempts;
+	delete uploadOptions.timeout;
+
+	// Keep track of progress callback if provided
+	const onUploadProgress = uploadOptions.onUploadProgress;
+	delete uploadOptions.onUploadProgress;
+
+	// Function to create AbortController for timeout
+	const createTimeoutController = (ms) => {
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), ms);
+
+		return {
+			signal: controller.signal,
+			clear: () => clearTimeout(timeoutId)
+		};
+	};
+
+	while (attempts <= maxAttempts) {
+		// Create a timeout controller for this attempt
+		const timeoutController = createTimeoutController(timeout);
+
+		try {
+			// Use XMLHttpRequest for uploads to properly track progress
+			if (onUploadProgress && typeof onUploadProgress === 'function') {
+				const response = await new Promise((resolve, reject) => {
+					// Get authentication token for manual addition to request
+					let headers = { ...uploadOptions.headers };
+					if (secure) {
+						const token = getAccessToken();
+						if (token) {
+							headers['Authorization'] = `Bearer ${token}`;
+						}
+					}
+
+					const xhr = new XMLHttpRequest();
+
+					// Setup upload progress tracking
+					xhr.upload.onprogress = (e) => {
+						if (e.lengthComputable) {
+							onUploadProgress(e);
+						}
+					};
+
+					// Setup completion handlers
+					xhr.onload = () => {
+						if (xhr.status >= 200 && xhr.status < 300) {
+							// Success - parse response
+							let response;
+							try {
+								response = JSON.parse(xhr.responseText);
+							} catch (e) {
+								// If not JSON, return text
+								response = xhr.responseText;
+							}
+							resolve(response);
+						} else {
+							// Error response
+							let error;
+							try {
+								error = JSON.parse(xhr.responseText);
+							} catch (e) {
+								error = { message: xhr.statusText || 'Upload failed' };
+							}
+
+							reject(
+								new ApiError(
+									error.message || 'Upload failed',
+									xhr.status,
+									error.code || 'upload_error',
+									error.details
+								)
+							);
+						}
+					};
+
+					xhr.onerror = () => {
+						reject(new ApiError('Network error during upload', 0, 'network_error'));
+					};
+
+					xhr.ontimeout = () => {
+						reject(new ApiError('Upload timed out', 0, 'timeout_error'));
+					};
+
+					// Open and send request
+					const url = endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`;
+					xhr.open('POST', url, true);
+
+					// Set headers
+					Object.keys(headers).forEach((key) => {
+						xhr.setRequestHeader(key, headers[key]);
+					});
+
+					// Set timeout
+					xhr.timeout = timeout;
+
+					// Send form data
+					xhr.send(formData);
+				});
+
+				// Clear timeout and return response
+				timeoutController.clear();
+				return processJsonFields(response);
 			}
-		},
-		secure
-	);
+
+			// Standard fetch API approach if no progress tracking
+			const response = await fetch(
+				endpoint.startsWith('http') ? endpoint : `${API_URL}${endpoint}`,
+				{
+					...uploadOptions,
+					method: 'POST',
+					body: formData,
+					headers: {
+						// Don't set Content-Type, let the browser set it with the boundary
+						...uploadOptions.headers
+					},
+					signal: timeoutController.signal
+				}
+			);
+
+			// Process response
+			const data = await handleResponse(response);
+
+			// Clear timeout and return data
+			timeoutController.clear();
+			return data;
+		} catch (error) {
+			// Clear timeout
+			timeoutController.clear();
+
+			// Handle abort error
+			if (error.name === 'AbortError') {
+				throw new ApiError('Upload request timed out', 0, 'timeout_error');
+			}
+
+			// Increment attempts
+			attempts++;
+
+			// If we still have retries, wait briefly and retry
+			if (attempts <= maxAttempts) {
+				await new Promise((r) => setTimeout(r, 1000 * attempts));
+				console.log(`Retrying upload (attempt ${attempts}/${maxAttempts})`);
+				continue;
+			}
+
+			// No more retries, rethrow
+			throw error;
+		}
+	}
 };

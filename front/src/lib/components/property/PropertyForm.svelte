@@ -1,3 +1,4 @@
+<!-- Fix for PropertyForm.svelte -->
 <script>
 	// PropertyForm.svelte - Script Section
 	import { onMount, createEventDispatcher } from 'svelte';
@@ -514,53 +515,98 @@
 		formData.amenities = [...formData.amenities];
 	}
 
-	// File input references
+	// File input reference
 	let fileInput;
+	// Drop target reference
+	let dropTarget;
 
-	// Handle file selection
+	// FIXED IMAGE HANDLING: removed duplicated functions and kept only one version
+
+	// Validate image file before adding it
+	function validateImageFile(file) {
+		const errors = [];
+
+		// Check file type
+		const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+		if (!allowedTypes.includes(file.type)) {
+			errors.push(
+				t('invalid_file_type', $language, {
+					default: 'نوع الملف غير صالح: {{filename}}. الأنواع المسموح بها: JPG، PNG، GIF، WEBP',
+					filename: file.name
+				})
+			);
+		}
+
+		// Check file size
+		if (file.size > maxFileSize * 1024 * 1024) {
+			errors.push(
+				t('file_too_large', $language, {
+					default: 'حجم الملف كبير جداً: {{filename}}. الحد الأقصى هو {{max}}MB',
+					filename: file.name,
+					max: maxFileSize
+				})
+			);
+		}
+
+		return { valid: errors.length === 0, errors };
+	}
+
+	// Handle file selection from input
 	function handleFileSelection(files) {
 		if (!files || files.length === 0) return;
 
-		// Process files
-		for (let i = 0; i < files.length; i++) {
-			if (images.length >= maxImages) {
-				addToast(
-					t('max_images_reached', $language, {
-						default: 'تم الوصول إلى الحد الأقصى للصور ({{max}})',
-						max: maxImages
-					}),
-					'warning'
-				);
-				break;
-			}
+		// Check if maximum number of images reached
+		if (images.length >= maxImages) {
+			addToast(
+				t('max_images_reached', $language, {
+					default: 'تم الوصول إلى الحد الأقصى للصور ({{max}})',
+					max: maxImages
+				}),
+				'warning'
+			);
+			return;
+		}
 
-			const file = files[i];
-			if (file.size > maxFileSize * 1024 * 1024) {
-				addToast(
-					t('file_too_large', $language, {
-						default: 'حجم الملف كبير جداً: {{filename}}. الحد الأقصى هو {{max}}MB',
-						filename: file.name,
-						max: maxFileSize
-					}),
-					'error'
-				);
-				continue;
-			}
+		// Calculate how many more images can be added
+		const remainingSlots = maxImages - images.length;
+		const filesToProcess = Array.from(files).slice(0, remainingSlots);
 
-			// Create preview URL
-			const url = URL.createObjectURL(file);
-			images = [
-				...images,
-				{
-					id: null,
-					file,
-					url,
-					is_primary: images.length === 0, // First image is primary
-					caption: '',
-					uploaded: false,
-					progress: 0
-				}
-			];
+		let errorCount = 0;
+
+		// Process each file with validation
+		filesToProcess.forEach((file) => {
+			const validation = validateImageFile(file);
+
+			if (validation.valid) {
+				// Create a preview URL for the valid image
+				const url = URL.createObjectURL(file);
+
+				// Add to images array
+				images = [
+					...images,
+					{
+						id: null,
+						file,
+						url,
+						is_primary: images.length === 0, // First image is primary by default
+						caption: '',
+						alt_text: '',
+						uploaded: false,
+						progress: 0
+					}
+				];
+			} else {
+				// Report validation errors
+				validation.errors.forEach((error) => {
+					addToast(error, 'error');
+				});
+				errorCount++;
+			}
+		});
+
+		// If we have errors, report summary
+		if (errorCount > 0) {
+			console.warn(`${errorCount} image(s) failed validation`);
 		}
 	}
 
@@ -568,27 +614,28 @@
 	function handleFileInputChange(event) {
 		const files = event.target.files;
 		handleFileSelection(files);
-		event.target.value = ''; // Reset input to allow selecting the same file again
+		// Reset input value to allow selecting the same file again
+		event.target.value = null;
 	}
 
-	// Handle drag and drop
+	// Improved drag and drop handling
 	function handleDrop(event) {
 		event.preventDefault();
 		const files = event.dataTransfer.files;
 		handleFileSelection(files);
-		event.target.classList.remove('border-primary-500', 'bg-primary-500/10');
+		dropTarget.classList.remove('border-primary-500', 'bg-primary-500/10');
 	}
 
-	// Handle drag over
+	// Handle drag over for visual effects
 	function handleDragOver(event) {
 		event.preventDefault();
-		event.target.classList.add('border-primary-500', 'bg-primary-500/10');
+		dropTarget.classList.add('border-primary-500', 'bg-primary-500/10');
 	}
 
-	// Handle drag leave
+	// Handle drag leave for visual effects
 	function handleDragLeave(event) {
 		event.preventDefault();
-		event.target.classList.remove('border-primary-500', 'bg-primary-500/10');
+		dropTarget.classList.remove('border-primary-500', 'bg-primary-500/10');
 	}
 
 	// Remove image from preview
@@ -1292,6 +1339,7 @@
 					<!-- Image upload area -->
 					<div class="mb-4">
 						<label
+							bind:this={dropTarget}
 							for="property-images"
 							class="block w-full h-40 border-2 border-dashed border-surface-300-600-token rounded-token cursor-pointer hover:bg-surface-hover-token transition-colors"
 							on:dragover={handleDragOver}

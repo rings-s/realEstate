@@ -1,3 +1,4 @@
+<!-- Updated Property Add Page Component with robust image handling -->
 <script>
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -12,7 +13,7 @@
 		refreshToken
 	} from '$lib/stores/auth';
 	import { canCreateProperty } from '$lib/utils/permissions';
-	import * as propertyService from '$lib/services/propertyService';
+	import { uploadMultiplePropertyImages } from '$lib/services/propertyService';
 	import tokenManager from '$lib/utils/tokenManager';
 
 	import PropertyForm from '$lib/components/property/PropertyForm.svelte';
@@ -27,7 +28,8 @@
 	let error = null;
 	let unauthorized = false;
 	let initialCheckDone = false;
-	let selectedImages = [];
+	let uploadProgress = { current: 0, total: 0, percentage: 0 };
+	let isUploading = false;
 
 	// Reactive permission check - ensure this has a default value of true until roles are loaded
 	$: hasCreatePermission =
@@ -95,92 +97,6 @@
 		}
 	}
 
-	// Robust image upload handler
-	async function uploadPropertyImages(propertyId, images) {
-		if (!propertyId || !images?.length) {
-			return [];
-		}
-
-		// Track upload progress
-		let successCount = 0;
-		let failureCount = 0;
-		const totalImages = images.length;
-		const uploadResults = [];
-
-		// Start upload process notification
-		addToast(
-			t('uploading_images', $language, {
-				default: 'جاري رفع الصور...',
-				count: totalImages
-			}),
-			'info'
-		);
-
-		// Process images sequentially
-		for (let i = 0; i < images.length; i++) {
-			const image = images[i];
-
-			// Skip already uploaded images or images without files
-			if (!image.file || image.uploaded) {
-				continue;
-			}
-
-			try {
-				// Upload the image with metadata
-				const result = await propertyService.uploadPropertyImage(propertyId, image.file, {
-					isPrimary: image.is_primary || i === 0, // Make first image primary by default
-					caption: image.caption || '',
-					order: i
-				});
-
-				uploadResults.push(result);
-				successCount++;
-
-				// Update progress
-				if (i % 2 === 0 || i === images.length - 1) {
-					addToast(
-						t('image_upload_progress', $language, {
-							default: 'تم رفع {{count}} من {{total}} صور',
-							count: successCount,
-							total: totalImages
-						}),
-						'info',
-						3000
-					);
-				}
-			} catch (error) {
-				console.error(`Error uploading image ${i + 1}:`, error);
-				failureCount++;
-			}
-		}
-
-		// Final upload status notification
-		if (successCount > 0) {
-			addToast(
-				t('images_uploaded', $language, {
-					default: 'تم رفع {{count}} صور بنجاح',
-					count: successCount
-				}),
-				'success'
-			);
-		}
-
-		if (failureCount > 0) {
-			addToast(
-				t('some_images_failed', $language, {
-					default: 'فشل رفع {{count}} صور',
-					count: failureCount
-				}),
-				'error'
-			);
-		}
-
-		return uploadResults;
-	}
-
-	// Form submission handler
-
-	// Parent component submit handler
 	// Parent component submit handler
 	async function handleSubmit(event) {
 		loading = true;
@@ -190,6 +106,7 @@
 			const { property, images } = event.detail;
 
 			console.log('Submitting Property Data:', property);
+			console.log('Images to upload:', images?.length || 0);
 
 			if (!property) {
 				throw new Error('No property data provided');
@@ -205,13 +122,32 @@
 
 			// Create property
 			const newProperty = await properties.createProperty(property);
+			console.log('Property created successfully:', newProperty);
 
-			// Success handling
+			// Success notification
 			addToast(t('property_created', $language, { default: 'تم إنشاء العقار بنجاح' }), 'success');
 
 			// Upload images if any
 			if (images && images.length > 0) {
-				await uploadPropertyImages(newProperty.id, images);
+				isUploading = true;
+
+				// Upload images with progress tracking
+				const uploadResult = await uploadMultiplePropertyImages(
+					newProperty.id,
+					images,
+					(progress) => {
+						// Update progress state for UI
+						uploadProgress = {
+							current: progress.currentImage,
+							total: progress.totalImages,
+							percentage: progress.progress || 0
+						};
+					},
+					$language
+				);
+
+				isUploading = false;
+				console.log('Image upload complete:', uploadResult);
 			}
 
 			// Navigate to new property page
@@ -219,6 +155,7 @@
 		} catch (error) {
 			// Log the detailed error
 			console.error('Property Creation Error:', error);
+			isUploading = false;
 
 			// Handle API errors with details
 			if (error.details && typeof error.details === 'object') {
@@ -252,6 +189,7 @@
 			loading = false;
 		}
 	}
+
 	// Simple cancellation handler
 	function handleCancel() {
 		goto('/properties');
@@ -362,6 +300,29 @@
 					})}
 				</p>
 			</header>
+
+			{#if isUploading}
+				<div class="p-4 bg-surface-200-700-token">
+					<div class="flex flex-col gap-2">
+						<div class="flex justify-between items-center">
+							<span class="font-medium">
+								{t('uploading_images', $language, { default: 'جاري رفع الصور...' })}
+							</span>
+							<span>
+								{uploadProgress.current}/{uploadProgress.total}
+								({Math.round(uploadProgress.percentage)}%)
+							</span>
+						</div>
+						<div class="progress h-2">
+							<div
+								class="progress-bar bg-primary-500"
+								style="width: {uploadProgress.percentage}%;"
+							></div>
+						</div>
+					</div>
+				</div>
+			{/if}
+
 			<div class="p-4">
 				<PropertyForm {loading} {error} on:submit={handleSubmit} on:cancel={handleCancel} />
 			</div>
@@ -386,5 +347,17 @@
 		100% {
 			transform: rotate(360deg);
 		}
+	}
+
+	.progress {
+		width: 100%;
+		background-color: rgba(0, 0, 0, 0.1);
+		border-radius: 0.25rem;
+		overflow: hidden;
+	}
+
+	.progress-bar {
+		height: 100%;
+		transition: width 0.3s ease;
 	}
 </style>

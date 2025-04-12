@@ -98,6 +98,9 @@
 	}
 
 	// Parent component submit handler
+	/**
+	 * Enhanced handleSubmit for the Properties Add Page
+	 */
 	async function handleSubmit(event) {
 		loading = true;
 		error = null;
@@ -107,6 +110,20 @@
 
 			console.log('Submitting Property Data:', property);
 			console.log('Images to upload:', images?.length || 0);
+
+			// Log image details for debugging
+			if (images && images.length > 0) {
+				images.forEach((img, index) => {
+					console.log(`Image ${index + 1}:`, {
+						fileName: img.file?.name,
+						fileType: img.file?.type,
+						fileSize: img.file?.size,
+						isPrimary: img.is_primary,
+						hasUrl: Boolean(img.url),
+						uploaded: img.uploaded
+					});
+				});
+			}
 
 			if (!property) {
 				throw new Error('No property data provided');
@@ -130,24 +147,71 @@
 			// Upload images if any
 			if (images && images.length > 0) {
 				isUploading = true;
+				console.log(`Starting upload of ${images.length} images for property ${newProperty.id}`);
 
-				// Upload images with progress tracking
-				const uploadResult = await uploadMultiplePropertyImages(
-					newProperty.id,
-					images,
-					(progress) => {
-						// Update progress state for UI
+				// Filter out any images without files
+				const imagesToUpload = images.filter((img) => img.file && !img.uploaded);
+				console.log(`${imagesToUpload.length} images have files to upload`);
+
+				// Upload each image individually using fetch for better control
+				for (let i = 0; i < imagesToUpload.length; i++) {
+					const image = imagesToUpload[i];
+					const formData = new FormData();
+
+					// Add the image file
+					formData.append('image', image.file);
+
+					// Add metadata
+					formData.append('is_primary', image.is_primary ? 'true' : 'false');
+					formData.append('caption', image.caption || '');
+					formData.append('alt_text', image.alt_text || image.file.name || '');
+					formData.append('order', i.toString());
+
+					// Log what we're uploading
+					console.log(`Uploading image ${i + 1}/${imagesToUpload.length}:`, {
+						fileName: image.file.name,
+						fileSize: image.file.size,
+						isPrimary: image.is_primary
+					});
+
+					try {
+						// Update progress
 						uploadProgress = {
-							current: progress.currentImage,
-							total: progress.totalImages,
-							percentage: progress.progress || 0
+							current: i + 1,
+							total: imagesToUpload.length,
+							percentage: ((i + 1) / imagesToUpload.length) * 100
 						};
-					},
-					$language
-				);
+
+						// Get auth token
+						const token = tokenManager.getAccessToken();
+
+						// Make the fetch request
+						const response = await fetch(`${API_URL}/properties/${newProperty.id}/images/`, {
+							method: 'POST',
+							headers: {
+								Authorization: `Bearer ${token}`
+								// Don't set Content-Type, let browser set it for multipart/form-data
+							},
+							body: formData
+						});
+
+						// Handle response
+						if (!response.ok) {
+							const errorText = await response.text();
+							console.error(`Error uploading image ${i + 1}:`, errorText);
+							throw new Error(`Error uploading image: ${errorText}`);
+						}
+
+						const responseData = await response.json();
+						console.log(`Successfully uploaded image ${i + 1}:`, responseData);
+					} catch (uploadError) {
+						console.error(`Error uploading image ${i + 1}:`, uploadError);
+						// Continue to next image
+					}
+				}
 
 				isUploading = false;
-				console.log('Image upload complete:', uploadResult);
+				console.log('All image uploads attempted');
 			}
 
 			// Navigate to new property page

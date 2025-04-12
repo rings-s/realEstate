@@ -28,9 +28,26 @@ def validate_image_size(file):
 
 def property_image_path(instance, filename):
     """Generate a unique path for property images"""
+    import os
+    import uuid
+
     ext = filename.split('.')[-1].lower() if '.' in filename else ''
-    filename = f"{uuid.uuid4()}.{ext}"
-    return os.path.join('properties', str(instance.property.id), 'images', filename)
+    new_filename = f"{uuid.uuid4()}.{ext}"
+
+    # Handle case where property might not be set yet or accessible
+    property_id = None
+    try:
+        if hasattr(instance, 'property') and instance.property:
+            property_id = instance.property.id
+    except Exception:
+        # If we can't access property.id for any reason, use a fallback
+        pass
+
+    # Use a default directory if property ID is not available
+    if property_id is None:
+        return os.path.join('properties', 'temp', 'images', new_filename)
+
+    return os.path.join('properties', str(property_id), 'images', new_filename)
 
 
 def auction_image_path(instance, filename):
@@ -527,29 +544,50 @@ class Property(models.Model):
             from .utils import arabic_slugify
             self.slug = arabic_slugify(self.title)
 
-            # Ensure uniqueness - use try/except to handle the case where the table doesn't exist yet
+            # Ensure uniqueness - use safer approach to avoid connection attribute error
             try:
                 original_slug = self.slug
                 count = 1
-                # Add a safety limit to prevent infinite loops
                 max_attempts = 100
                 attempts = 0
 
-                # Only check for existing slugs when saving to the database (not during migrations)
+                # Fix: Don't use connection.schema_editor.connection which causes the error
+                # Instead, directly check for existing slugs
                 from django.db import connection
-                if connection.schema_editor.connection.features.can_introspect_foreign_keys:
-                    while (attempts < max_attempts and
-                           Property.objects.filter(slug=self.slug).exclude(pk=self.pk).exists()):
+                table_exists = False
+
+                try:
+                    # Check if the table exists by running a simple query
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT 1 FROM information_schema.tables WHERE table_name = %s",
+                            [self._meta.db_table]
+                        )
+                        table_exists = cursor.fetchone() is not None
+                except Exception:
+                    # If we can't check (e.g., during migrations), assume table doesn't exist
+                    table_exists = False
+
+                # Only check for existing slugs if the table exists
+                if table_exists:
+                    while attempts < max_attempts:
+                        # Check if slug exists (excluding this instance)
+                        query = Property.objects.filter(slug=self.slug)
+                        if self.pk:
+                            query = query.exclude(pk=self.pk)
+
+                        if not query.exists():
+                            break
+
+                        # Create a new slug with a counter
                         self.slug = f"{original_slug}-{count}"
                         count += 1
                         attempts += 1
             except Exception as e:
-                # If the table doesn't exist yet or any other error occurs, just use the original slug
-                # This will happen during initial migrations
+                # If any error occurs during slug checking, log it and continue
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Error checking slug uniqueness: {str(e)}")
-                pass
 
         # Ensure location JSON is properly formatted and populated from individual fields
         if not self.location:

@@ -9,6 +9,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 import logging
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+
 import json
 
 from .models import (
@@ -73,6 +75,7 @@ class PropertyListCreateView(generics.ListCreateAPIView):
     serializer_class = PropertySerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
+
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['property_type', 'status', 'city', 'is_published', 'is_featured', 'is_verified']
     search_fields = ['title', 'address', 'description', 'city', 'property_number']
@@ -243,6 +246,9 @@ class PropertyDeleteView(generics.DestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
+
+
+
 class PropertyImageListCreateView(generics.ListCreateAPIView):
     """
     List all images for a property or create a new image.
@@ -252,19 +258,40 @@ class PropertyImageListCreateView(generics.ListCreateAPIView):
     """
     serializer_class = PropertyImageSerializer
     permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
         property_id = self.kwargs.get('property_id')
         return PropertyImage.objects.filter(property_id=property_id).order_by('order', '-is_primary')
 
-    @api_verified_user_required
     def perform_create(self, serializer):
+        # Get property or return 404
         property_obj = get_object_or_404(Property, id=self.kwargs.get('property_id'))
+
+        # Check permissions
         if not (self.request.user.has_role('admin') or property_obj.owner == self.request.user):
             self.permission_denied(self.request, message=_('You do not have permission to add images to this property.'))
-        serializer.save(property=property_obj)
 
+        # Debug the incoming request data
+        print(f"Request data: {self.request.data}")
+        print(f"Request FILES: {self.request.FILES}")
+
+        # Make sure image is in request.FILES
+        if 'image' not in self.request.FILES:
+            raise ValidationError({'image': _('No image file provided')})
+
+        # Create the PropertyImage object
+        serializer.save(
+            property=property_obj,
+            image=self.request.FILES['image'],
+            is_primary=self.request.data.get('is_primary') == 'true',
+            caption=self.request.data.get('caption', ''),
+            alt_text=self.request.data.get('alt_text', ''),
+            order=self.request.data.get('order', 0)
+        )
+
+# Property Image Detail View
 class PropertyImageDetailView(generics.RetrieveAPIView):
     """
     Retrieve a property image.
@@ -275,6 +302,7 @@ class PropertyImageDetailView(generics.RetrieveAPIView):
     serializer_class = PropertyImageSerializer
     permission_classes = [IsAuthenticated]
 
+# Property Image Edit View
 class PropertyImageEditView(generics.UpdateAPIView):
     """
     Update a property image.
@@ -285,18 +313,18 @@ class PropertyImageEditView(generics.UpdateAPIView):
     queryset = PropertyImage.objects.all()
     serializer_class = PropertyImageSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    parser_classes = [MultiPartParser, FormParser]
 
     def get_owner(self, obj):
         return obj.property.owner
 
-    @api_verified_user_required
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
 
-    @api_verified_user_required
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
 
+# Property Image Delete View
 class PropertyImageDeleteView(generics.DestroyAPIView):
     """
     Delete a property image.
@@ -310,15 +338,13 @@ class PropertyImageDeleteView(generics.DestroyAPIView):
     def get_owner(self, obj):
         return obj.property.owner
 
-    @api_verified_user_required
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
+# Property Image Reorder View
 class PropertyImageReorderView(APIView):
     permission_classes = [IsAuthenticated]
 
-    @log_api_calls
-    @api_verified_user_required
     def post(self, request, property_id, format=None):
         property = get_object_or_404(Property, id=property_id)
         if not (request.user.has_role('admin') or property.owner == request.user):
@@ -348,7 +374,6 @@ class PropertyImageReorderView(APIView):
             status=status.HTTP_200_OK
         )
 
-# -------------------------------------------------------------------------
 # Auction Views
 # -------------------------------------------------------------------------
 

@@ -386,6 +386,7 @@
 		// Enable detailed logging
 		console.log('Form Submission Started');
 		console.log('Form Data:', JSON.parse(JSON.stringify(formData)));
+		console.log('Images:', images);
 
 		try {
 			// Set submit attempted to true for validation
@@ -457,17 +458,17 @@
 				meta_description: formData.meta_description || ''
 			};
 
-			// Log the prepared data
+			// Log the prepared data and images
 			console.log('Prepared Property Data:', JSON.parse(JSON.stringify(propertyData)));
+			console.log('Images to upload:', images.length);
 
 			// Format data for API
 			const formattedData = formatPropertyData(propertyData);
-			console.log('Formatted Property Data:', JSON.parse(JSON.stringify(formattedData)));
 
-			// Dispatch submission event
+			// Dispatch submission event, now passing the prepared images array
 			dispatch('submit', {
 				property: formattedData,
-				images
+				images: images.filter((img) => img.file) // Only include images with actual files
 			});
 		} catch (err) {
 			// Set error and loading states
@@ -552,7 +553,7 @@
 	}
 
 	// Handle file selection from input
-	function handleFileSelection(files) {
+	async function handleFileSelection(files) {
 		if (!files || files.length === 0) return;
 
 		// Check if maximum number of images reached
@@ -575,6 +576,8 @@
 
 		// Process each file with validation
 		filesToProcess.forEach((file) => {
+			console.log('Processing file:', file.name, file.type, file.size);
+
 			const validation = validateImageFile(file);
 
 			if (validation.valid) {
@@ -590,11 +593,13 @@
 						url,
 						is_primary: images.length === 0, // First image is primary by default
 						caption: '',
-						alt_text: '',
+						alt_text: file.name || '', // Use filename as alt text by default
 						uploaded: false,
 						progress: 0
 					}
 				];
+
+				console.log('Added image to array, new length:', images.length);
 			} else {
 				// Report validation errors
 				validation.errors.forEach((error) => {
@@ -608,6 +613,9 @@
 		if (errorCount > 0) {
 			console.warn(`${errorCount} image(s) failed validation`);
 		}
+
+		// Dispatch updated images event
+		dispatch('imagesUpdate', { images });
 	}
 
 	// Handle file input change

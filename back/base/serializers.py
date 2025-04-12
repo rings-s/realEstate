@@ -9,9 +9,17 @@ from accounts.models import Role
 from accounts.serializers import (
     RoleSerializer, UserProfileSerializer
 )
+
+
 import json
 
+
+
 User = get_user_model()
+
+
+
+
 
 
 # -------------------------------------------------------------------------
@@ -230,7 +238,7 @@ class PropertyImageSerializer(BaseModelSerializer):
             'width': {'read_only': True, 'label': _('العرض')},
             'height': {'read_only': True, 'label': _('الارتفاع')},
             'file_size': {'read_only': True, 'label': _('حجم الملف (كيلوبايت)')},
-            'image': {'label': _('الصورة')},
+            'image': {'label': _('الصورة'), 'required': True},  # Explicitly mark as required
             'is_primary': {'label': _('صورة رئيسية')},
             'caption': {'label': _('التعليق')},
             'alt_text': {'label': _('النص البديل')},
@@ -240,12 +248,20 @@ class PropertyImageSerializer(BaseModelSerializer):
 
     def get_image_url(self, obj):
         if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
             return obj.image.url
         return None
 
     def get_property_title(self, obj):
         return obj.property.title if obj.property else None
 
+    def validate(self, data):
+        """Validate that an image is provided for POST requests"""
+        if self.context['request'].method == 'POST' and 'image' not in self.context['request'].FILES:
+            raise serializers.ValidationError({"image": "An image file is required"})
+        return data
 
 class PropertySerializer(BaseModelSerializer):
     """Serializer for Property model"""

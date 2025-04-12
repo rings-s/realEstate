@@ -293,6 +293,9 @@
 	let dropTarget;
 
 	// Upload images
+	/**
+	 * Enhanced uploadImages function for PropertyImages.svelte
+	 */
 	async function uploadImages(files) {
 		// Check if maximum number of images reached
 		if (images.length + files.length > maxImages) {
@@ -355,15 +358,24 @@
 			const formData = new FormData();
 			formData.append('image', file);
 
-			// Set as primary if it's the first image
-			if (images.length === 0 && i === 0) {
-				formData.append('is_primary', 'true');
-			}
+			// Set as primary if it's the first image and no other images exist
+			const isPrimary = images.length === 0 && i === 0;
+			formData.append('is_primary', isPrimary ? 'true' : 'false');
 
 			// Set the order based on current images length
-			formData.append('order', images.length + i);
+			formData.append('order', (images.length + i).toString());
+
+			// Add caption and alt_text (even if empty)
+			formData.append('caption', '');
+			formData.append('alt_text', '');
 
 			try {
+				// Debug what we're sending
+				console.log('Uploading image with FormData:');
+				for (let [key, value] of formData.entries()) {
+					console.log(`${key}: ${value instanceof File ? value.name : value}`);
+				}
+
 				// Simulate upload progress
 				const updateProgress = () => {
 					uploadProgress = Math.min(100, uploadProgress + 5);
@@ -373,18 +385,26 @@
 				};
 				updateProgress();
 
+				// Use fetch directly to have more control over the request
+				const token = localStorage.getItem('auth_token');
 				const response = await fetch(`${API_URL}/properties/${propertyId}/images/`, {
 					method: 'POST',
-					headers: getHeaders(),
+					headers: {
+						Authorization: token ? `Bearer ${token}` : ''
+						// Do NOT set Content-Type; browser will set it with boundary for multipart/form-data
+					},
 					body: formData
 				});
 
+				// Check response status
 				if (!response.ok) {
-					const error = await response.json();
-					throw new Error(error.error || 'Failed to upload image');
+					const errorData = await response.json();
+					console.error('Image upload error response:', errorData);
+					throw new Error(errorData.error || 'Failed to upload image');
 				}
 
 				const newImage = await response.json();
+				console.log('Image upload success:', newImage);
 
 				// Update local state
 				if (newImage.is_primary) {

@@ -247,8 +247,6 @@ class PropertyImageSerializer(BaseModelSerializer):
         return obj.property.title if obj.property else None
 
 
-# Update the Property serializer in base/serializers.py
-
 class PropertySerializer(BaseModelSerializer):
     """Serializer for Property model"""
     images = PropertyImageSerializer(many=True, read_only=True, label=_('الصور'))
@@ -342,6 +340,7 @@ class PropertySerializer(BaseModelSerializer):
                     representation[field] = {}
 
         return representation
+
 
 class PropertyViewSerializer(BaseModelSerializer):
     """Serializer for PropertyView model"""

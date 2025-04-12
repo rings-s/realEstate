@@ -362,26 +362,30 @@ export const logout = async () => {
 
 	try {
 		const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+		const accessToken = localStorage.getItem(TOKEN_KEY);
 
-		if (refreshToken) {
-			// Call logout API
+		// Only try to call the logout API if both tokens exist
+		if (refreshToken && accessToken) {
 			try {
-				await fetch(`${API_URL}/accounts/logout/`, {
+				// Use API utility instead of raw fetch to handle auth headers
+				const response = await fetch(`${API_URL}/accounts/logout/`, {
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/json',
-						Authorization: `Bearer ${localStorage.getItem(TOKEN_KEY)}`
+						Authorization: `Bearer ${accessToken}`
 					},
 					body: JSON.stringify({ refresh: refreshToken })
 				});
-				// We don't need to check response as we'll logout locally anyway
+
+				console.log('Logout API response:', response.status);
 			} catch (e) {
 				console.warn('Logout API call failed, continuing with local logout:', e);
-				// Continue with local logout regardless of API call result
 			}
+		} else {
+			console.log('No tokens found for server logout, proceeding with local logout');
 		}
 
-		// Clear local storage
+		// Always clear local storage regardless of API response
 		localStorage.removeItem(TOKEN_KEY);
 		localStorage.removeItem(REFRESH_TOKEN_KEY);
 		localStorage.removeItem(TOKEN_EXPIRY_KEY);
@@ -390,13 +394,14 @@ export const logout = async () => {
 		// Update stores
 		isAuthenticated.set(false);
 		currentUser.set(null);
-		authLoading.set(false);
 
-		// Show logout message
+		// Show success message
 		addToast(t('logout_success', get(language), { default: 'تم تسجيل الخروج بنجاح' }), 'success');
 
-		// Redirect to home page
-		goto('/');
+		// Redirect to home page after a short delay to allow toast to be seen
+		setTimeout(() => {
+			goto('/');
+		}, 300);
 
 		return true;
 	} catch (error) {
@@ -412,7 +417,10 @@ export const logout = async () => {
 		isAuthenticated.set(false);
 		currentUser.set(null);
 
+		goto('/');
 		return false;
+	} finally {
+		authLoading.set(false);
 	}
 };
 

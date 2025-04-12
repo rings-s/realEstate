@@ -60,24 +60,18 @@ def contract_file_path(instance, filename):
 
 
 # -------------------------------------------------------------------------
-# Base Models
+# Base Image Model
 # -------------------------------------------------------------------------
 
-class BaseModel(models.Model):
-    """Base model with common fields for all models"""
-    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
-
-    class Meta:
-        abstract = True
-
-
-class BaseImageModel(BaseModel):
+class BaseImageModel(models.Model):
     """Base model for all image models"""
     alt_text = models.CharField(_('النص البديل'), max_length=255, blank=True)
     width = models.PositiveIntegerField(_('العرض'), blank=True, null=True, editable=False)
     height = models.PositiveIntegerField(_('الارتفاع'), blank=True, null=True, editable=False)
     file_size = models.PositiveIntegerField(_('حجم الملف (كيلوبايت)'), blank=True, null=True, editable=False)
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
 
     class Meta:
         abstract = True
@@ -104,7 +98,7 @@ class BaseImageModel(BaseModel):
 # Messaging Models
 # -------------------------------------------------------------------------
 
-class MessageThread(BaseModel):
+class MessageThread(models.Model):
     """Model for message threads/conversations"""
     THREAD_TYPES = [
         ('inquiry', _('استفسار')),
@@ -165,6 +159,10 @@ class MessageThread(BaseModel):
         help_text=_('بيانات إضافية للواجهة الأمامية')
     )
 
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
+
     class Meta:
         verbose_name = _('محادثة')
         verbose_name_plural = _('المحادثات')
@@ -186,7 +184,7 @@ class MessageThread(BaseModel):
         super().save(*args, **kwargs)
 
 
-class ThreadParticipant(BaseModel):
+class ThreadParticipant(models.Model):
     """Model for participants in a message thread"""
     thread = models.ForeignKey(
         MessageThread,
@@ -217,6 +215,10 @@ class ThreadParticipant(BaseModel):
     # Custom permissions as JSON
     custom_permissions = models.JSONField(_('صلاحيات مخصصة'), default=dict, blank=True)
 
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
+
     class Meta:
         verbose_name = _('مشارك في المحادثة')
         verbose_name_plural = _('المشاركون في المحادثة')
@@ -230,7 +232,7 @@ class ThreadParticipant(BaseModel):
         return f"{self.user.email} in {self.thread.subject}"
 
 
-class Message(BaseModel):
+class Message(models.Model):
     """Model for messages in threads"""
     MESSAGE_TYPES = [
         ('text', _('نص')),
@@ -302,6 +304,10 @@ class Message(BaseModel):
     # Message metadata
     metadata = models.JSONField(_('بيانات وصفية'), default=dict, blank=True)
 
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
+
     class Meta:
         verbose_name = _('رسالة')
         verbose_name_plural = _('الرسائل')
@@ -345,7 +351,7 @@ class Message(BaseModel):
 # Property Models
 # -------------------------------------------------------------------------
 
-class Property(BaseModel):
+class Property(models.Model):
     """Model for real estate properties"""
     PROPERTY_TYPES = [
         ('residential', _('سكني')),
@@ -489,6 +495,10 @@ class Property(BaseModel):
         help_text=_('بيانات إضافية للواجهة الأمامية')
     )
 
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
+
     class Meta:
         verbose_name = _('عقار')
         verbose_name_plural = _('العقارات')
@@ -516,12 +526,30 @@ class Property(BaseModel):
         if not self.slug:
             from .utils import arabic_slugify
             self.slug = arabic_slugify(self.title)
-            # Ensure uniqueness
-            original_slug = self.slug
-            count = 1
-            while Property.objects.filter(slug=self.slug).exclude(pk=self.pk).exists():
-                self.slug = f"{original_slug}-{count}"
-                count += 1
+
+            # Ensure uniqueness - use try/except to handle the case where the table doesn't exist yet
+            try:
+                original_slug = self.slug
+                count = 1
+                # Add a safety limit to prevent infinite loops
+                max_attempts = 100
+                attempts = 0
+
+                # Only check for existing slugs when saving to the database (not during migrations)
+                from django.db import connection
+                if connection.schema_editor.connection.features.can_introspect_foreign_keys:
+                    while (attempts < max_attempts and
+                           Property.objects.filter(slug=self.slug).exclude(pk=self.pk).exists()):
+                        self.slug = f"{original_slug}-{count}"
+                        count += 1
+                        attempts += 1
+            except Exception as e:
+                # If the table doesn't exist yet or any other error occurs, just use the original slug
+                # This will happen during initial migrations
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"Error checking slug uniqueness: {str(e)}")
+                pass
 
         # Ensure location JSON is properly formatted and populated from individual fields
         if not self.location:
@@ -537,7 +565,6 @@ class Property(BaseModel):
 
         # Save the model
         super().save(*args, **kwargs)
-
 
 
 class PropertyImage(BaseImageModel):
@@ -597,7 +624,7 @@ class PropertyImage(BaseImageModel):
         super().save(*args, **kwargs)
 
 
-class PropertyView(BaseModel):
+class PropertyView(models.Model):
     """Model for property views (e.g., street view, floor plan)"""
     VIEW_TYPES = [
         ('street', _('عرض الشارع')),
@@ -674,6 +701,10 @@ class PropertyView(BaseModel):
         # Example: {"camera_position": {"x": 0, "y": 1.5, "z": 0}, "lighting": "natural", "render_quality": "high"}
     )
 
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
+
     class Meta:
         verbose_name = _('عرض العقار')
         verbose_name_plural = _('عروض العقار')
@@ -687,11 +718,9 @@ class PropertyView(BaseModel):
 # Auction Models
 # -------------------------------------------------------------------------
 
-class Auction(BaseModel):
+class Auction(models.Model):
     """Model for property auctions"""
     AUCTION_TYPES = [
-        ('english', _('مزاد إنجليزي')),
-        ('dutch', _('مزاد هولندي')),
         ('sealed', _('مزاد العطاءات المغلقة')),
         ('reserve', _('مزاد بحد أدنى')),
         ('no_reserve', _('مزاد بدون حد أدنى')),
@@ -810,6 +839,10 @@ class Auction(BaseModel):
         # Example: {"daily_views": {"2023-01-01": 150, "2023-01-02": 210}, "bidder_demographics": {"regions": {"الرياض": 60%, "جدة": 25%}}}
     )
 
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
+
     class Meta:
         verbose_name = _('مزاد')
         verbose_name_plural = _('المزادات')
@@ -888,7 +921,7 @@ class AuctionImage(BaseImageModel):
         super().save(*args, **kwargs)
 
 
-class Bid(BaseModel):
+class Bid(models.Model):
     """Model for auction bids"""
     STATUS_CHOICES = [
         ('pending', _('قيد الانتظار')),
@@ -941,6 +974,10 @@ class Bid(BaseModel):
         help_text=_('معلومات عن حالة الدفع والتأمين للمزايدة')
         # Example: {"deposit_paid": true, "deposit_amount": 5000, "payment_method": "bank_transfer", "payment_date": "2023-01-15"}
     )
+
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
 
     class Meta:
         verbose_name = _('مزايدة')
@@ -1006,7 +1043,7 @@ class Bid(BaseModel):
 # Document Models
 # -------------------------------------------------------------------------
 
-class Document(BaseModel):
+class Document(models.Model):
     """Model for document files"""
     DOCUMENT_TYPES = [
         ('deed', _('صك ملكية')),
@@ -1130,6 +1167,10 @@ class Document(BaseModel):
     is_public = models.BooleanField(_('متاح للجميع'), default=False)
     access_code = models.CharField(_('رمز الوصول'), max_length=50, blank=True)
 
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
+
     class Meta:
         verbose_name = _('وثيقة')
         verbose_name_plural = _('الوثائق')
@@ -1210,7 +1251,7 @@ class Document(BaseModel):
 # Contract Model
 # -------------------------------------------------------------------------
 
-class Contract(BaseModel):
+class Contract(models.Model):
     """Model for property contracts"""
     STATUS_CHOICES = [
         ('draft', _('مسودة')),
@@ -1343,6 +1384,10 @@ class Contract(BaseModel):
         # Example: [{"role": "buyer", "user_id": 123, "name": "أحمد محمد", "signature_status": "signed", "signature_date": "2023-01-15T10:30:00Z"}, ...]
     )
 
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
+
     class Meta:
         verbose_name = _('عقد')
         verbose_name_plural = _('العقود')
@@ -1385,7 +1430,7 @@ class Contract(BaseModel):
 # Notification Models
 # -------------------------------------------------------------------------
 
-class Notification(BaseModel):
+class Notification(models.Model):
     """Model for user notifications"""
     NOTIFICATION_TYPES = [
         ('auction_start', _('بدء المزاد')),
@@ -1477,6 +1522,10 @@ class Notification(BaseModel):
         help_text=_('بيانات إضافية عن الإشعار')
         # Example: {"auction_details": {"title": "مزاد فيلا الرياض", "current_bid": 1500000}, "action_type": "view_auction"}
     )
+
+    # Fields moved from BaseModel
+    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
+    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
 
     class Meta:
         verbose_name = _('إشعار')

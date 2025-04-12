@@ -133,33 +133,12 @@ src/
 
 
 
-api.js:226
- POST http://localhost:8000/api/properties/ 400 (Bad Request)
-apiRequest	@	api.js:226
-post	@	api.js:275
-createProperty	@	propertyService.js:111
-createProperty	@	properties.js:184
-handleSubmit	@	+page.svelte:193
-(anonymous)	@	PropertyForm.svelte:368
-setTimeout
-submitResult	@	PropertyForm.svelte:366
-handleSubmit	@	PropertyForm.svelte:364
-properties.js:203 Error creating property: ApiError: An error occurred
-    at handleResponse (api.js:157:9)
-    at async apiRequest (api.js:227:10)
-    at async Module.createProperty (propertyService.js:111:20)
-    at async Object.createProperty (properties.js:184:25)
-createProperty	@	properties.js:203
-await in createProperty
-handleSubmit	@	+page.svelte:193
-(anonymous)	@	PropertyForm.svelte:368
-setTimeout
-submitResult	@	PropertyForm.svelte:366
-handleSubmit	@	PropertyForm.svelte:364
-+page.svelte:211 Property Creation Error: ApiError: An error occurred
-    at handleResponse (api.js:157:9)
-    at async apiRequest (api.js:227:10)
-    at async Module.createProperty (propertyService.js:111:20)
-    at async Object.createProperty (properties.js:184:25)
-
-﻿
+"""
+Error checking slug uniqueness: 'function' object has no attribute 'connection'
+[12/Apr/2025 07:43:14] "POST /api/properties/ HTTP/1.1" 201 1284
+[12/Apr/2025 07:43:14] "OPTIONS /api/properties/1/images/ HTTP/1.1" 200 0
+Bad Request: /api/properties/1/images/
+[12/Apr/2025 07:43:14] "POST /api/properties/1/images/ HTTP/1.1" 400 104
+Bad Request: /api/properties/1/images/
+[12/Apr/2025 07:43:14] "POST /api/properties/1/images/ HTTP/1.1" 400 104
+"""

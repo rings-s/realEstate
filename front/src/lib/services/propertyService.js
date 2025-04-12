@@ -203,7 +203,8 @@ export const parsePropertyData = (propertyData) => {
  * @param {Object} propertyData - Property data
  * @returns {Promise<Object>} Created property response
  */
-export const createProperty = async (propertyData) => {
+// In propertyService.js, update the createProperty function
+export const createProperty = async (propertyData, maxRetries = 2) => {
 	// Enhanced validation
 	const requiredFields = ['title', 'property_type', 'address', 'city'];
 	const missingFields = [];
@@ -221,43 +222,58 @@ export const createProperty = async (propertyData) => {
 		throw new Error(`Required fields missing: ${missingFields.join(', ')}`);
 	}
 
-	try {
-		// Format data properly before sending to API
-		const formattedData = formatPropertyData(propertyData);
+	let lastError = null;
+	let retryCount = 0;
 
-		// Log the exact data being sent for debugging
-		console.log('Sending property data to API:', formattedData);
+	while (retryCount <= maxRetries) {
+		try {
+			// Format data properly before sending to API
+			const formattedData = formatPropertyData(propertyData);
 
-		// Make the API request
-		const response = await post(ENDPOINTS.PROPERTY.CREATE, formattedData);
-		return response;
-	} catch (error) {
-		// Enhanced error logging
-		console.error('Property Creation Error:', error);
+			// Log the exact data being sent for debugging
+			console.log('Sending property data to API:', formattedData);
 
-		// Check for validation errors from the backend
-		if (error.details) {
-			const errorMessages = [];
+			// Make the API request
+			const response = await post(ENDPOINTS.PROPERTY.CREATE, formattedData);
+			return response;
+		} catch (error) {
+			lastError = error;
+			console.error(`Property Creation Error (attempt ${retryCount + 1}):`, error);
 
-			// Process field errors
-			Object.entries(error.details).forEach(([field, messages]) => {
-				if (Array.isArray(messages)) {
-					errorMessages.push(`${field}: ${messages.join(', ')}`);
-				} else if (typeof messages === 'string') {
-					errorMessages.push(`${field}: ${messages}`);
-				} else {
-					errorMessages.push(`${field}: Invalid value`);
-				}
-			});
-
-			if (errorMessages.length > 0) {
-				throw new Error(errorMessages.join('. '));
+			// Only retry for 500 errors
+			if (error.status === 500 && retryCount < maxRetries) {
+				retryCount++;
+				// Wait before retrying (exponential backoff)
+				await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
+				continue;
 			}
-		}
 
-		// If no specific details, throw the original error
-		throw error;
+			// Check for validation errors from the backend
+			if (error.details) {
+				const errorMessages = [];
+
+				// Process field errors
+				Object.entries(error.details).forEach(([field, messages]) => {
+					if (Array.isArray(messages)) {
+						errorMessages.push(`${field}: ${messages.join(', ')}`);
+					} else if (typeof messages === 'string') {
+						errorMessages.push(`${field}: ${messages}`);
+					} else {
+						errorMessages.push(`${field}: Invalid value`);
+					}
+				});
+
+				if (errorMessages.length > 0) {
+					throw new Error(errorMessages.join('. '));
+				}
+			}
+
+			// If no specific details, throw the original error
+			throw error;
+		}
 	}
+
+	throw lastError;
 };
 
 /**

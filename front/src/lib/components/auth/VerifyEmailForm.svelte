@@ -108,6 +108,7 @@
 		error = '';
 
 		try {
+			console.log(`Requesting verification code resend for: ${email}`);
 			await authService.resendVerification(email);
 
 			uiStore.showToast(
@@ -195,7 +196,6 @@
 				dir={$isRTL ? 'rtl' : 'ltr'}
 				required
 				maxlength="6"
-				pattern="[0-9]{6}"
 				inputmode="numeric"
 			/>
 		</label>

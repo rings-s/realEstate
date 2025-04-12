@@ -826,7 +826,7 @@ def get_user_permissions(user) -> set:
     if not user or not hasattr(user, 'is_authenticated') or not user.is_authenticated:
         return set()
     permissions = set()
-    if user.has_role(Role.ADMIN):
+    if user.has_role('admin'):
         permissions.update([
             'can_create_property',
             'can_create_auction',
@@ -839,23 +839,22 @@ def get_user_permissions(user) -> set:
         return permissions
 
     # Role-based permissions
-    if user.has_role(Role.SELLER) or user.has_role(Role.OWNER):
+    if user.has_role('seller') or user.has_role('owner'):
         permissions.update(['can_create_property', 'can_create_auction', 'can_manage_owned_properties'])
 
-    if user.has_role(Role.AGENT):
+    if user.has_role('agent'):
         permissions.update(['can_create_property', 'can_create_auction', 'can_represent_clients'])
 
-    if user.has_role(Role.LEGAL):
+    if user.has_role('legal'):
         permissions.update(['can_verify_documents', 'can_approve_contracts'])
 
-    if user.has_role(Role.INSPECTOR):
+    if user.has_role('inspector'):
         permissions.update(['can_create_property_reports', 'can_verify_properties'])
 
-    if user.has_role(Role.BIDDER):
+    if user.has_role('bidder'):  # Changed from Role.BIDDER to 'bidder'
         permissions.update(['can_place_bids', 'can_view_auction_details'])
 
     return permissions
-
 
 def check_user_permission(user, permission_name: str) -> bool:
     """

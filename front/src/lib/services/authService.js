@@ -87,6 +87,8 @@ export const verifyEmail = async (email, verificationCode) => {
  */
 export const resendVerification = async (email) => {
 	try {
+		console.log(`Attempting to resend verification to: ${email}`);
+
 		const response = await fetch(`${API_URL}/accounts/resend-verification/`, {
 			method: 'POST',
 			headers: {
@@ -98,16 +100,17 @@ export const resendVerification = async (email) => {
 		const data = await response.json();
 
 		if (!response.ok) {
+			console.error('Resend verification error response:', data);
 			throw new Error(data.error || 'Failed to resend verification');
 		}
 
+		console.log('Resend verification successful:', data);
 		return data;
 	} catch (error) {
 		console.error('Resend verification error:', error);
 		throw error;
 	}
 };
-
 /**
  * Login user
  * @param {string} email - User email

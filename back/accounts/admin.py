@@ -5,7 +5,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.translation import gettext_lazy as _
-from .models import CustomUser, Role, UserProfile
+from .models import CustomUser, Role, UserProfile, UserImage
 from django.contrib.auth.models import Group
 
 
@@ -73,7 +73,7 @@ class CustomUserAdmin(UserAdmin):
     search_fields = ('email', 'first_name', 'last_name', 'phone_number', 'uuid')
     ordering = ('email',)
     readonly_fields = ('id', 'uuid',)
-    
+
     fieldsets = (
         (_('معلومات الحساب'), {
             'fields': ('id', 'uuid', 'email', 'password', 'is_active', 'is_verified')
@@ -91,7 +91,7 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('date_joined', 'last_login')
         }),
     )
-    
+
     add_fieldsets = (
         (_('معلومات الحساب'), {
             'classes': ('wide',),
@@ -106,10 +106,10 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('roles', 'is_staff', 'is_superuser'),
         }),
     )
-    
+
     filter_horizontal = ('roles', 'groups', 'user_permissions')
     inlines = [UserProfileInline]
-    
+
     def primary_role(self, obj):
         """
         Get the user's primary role for display in the admin
@@ -152,5 +152,27 @@ class UserProfileAdmin(admin.ModelAdmin):
         }),
         (_('تواريخ'), {
             'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+
+# accounts/admin.py
+# Add this to register the UserImage model
+
+@admin.register(UserImage)
+class UserImageAdmin(admin.ModelAdmin):
+    """
+    Admin configuration for the UserImage model
+    """
+    list_display = ('user', 'image_type', 'is_primary', 'caption', 'created_at')
+    list_filter = ('image_type', 'is_primary')
+    search_fields = ('user__email', 'caption')
+    readonly_fields = ('created_at',)
+    fieldsets = (
+        (_('المستخدم والصورة'), {
+            'fields': ('user', 'image', 'image_type', 'is_primary')
+        }),
+        (_('معلومات إضافية'), {
+            'fields': ('caption', 'created_at')
         }),
     )

@@ -123,6 +123,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
     Serializer for retrieving user profile information
     Combines User and UserProfile models
     """
+    avatar_url = serializers.SerializerMethodField()
+
     primary_role = serializers.SerializerMethodField(label=_('الدور الأساسي'))
     roles = serializers.SerializerMethodField(label=_('الأدوار'))
     company_name = serializers.CharField(source='profile.company_name', required=False, allow_null=True, allow_blank=True, label=_('اسم الشركة'))
@@ -171,6 +173,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             'rating',
             'date_joined',
             'is_active',
+            'avatar_url'
         )
         read_only_fields = (
             'id',
@@ -236,6 +239,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
             rep['license_expiry'] = None
 
         return rep
+
+    def get_avatar_url(self, obj):
+            request = self.context.get('request')
+            if obj.avatar and request:
+                return request.build_absolute_uri(obj.avatar.url)
+            return None
 
 
 class UserProfileUpdateSerializer(serializers.ModelSerializer):

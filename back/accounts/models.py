@@ -1,7 +1,5 @@
-# Path: accounts/models.py
-# This file defines the user and role models for the auction platform
-# The CustomUser model includes a UUID field to support more robust identification
-
+import os
+from django.utils import timezone
 from django.db import models
 from django.contrib.auth.models import AbstractUser, BaseUserManager, Permission
 from django.utils.translation import gettext_lazy as _
@@ -11,6 +9,22 @@ from django.db import transaction
 import random
 import uuid
 from django.core.validators import RegexValidator, MinValueValidator
+
+
+
+
+def user_avatar_path(instance, filename):
+    # File will be uploaded to MEDIA_ROOT/users/<user_id>/avatars/<timestamp>_<filename>
+    timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+    return f'users/{instance.user.id}/avatars/{timestamp}_{filename}'
+
+def user_document_path(instance, filename):
+    # For any other user-related documents
+    timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+    return f'users/{instance.user.id}/documents/{timestamp}_{filename}'
+
+# Add this class after UserProfile
+
 
 class Role(models.Model):
     """

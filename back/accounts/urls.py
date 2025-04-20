@@ -1,46 +1,42 @@
+# accounts/urls.py
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView
 from . import views
 
 app_name = 'accounts'
 
 from django.http import JsonResponse
 
-
 def api_test(request):
     return JsonResponse({'status': 'ok', 'message': 'API is working!'})
 
-
-
 urlpatterns = [
-
     path('api/test/', api_test, name='api-test'),
 
     # Authentication endpoints
-    path('register/', views.register_user, name='register'),
-    path('verify-email/', views.verify_email, name='verify-email'),
-    path('login/', views.login_user, name='login'),
-    path('logout/', views.logout_user, name='logout'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
-    path('token/verify/', views.verify_token, name='verify-token'),
+    path('register/', views.RegisterView.as_view(), name='register'),
+    path('verify-email/', views.VerifyEmailView.as_view(), name='verify-email'),
+    path('login/', views.LoginView.as_view(), name='login'),
+    path('logout/', views.LogoutView.as_view(), name='logout'),
+    path('token/verify/', views.VerifyTokenView.as_view(), name='verify-token'),
 
     # Profile management
-    path('profile/', views.user_profile, name='profile'),
-    path('profile/<uuid:user_id>/', views.get_public_profile, name='public-profile'),
-    path('profile/avatar/', views.update_avatar, name='update-avatar'),
+    path('profile/', views.UserProfileView.as_view(), name='profile'),
+    path('profile/<uuid:user_id>/', views.PublicProfileView.as_view(), name='public-profile'),
+    path('profile/avatar/', views.UpdateAvatarView.as_view(), name='update-avatar'),
 
     # Password management
-    path('password/', views.change_password, name='change-password'),
-    path('password/reset/', views.request_password_reset, name='request-password-reset'),
-    path('resend-verification/', views.resend_verification, name='resend-verification'),
-    path('password/reset/verify/', views.verify_reset_code, name='verify-reset-token'),
-    path('password/reset/confirm/', views.reset_password, name='reset-password'),
+    path('password/', views.ChangePasswordView.as_view(), name='change-password'),
+    path('password/reset/', views.PasswordResetRequestView.as_view(), name='request-password-reset'),
+    path('resend-verification/', views.ResendVerificationView.as_view(), name='resend-verification'),
+    path('password/reset/verify/', views.VerifyResetCodeView.as_view(), name='verify-reset-token'),
+    path('password/reset/confirm/', views.ResetPasswordView.as_view(), name='reset-password'),
 
     # Role management
-    path('roles/assign/<uuid:user_id>/', views.assign_role, name='assign-role'),
-    path('dashboard/role/', views.role_dashboard, name='role-dashboard'),
-]
+    path('roles/assign/<uuid:user_id>/', views.AssignRoleView.as_view(), name='assign-role'),
+    path('dashboard/role/', views.RoleDashboardView.as_view(), name='role-dashboard'),
 
+
+]
 
 """
 Real Estate Auction Platform API Endpoints:

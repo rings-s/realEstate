@@ -1,7 +1,10 @@
-// Update the uploadPropertyImage function in propertyService.js
-
-// Update the uploadPropertyImage function in propertyService.js
-
+/**
+ * Upload a property image with progress tracking and error handling
+ * @param {string} propertyId - Property ID
+ * @param {File} imageFile - Image file
+ * @param {Object} options - Image options
+ * @returns {Promise<Object>} Uploaded image response
+ */
 export const uploadPropertyImage = async (
 	propertyId,
 	imageFile,
@@ -29,12 +32,9 @@ export const uploadPropertyImage = async (
 		formData.append('image', imageFile);
 		formData.append('is_primary', isPrimary ? 'true' : 'false');
 
-		if (caption) {
-			formData.append('caption', caption);
-		}
-
-		// Always include alt_text even if empty
+		// Always include alt_text and caption even if empty
 		formData.append('alt_text', alt_text || '');
+		formData.append('caption', caption || '');
 
 		if (order !== undefined && order !== null) {
 			formData.append('order', order.toString());
@@ -74,7 +74,13 @@ export const uploadPropertyImage = async (
 	}
 };
 
-// Update uploadMultiplePropertyImages to pass alt_text
+/**
+ * Upload multiple property images
+ * @param {string} propertyId - Property ID
+ * @param {Array} images - Array of image objects with file and metadata
+ * @param {Function} onProgress - Optional progress callback
+ * @returns {Promise<Array>} Array of uploaded image responses
+ */
 export const uploadMultiplePropertyImages = async (propertyId, images, onProgress = null) => {
 	if (!propertyId || !images?.length) {
 		return [];
@@ -101,64 +107,7 @@ export const uploadMultiplePropertyImages = async (propertyId, images, onProgres
 				const result = await uploadPropertyImage(propertyId, image.file, {
 					isPrimary: image.is_primary || i === 0, // Make first image primary by default
 					caption: image.caption || '',
-					alt_text: image.alt_text || '', // Now passing alt_text
-					order: i,
-					onProgress: (progress) => {
-						if (onProgress) {
-							onProgress({
-								currentImage: i + 1,
-								totalImages,
-								progress,
-								successCount,
-								failureCount
-							});
-						}
-					}
-				});
-
-				uploadResults.push(result);
-				successCount++;
-			} catch (error) {
-				console.error(`Error uploading image ${i + 1}:`, error);
-				failureCount++;
-			}
-		}
-
-		return uploadResults;
-	} catch (error) {
-		console.error('Error in batch image upload:', error);
-		throw error;
-	}
-};
-
-// Update uploadMultiplePropertyImages to pass alt_text
-export const uploadMultiplePropertyImages = async (propertyId, images, onProgress = null) => {
-	if (!propertyId || !images?.length) {
-		return [];
-	}
-
-	// Track upload progress
-	let successCount = 0;
-	let failureCount = 0;
-	const totalImages = images.length;
-	const uploadResults = [];
-
-	try {
-		// Process images sequentially
-		for (let i = 0; i < images.length; i++) {
-			const image = images[i];
-
-			// Skip already uploaded images or images without files
-			if (!image.file || image.uploaded) {
-				continue;
-			}
-
-			try {
-				// Upload the image with metadata
-				const result = await uploadPropertyImage(propertyId, image.file, {
-					isPrimary: image.is_primary || i === 0, // Make first image primary by default
-					caption: image.caption || '',
-					alt_text: image.alt_text || '', // Now passing alt_text
+					alt_text: image.alt_text || image.file.name || '', // Use filename as alt_text if not provided
 					order: i,
 					onProgress: (progress) => {
 						if (onProgress) {

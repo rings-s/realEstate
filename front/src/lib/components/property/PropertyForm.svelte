@@ -1,6 +1,5 @@
-<!-- Fix for PropertyForm.svelte -->
+<!-- PropertyForm.svelte -->
 <script>
-	// PropertyForm.svelte - Script Section
 	import { onMount, createEventDispatcher } from 'svelte';
 	import { t } from '$lib/config/translations';
 	import { language, isRTL, addToast } from '$lib/stores/ui';
@@ -10,6 +9,7 @@
 	import Map from './Map.svelte';
 	import Tabs from '$lib/components/common/Tabs.svelte';
 	import PropertyImages from '$lib/components/property/PropertyImages.svelte';
+	import RoomEditor from '$lib/components/property/RoomEditor.svelte';
 	import {
 		validateProperty,
 		validateNumeric,
@@ -62,6 +62,7 @@
 		title: '',
 		property_type: 'residential',
 		status: 'available',
+		deed_number: '', // Added deed_number field
 		location: {
 			latitude: null,
 			longitude: null,
@@ -120,6 +121,7 @@
 			label: $language === 'ar' ? 'المميزات والمرافق' : 'Features & Amenities',
 			icon: Star
 		},
+		{ id: 'rooms', label: $language === 'ar' ? 'الغرف' : 'Rooms', icon: Home }, // Added rooms tab
 		{ id: 'images', label: $language === 'ar' ? 'الصور' : 'Images', icon: Image },
 		{ id: 'publishing', label: $language === 'ar' ? 'النشر' : 'Publishing', icon: Settings }
 	];
@@ -175,6 +177,7 @@
 			title: property.title || '',
 			property_type: property.property_type || 'residential',
 			status: property.status || 'available',
+			deed_number: property.deed_number || '', // Initialize deed_number field
 			location: property.location || {
 				latitude: null,
 				longitude: null,
@@ -226,6 +229,7 @@
 	$: isValid =
 		formData.title.trim() &&
 		formData.property_type &&
+		formData.deed_number.trim() && // Added deed_number validation
 		formData.address.trim() &&
 		formData.city.trim() &&
 		formData.description.trim();
@@ -252,9 +256,15 @@
 			let canProceed = true;
 
 			// Validate basic-info tab
-			if (activeTab === 'basic-info' && !formData.title.trim()) {
-				addToast(t('title_required', $language, { default: 'العنوان مطلوب' }), 'warning');
-				canProceed = false;
+			if (activeTab === 'basic-info') {
+				if (!formData.title.trim()) {
+					addToast(t('title_required', $language, { default: 'العنوان مطلوب' }), 'warning');
+					canProceed = false;
+				}
+				if (!formData.deed_number.trim()) {
+					addToast(t('deed_number_required', $language, { default: 'رقم الصك مطلوب' }), 'warning');
+					canProceed = false;
+				}
 			}
 
 			// Validate location tab
@@ -363,7 +373,7 @@
 		submitAttempted = true;
 
 		// Check for required fields
-		if (!formData.title.trim()) {
+		if (!formData.title.trim() || !formData.deed_number.trim()) {
 			activeTab = 'basic-info';
 			return false;
 		}
@@ -381,21 +391,27 @@
 		return isValid;
 	}
 
+	// Update rooms from RoomEditor
+	function handleRoomsUpdate(event) {
+		formData.rooms = event.detail.rooms;
+	}
+
 	// Handle form submission
 	async function handleSubmit() {
-		// Enable detailed logging
-		console.log('Form Submission Started');
-		console.log('Form Data:', JSON.parse(JSON.stringify(formData)));
-		console.log('Images:', images);
-
 		try {
 			// Set submit attempted to true for validation
 			submitAttempted = true;
 
-			// Explicit validation
+			// Validate required fields
 			if (!formData.title || !formData.title.trim()) {
 				activeTab = 'basic-info';
 				addToast(t('title_required', $language, { default: 'العنوان مطلوب' }), 'error');
+				return;
+			}
+
+			if (!formData.deed_number || !formData.deed_number.trim()) {
+				activeTab = 'basic-info';
+				addToast(t('deed_number_required', $language, { default: 'رقم الصك مطلوب' }), 'error');
 				return;
 			}
 
@@ -426,6 +442,7 @@
 				title: formData.title,
 				property_type: formData.property_type,
 				status: formData.status,
+				deed_number: formData.deed_number,
 				address: formData.address,
 				city: formData.city,
 				state: formData.state,
@@ -458,25 +475,13 @@
 				meta_description: formData.meta_description || ''
 			};
 
-			// Log the prepared data and images
-			console.log('Prepared Property Data:', JSON.parse(JSON.stringify(propertyData)));
-			console.log('Images to upload:', images.length);
-
-			// Format data for API
-			const formattedData = formatPropertyData(propertyData);
-
-			// Dispatch submission event, now passing the prepared images array
-			dispatch('submit', {
-				property: formattedData,
-				images: images.filter((img) => img.file) // Only include images with actual files
-			});
+			// Dispatch event to parent component to handle API call
+			dispatch('submit', { property: propertyData, images });
 		} catch (err) {
 			// Set error and loading states
+			console.error('Form submission error:', err);
 			error = err.message || 'An error occurred';
 			loading = false;
-
-			// Log detailed error
-			console.error('Form submission error:', err);
 
 			// Show error toast
 			addToast(error, 'error');
@@ -520,11 +525,6 @@
 	let fileInput;
 	// Drop target reference
 	let dropTarget;
-
-	// FIXED IMAGE HANDLING: removed duplicated functions and kept only one version
-
-	// Validate image file before adding it
-	// Updated file handling for PropertyForm.svelte
 
 	// Validate image file before adding it
 	function validateImageFile(file) {
@@ -807,6 +807,35 @@
 								{getFieldError('status')}
 							</span>
 						{:else if !formData.status && submitAttempted}
+							<span class="text-error-500 text-sm">
+								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
+							</span>
+						{/if}
+					</label>
+
+					<!-- Deed Number - Added field -->
+					<label class="label md:col-span-2">
+						<span>
+							{t('deed_number', $language, { default: 'رقم الصك' })}
+							<span class="text-error-500">*</span>
+						</span>
+						<input
+							type="text"
+							class="input {getFieldError('deed_number') ||
+							(!formData.deed_number && submitAttempted)
+								? 'input-error'
+								: ''}"
+							bind:value={formData.deed_number}
+							required
+							placeholder={t('deed_number_placeholder', $language, {
+								default: 'أدخل رقم صك العقار'
+							})}
+						/>
+						{#if getFieldError('deed_number')}
+							<span class="text-error-500 text-sm">
+								{getFieldError('deed_number')}
+							</span>
+						{:else if !formData.deed_number && submitAttempted}
 							<span class="text-error-500 text-sm">
 								{t('required_field', $language, { default: 'هذا الحقل مطلوب' })}
 							</span>
@@ -1330,7 +1359,20 @@
 			</div>
 		{/if}
 
-		<!-- Tab 5: Images -->
+		<!-- Tab 5: Rooms (New) -->
+		{#if activeTab === 'rooms'}
+			<div class="card p-4 animate-in fade-in duration-300">
+				<h2 class="h3 mb-4 flex items-center">
+					<Home class="w-6 h-6 {$isRTL ? 'ml-2' : 'mr-2'}" />
+					{t('rooms', $language, { default: 'الغرف' })}
+				</h2>
+
+				<!-- Room Editor Component -->
+				<RoomEditor rooms={formData.rooms} on:update={handleRoomsUpdate} />
+			</div>
+		{/if}
+
+		<!-- Tab 6: Images -->
 		{#if activeTab === 'images'}
 			<div class="card p-4 animate-in fade-in duration-300">
 				<h2 class="h3 mb-4 flex items-center">
@@ -1454,7 +1496,7 @@
 			</div>
 		{/if}
 
-		<!-- Tab 6: Publishing Options -->
+		<!-- Tab 7: Publishing Options -->
 		{#if activeTab === 'publishing'}
 			<div class="card p-4 animate-in fade-in duration-300">
 				<h2 class="h3 mb-4 flex items-center">

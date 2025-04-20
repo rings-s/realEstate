@@ -378,6 +378,18 @@ class Property(models.Model):
         ('mixed_use', _('متعدد الاستخدام')),
     ]
 
+    BUILDING_TYPE_CHOICES = [
+        ('apartment', _('شقة')),
+        ('villa', _('فيلا')),
+        ('building', _('عمارة')),
+        ('farmhouse', _('مزرعة')),
+        ('chalet', _('شاليه')),
+        ('warehouse', _('مستودع')),
+        ('shop', _('محل تجاري')),
+        ('office', _('مكتب')),
+        ('hotel', _('فندق')),
+    ]
+
     STATUS_CHOICES = [
         ('available', _('متاح')),
         ('under_contract', _('تحت العقد')),
@@ -391,6 +403,13 @@ class Property(models.Model):
     title = models.CharField(_('العنوان'), max_length=255)
     property_type = models.CharField(_('نوع العقار'), max_length=20, choices=PROPERTY_TYPES)
     status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='available')
+
+    deed_number = models.CharField(
+        _('رقم الصك'),
+        max_length=100,
+        unique=True,  # Make it unique
+        help_text=_('رقم صك الملكية الرسمي للعقار')
+    )
 
     # Location as JSON - better for API
     location = models.JSONField(
@@ -407,6 +426,7 @@ class Property(models.Model):
     state = models.CharField(_('المنطقة/المحافظة'), max_length=100)
     postal_code = models.CharField(_('الرمز البريدي'), max_length=20, blank=True)
     country = models.CharField(_('الدولة'), max_length=100, default='المملكة العربية السعودية')
+    highQualityStreets = models.JSONField(_('الشوارع الراقية'), default=list, blank=True)  # Fixed duplicate default
 
     # Property details
     description = models.TextField(_('الوصف'))
@@ -448,6 +468,7 @@ class Property(models.Model):
     size_sqm = models.DecimalField(_('المساحة (متر مربع)'), max_digits=10, decimal_places=2, null=True, blank=True)
     bedrooms = models.PositiveSmallIntegerField(_('عدد غرف النوم'), null=True, blank=True)
     bathrooms = models.PositiveSmallIntegerField(_('عدد الحمامات'), null=True, blank=True)
+    floors = models.PositiveSmallIntegerField(_('عدد الطوابق'), null=True, blank=True)
     parking_spaces = models.PositiveSmallIntegerField(_('أماكن وقوف السيارات'), null=True, blank=True)
     year_built = models.PositiveIntegerField(
         _('سنة البناء'),
@@ -489,8 +510,6 @@ class Property(models.Model):
 
     # SEO and sharing
     slug = models.SlugField(_('الرابط المختصر'), max_length=255, unique=True, blank=True)
-    meta_title = models.CharField(_('عنوان الميتا'), max_length=100, blank=True)
-    meta_description = models.TextField(_('وصف الميتا'), blank=True)
 
     # Cover image - main property image
     cover_image = models.ImageField(
@@ -522,10 +541,23 @@ class Property(models.Model):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['property_number']),
+            models.Index(fields=['deed_number']),
             models.Index(fields=['status']),
             models.Index(fields=['property_type']),
             models.Index(fields=['city']),
+            models.Index(fields=['state']),
+            models.Index(fields=['is_published']),
+            models.Index(fields=['is_featured']),
+            models.Index(fields=['is_verified']),
+            models.Index(fields=['market_value']),
+            models.Index(fields=['owner']),
+            models.Index(fields=['slug']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['updated_at']),
+            # Compound indexes (if you often filter by combinations)
             models.Index(fields=['is_published', 'is_featured']),
+            models.Index(fields=['city', 'property_type']),
+            models.Index(fields=['status', 'market_value']),
         ]
 
     def __str__(self):
@@ -626,13 +658,14 @@ class PropertyImage(BaseImageModel):
     order = models.PositiveIntegerField(_('ترتيب العرض'), default=0)
 
     # Additional metadata for the image
+    
     metadata = models.JSONField(
         _('بيانات وصفية'),
         default=dict,
-        blank=True,
-        help_text=_('معلومات إضافية عن الصورة مثل الموقع أو الغرفة')
-        # Example: {"room": "غرفة المعيشة", "taken_at": "2023-01-15"}
+        blank=True
     )
+
+
 
     class Meta:
         verbose_name = _('صورة العقار')

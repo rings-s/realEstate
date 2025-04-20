@@ -263,6 +263,7 @@ class PropertyImageSerializer(BaseModelSerializer):
             raise serializers.ValidationError({"image": "An image file is required"})
         return data
 
+
 class PropertySerializer(BaseModelSerializer):
     """Serializer for Property model"""
     images = PropertyImageSerializer(many=True, read_only=True, label=_('الصور'))
@@ -278,15 +279,19 @@ class PropertySerializer(BaseModelSerializer):
             'status', 'status_display', 'location', 'address', 'city', 'state',
             'postal_code', 'country', 'description', 'features', 'amenities',
             'rooms', 'specifications', 'size_sqm', 'bedrooms', 'bathrooms',
-            'parking_spaces', 'year_built', 'market_value', 'minimum_bid',
+            'floors', 'parking_spaces', 'year_built', 'market_value', 'minimum_bid',
             'pricing_details', 'owner', 'owner_details', 'is_published',
-            'is_featured', 'is_verified', 'slug', 'meta_title', 'meta_description',
-            'cover_image', 'cover_image_url', 'images', 'metadata', 'created_at', 'updated_at'
+            'is_featured', 'is_verified', 'slug', 'cover_image', 'cover_image_url',
+            'images', 'metadata', 'created_at', 'updated_at',
+            'deed_number', 'highQualityStreets'
         ]
         extra_kwargs = {
             'owner': {'write_only': True, 'label': _('المالك')},
             'property_number': {'read_only': True, 'label': _('رقم العقار')},
             'slug': {'read_only': True, 'label': _('الرابط المختصر')},
+            'deed_number': {'label': _('رقم الصك')},
+            'highQualityStreets': {'label': _('الشوارع الراقية')},
+            'floors': {'label': _('عدد الطوابق')},
             # Other field options...
         }
 
@@ -306,7 +311,7 @@ class PropertySerializer(BaseModelSerializer):
         Handle JSON fields properly before validation
         """
         # Handle JSON fields if they come as strings
-        json_fields = ['features', 'amenities', 'rooms', 'specifications', 'location', 'pricing_details', 'metadata']
+        json_fields = ['features', 'amenities', 'rooms', 'specifications', 'location', 'pricing_details', 'metadata', 'highQualityStreets']
 
         data_copy = data.copy()
         for field in json_fields:
@@ -316,7 +321,7 @@ class PropertySerializer(BaseModelSerializer):
                     data_copy[field] = json.loads(data_copy[field])
                 except (json.JSONDecodeError, ValueError):
                     # If it's not valid JSON, handle appropriately
-                    if field in ['features', 'amenities', 'rooms']:
+                    if field in ['features', 'amenities', 'rooms', 'highQualityStreets']:
                         # For array fields
                         data_copy[field] = []
                     else:
@@ -332,7 +337,7 @@ class PropertySerializer(BaseModelSerializer):
         representation = super().to_representation(instance)
 
         # Ensure array fields are properly serialized
-        array_fields = ['features', 'amenities', 'rooms']
+        array_fields = ['features', 'amenities', 'rooms', 'highQualityStreets']
         for field in array_fields:
             value = representation.get(field)
             if value is None:
@@ -358,53 +363,8 @@ class PropertySerializer(BaseModelSerializer):
         return representation
 
 
-class PropertyViewSerializer(BaseModelSerializer):
-    """Serializer for PropertyView model"""
-    view_type_display = serializers.CharField(source='get_view_type_display', read_only=True, label=_('نوع العرض المعروض'))
-    auction_title = serializers.SerializerMethodField(label=_('عنوان المزاد'))
-    image_url = serializers.SerializerMethodField(label=_('رابط الصورة'))
-    file_url = serializers.SerializerMethodField(label=_('رابط الملف'))
-
-    class Meta:
-        model = PropertyView
-        fields = [
-            'id', 'auction', 'auction_title', 'view_type', 'view_type_display',
-            'location', 'dimensions', 'address', 'legal_description', 'size_sqm',
-            'elevation', 'image', 'image_url', 'file', 'file_url', 'external_url',
-            'embed_code', 'view_config', 'created_at', 'updated_at'
-        ]
-        extra_kwargs = {
-            'auction': {'write_only': True, 'label': _('المزاد')},
-            'view_type': {'label': _('نوع العرض')},
-            'location': {'label': _('الموقع')},
-            'dimensions': {'label': _('الأبعاد')},
-            'address': {'label': _('العنوان')},
-            'legal_description': {'label': _('الوصف القانوني')},
-            'size_sqm': {'label': _('المساحة (متر مربع)')},
-            'elevation': {'label': _('الارتفاع')},
-            'image': {'label': _('الصورة')},
-            'file': {'label': _('الملف')},
-            'external_url': {'label': _('رابط خارجي')},
-            'embed_code': {'label': _('كود التضمين')},
-            'view_config': {'label': _('إعدادات العرض')},
-        }
-
-    def get_auction_title(self, obj):
-        return obj.auction.title if obj.auction else None
-
-    def get_image_url(self, obj):
-        if obj.image:
-            return obj.image.url
-        return None
-
-    def get_file_url(self, obj):
-        if obj.file:
-            return obj.file.url
-        return None
-
-
 # -------------------------------------------------------------------------
-# Auction Serializers
+# Auction Image Serializer (needed for AuctionSerializer)
 # -------------------------------------------------------------------------
 
 class AuctionImageSerializer(BaseModelSerializer):
@@ -424,7 +384,7 @@ class AuctionImageSerializer(BaseModelSerializer):
             'width': {'read_only': True, 'label': _('العرض')},
             'height': {'read_only': True, 'label': _('الارتفاع')},
             'file_size': {'read_only': True, 'label': _('حجم الملف (كيلوبايت)')},
-            'image': {'label': _('الصورة')},
+            'image': {'label': _('الصورة'), 'required': True},
             'is_primary': {'label': _('صورة رئيسية')},
             'caption': {'label': _('التعليق')},
             'alt_text': {'label': _('النص البديل')},
@@ -434,12 +394,19 @@ class AuctionImageSerializer(BaseModelSerializer):
 
     def get_image_url(self, obj):
         if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
             return obj.image.url
         return None
 
     def get_auction_title(self, obj):
         return obj.auction.title if obj.auction else None
 
+
+# -------------------------------------------------------------------------
+# Bid Serializer
+# -------------------------------------------------------------------------
 
 class BidSerializer(BaseModelSerializer):
     """Serializer for Bid model"""
@@ -511,6 +478,10 @@ class BidSerializer(BaseModelSerializer):
 
         return data
 
+
+# -------------------------------------------------------------------------
+# Auction Serializer
+# -------------------------------------------------------------------------
 
 class AuctionSerializer(BaseModelSerializer):
     """Serializer for Auction model"""
@@ -861,5 +832,145 @@ class NotificationSerializer(BaseModelSerializer):
 
         if notification_type in ['payment_due', 'payment_received'] and not related_contract:
             raise serializers.ValidationError(_("يجب تحديد العقد المرتبط لإشعارات الدفع."))
+
+        return data
+
+
+
+class PropertyViewSerializer(BaseModelSerializer):
+    """Serializer for PropertyView model"""
+    auction_details = serializers.SerializerMethodField(label=_('تفاصيل المزاد'))
+    view_type_display = serializers.CharField(source='get_view_type_display', read_only=True, label=_('نوع العرض المعروض'))
+    image_url = serializers.SerializerMethodField(label=_('رابط الصورة'))
+    file_url = serializers.SerializerMethodField(label=_('رابط الملف'))
+
+    class Meta:
+        model = PropertyView
+        fields = [
+            'id', 'auction', 'auction_details', 'view_type', 'view_type_display',
+            'location', 'dimensions', 'address', 'legal_description', 'size_sqm',
+            'elevation', 'image', 'image_url', 'file', 'file_url', 'external_url',
+            'embed_code', 'view_config', 'created_at', 'updated_at'
+        ]
+        extra_kwargs = {
+            'auction': {'write_only': True, 'label': _('المزاد')},
+            'view_type': {'label': _('نوع العرض')},
+            'location': {'label': _('الموقع')},
+            'dimensions': {'label': _('الأبعاد')},
+            'address': {'label': _('العنوان')},
+            'legal_description': {'label': _('الوصف القانوني')},
+            'size_sqm': {'label': _('المساحة (متر مربع)')},
+            'elevation': {'label': _('الارتفاع')},
+            'image': {'label': _('الصورة')},
+            'file': {'label': _('الملف')},
+            'external_url': {'label': _('رابط خارجي')},
+            'embed_code': {'label': _('كود التضمين')},
+            'view_config': {'label': _('إعدادات العرض')},
+        }
+
+    def get_auction_details(self, obj):
+        if obj.auction:
+            return {
+                'id': obj.auction.id,
+                'title': obj.auction.title,
+                'property': {
+                    'id': obj.auction.related_property.id,
+                    'title': obj.auction.related_property.title,
+                    'property_type': obj.auction.related_property.property_type,
+                } if obj.auction.related_property else None
+            }
+        return None
+
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
+
+    def get_file_url(self, obj):
+        if obj.file:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+
+    def to_internal_value(self, data):
+        """
+        Handle JSON fields properly before validation
+        """
+        # Handle JSON fields if they come as strings
+        json_fields = ['location', 'dimensions', 'view_config']
+
+        data_copy = data.copy()
+        for field in json_fields:
+            if field in data_copy and isinstance(data_copy[field], str):
+                try:
+                    # Try to parse if it's a JSON string
+                    data_copy[field] = json.loads(data_copy[field])
+                except (json.JSONDecodeError, ValueError):
+                    # If it's not valid JSON, use an empty dict
+                    data_copy[field] = {}
+
+        return super().to_internal_value(data_copy)
+
+    def to_representation(self, instance):
+        """
+        Ensure JSON fields are properly serialized
+        """
+        representation = super().to_representation(instance)
+
+        # Ensure object fields are properly serialized
+        json_fields = ['location', 'dimensions', 'view_config']
+        for field in json_fields:
+            value = representation.get(field)
+            if value is None:
+                representation[field] = {}
+            elif isinstance(value, str):
+                try:
+                    representation[field] = json.loads(value)
+                except (json.JSONDecodeError, ValueError):
+                    representation[field] = {}
+
+        return representation
+
+    def validate_location(self, value):
+        """Validate location data."""
+        if value and not isinstance(value, dict):
+            raise serializers.ValidationError(_("يجب أن تكون بيانات الموقع على شكل قاموس."))
+        return value
+
+    def validate_dimensions(self, value):
+        """Validate dimensions data."""
+        if value and not isinstance(value, dict):
+            raise serializers.ValidationError(_("يجب أن تكون بيانات الأبعاد على شكل قاموس."))
+        return value
+
+    def validate_view_config(self, value):
+        """Validate view_config data."""
+        if value and not isinstance(value, dict):
+            raise serializers.ValidationError(_("يجب أن تكون إعدادات العرض على شكل قاموس."))
+        return value
+
+    def validate(self, data):
+        """Validate that necessary fields are provided based on view_type."""
+        view_type = data.get('view_type')
+
+        if view_type == '3d_model' and not (data.get('file') or data.get('external_url')):
+            raise serializers.ValidationError(
+                _("يجب توفير ملف أو رابط خارجي للنموذج ثلاثي الأبعاد.")
+            )
+
+        if view_type == 'virtual_tour' and not (data.get('external_url') or data.get('embed_code')):
+            raise serializers.ValidationError(
+                _("يجب توفير رابط خارجي أو كود تضمين للجولة الافتراضية.")
+            )
+
+        if view_type == 'floor_plan' and not data.get('file') and not data.get('image'):
+            raise serializers.ValidationError(
+                _("يجب توفير صورة أو ملف لمخطط الطابق.")
+            )
 
         return data

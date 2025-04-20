@@ -61,13 +61,13 @@ class DocumentInline(admin.TabularInline):
 
 @admin.register(Property)
 class PropertyAdmin(admin.ModelAdmin):
-    list_display = ('property_number', 'title', 'property_type', 'status', 'city', 'owner', 'is_published')
+    list_display = ('property_number', 'title', 'property_type', 'status', 'city', 'owner', 'is_published', 'deed_number')
     list_filter = ('property_type', 'status', 'city', 'is_published', 'is_featured')
-    search_fields = ('property_number', 'title', 'owner__email', 'address', 'city')
+    search_fields = ('property_number', 'title', 'owner__email', 'address', 'city', 'deed_number')  # Added deed_number to search
     readonly_fields = ('property_number', 'slug', 'created_at', 'updated_at')
     fieldsets = (
         (_('Basic Information'), {
-            'fields': ('property_number', 'title', 'property_type', 'status', 'description', 'owner')
+            'fields': ('property_number', 'deed_number', 'title', 'property_type', 'status', 'description', 'owner')  # Added deed_number
         }),
         (_('Location'), {
             'fields': ('address', 'city', 'state', 'postal_code', 'country', 'location')
@@ -97,7 +97,6 @@ class PropertyAdmin(admin.ModelAdmin):
     def mark_as_verified(self, request, queryset):
         queryset.update(is_verified=True)
     mark_as_verified.short_description = _("Mark selected properties as verified")
-
 
 @admin.register(PropertyImage)
 class PropertyImageAdmin(admin.ModelAdmin):

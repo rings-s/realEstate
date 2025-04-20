@@ -18,9 +18,15 @@ urlpatterns = [
     # Auction URLs
     path('auctions/', views.AuctionListCreateView.as_view(), name='auction-list'),
     path('auctions/<slug:slug>/', views.AuctionDetailView.as_view(), name='auction-detail'),
-    path('auctions/<slug:slug>/edit/', views.AuctionEditView.as_view(), name='auction-edit'),
-    path('auctions/<slug:slug>/delete/', views.AuctionDeleteView.as_view(), name='auction-delete'),
-    path('auctions/<int:auction_id>/images/', views.AuctionImageListCreateView.as_view(), name='auction-image-list'),
+    # path('auctions/<slug:slug>/edit/', views.AuctionEditView.as_view(), name='auction-edit'),
+    # path('auctions/<slug:slug>/delete/', views.AuctionDeleteView.as_view(), name='auction-delete'),
+    # path('auctions/<int:auction_id>/images/', views.AuctionImageListCreateView.as_view(), name='auction-image-list'),
+    
+    path('auctions/<uuid:uuid>/', views.AuctionDetailView.as_view(), name='auction-detail'),
+    path('auctions/<uuid:uuid>/edit/', views.AuctionEditView.as_view(), name='auction-edit'),
+    path('auctions/<uuid:uuid>/delete/', views.AuctionDeleteView.as_view(), name='auction-delete'),
+    
+    
     path('auction-images/<int:pk>/', views.AuctionImageDetailView.as_view(), name='auction-image-detail'),
     path('auction-images/<int:pk>/edit/', views.AuctionImageEditView.as_view(), name='auction-image-edit'),
     path('auction-images/<int:pk>/delete/', views.AuctionImageDeleteView.as_view(), name='auction-image-delete'),

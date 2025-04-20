@@ -10,6 +10,8 @@ from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 import logging
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.exceptions import ValidationError  # Missing import
+from rest_framework.exceptions import PermissionDenied  # Add this import
 
 import json
 
@@ -70,55 +72,74 @@ class SmallResultsSetPagination(PageNumberPagination):
 # Property Views
 # -------------------------------------------------------------------------
 
-# In views.py
 class PropertyListCreateView(generics.ListCreateAPIView):
-    serializer_class = PropertySerializer
-    permission_classes = [IsAuthenticated]
-    pagination_class = StandardResultsSetPagination
+    """
+    List all properties or create a new property.
 
+    GET: List all properties based on user role and permissions
+    POST: Create a new property (requires verification)
+    """
+    serializer_class = PropertySerializer
+    pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['property_type', 'status', 'city', 'is_published', 'is_featured', 'is_verified']
-    search_fields = ['title', 'address', 'description', 'city', 'property_number']
+    search_fields = ['title', 'address', 'description', 'city', 'property_number', 'deed_number']
     ordering_fields = ['created_at', 'market_value', 'size_sqm', 'bedrooms', 'year_built']
     ordering = ['-is_featured', '-created_at']
 
+    def get_permissions(self):
+        """
+        Dynamic permissions based on the action:
+        - List: Any authenticated user can list properties
+        - Create: Only verified users with proper permissions can create properties
+        """
+        if self.request.method == 'GET':
+            return [IsAuthenticated()]
+        elif self.request.method == 'POST':
+            return [IsAuthenticated(), IsVerifiedUser()]
+        return [IsAuthenticated()]
+
     def get_queryset(self):
+        """
+        Filter properties based on user role.
+        - Admins see all properties
+        - Sellers/Owners see their own properties and published ones
+        - Other users see only published properties
+        """
+        user = self.request.user
+
+        # Default queryset for safety
+        base_queryset = Property.objects.all()
+
         try:
-            user = self.request.user
+            # Admin sees all properties
             if user.has_role('admin'):
-                return Property.objects.all()
+                return base_queryset
+
+            # Sellers and owners see their own properties + published ones
             if user.has_role('seller') or user.has_role('owner'):
                 own_properties = Q(owner=user)
                 published_properties = Q(is_published=True)
-                return Property.objects.filter(own_properties | published_properties)
-            return Property.objects.filter(is_published=True)
+                return base_queryset.filter(own_properties | published_properties)
+
+            # Everyone else sees only published properties
+            return base_queryset.filter(is_published=True)
+
         except Exception as e:
             logger.error(f"Error in PropertyListCreateView.get_queryset: {str(e)}")
-            # Return empty queryset as fallback
-            from django.db.models.query import EmptyQuerySet
             return Property.objects.none()
 
-    # Remove decorators from perform_create and just use it directly
     def perform_create(self, serializer):
-        # Check authentication and permissions within the method
-        if not self.request.user.is_authenticated:
-            from rest_framework.exceptions import NotAuthenticated
-            raise NotAuthenticated(_('Please log in to access this resource.'))
-
-        if not self.request.user.is_verified:
-            from rest_framework.exceptions import PermissionDenied
-            raise PermissionDenied(_('Your account must be verified to create properties.'))
-
+        """
+        Create a new property with the current user as owner.
+        Permissions are handled by permission classes and decorators.
+        """
+        # Check if user has permission to create property
         if not check_user_permission(self.request.user, 'can_create_property'):
-            from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied(_('You do not have permission to create properties.'))
 
+        # Save with current user as owner
         serializer.save(owner=self.request.user)
-
-    # Remove all decorators from create method
-    def create(self, request, *args, **kwargs):
-        # Just call the parent implementation which will call our perform_create
-        return super().create(request, *args, **kwargs)
 
 class PropertyDetailView(generics.RetrieveAPIView):
     """
@@ -191,22 +212,40 @@ class PropertyDetailView(generics.RetrieveAPIView):
         """
         Helper method to log property views for analytics
         """
-        # Optional: Record property view for analytics
-        from .models import PropertyView
-        try:
-            PropertyView.objects.create(
-                property=property_obj,
-                user=request.user,
-                ip_address=self.request.META.get('REMOTE_ADDR', ''),
-                user_agent=self.request.META.get('HTTP_USER_AGENT', '')
-            )
-        except Exception as e:
-            # Log error but don't interrupt response
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Failed to log property view: {str(e)}")
+        # Increment the view count on the property (already handled in retrieve method)
 
+        # If the property is associated with active auctions, log a property view for the auction
+        if hasattr(property_obj, 'auctions') and property_obj.auctions.filter(
+                status__in=['scheduled', 'live'],
+                is_published=True
+            ).exists():
 
+            from .models import PropertyView, Auction
+
+            try:
+                # Get the most relevant auction
+                auction = property_obj.auctions.filter(
+                    status__in=['scheduled', 'live'],
+                    is_published=True
+                ).order_by('start_date').first()
+
+                if auction:
+                    # Create a property view entry as a 'street' view type for basic tracking
+                    PropertyView.objects.create(
+                        auction=auction,
+                        view_type='street',  # Using the existing view_type choices
+                        address=property_obj.address,
+                        location={
+                            "source": "property_detail_view",
+                            "timestamp": timezone.now().isoformat(),
+                            "user_id": request.user.id if request.user.is_authenticated else None,
+                            "ip_address": request.META.get('REMOTE_ADDR', ''),
+                            "user_agent": request.META.get('HTTP_USER_AGENT', '')
+                        }
+                    )
+            except Exception as e:
+                # Log error but don't interrupt response
+                logger.error(f"Failed to log property view: {str(e)}")
 
 class PropertyEditView(generics.UpdateAPIView):
     """
@@ -271,7 +310,8 @@ class PropertyImageListCreateView(generics.ListCreateAPIView):
 
         # Check permissions
         if not (self.request.user.has_role('admin') or property_obj.owner == self.request.user):
-            self.permission_denied(self.request, message=_('You do not have permission to add images to this property.'))
+            raise PermissionDenied(_('You do not have permission to add images to this property.'))
+
 
         # Debug the incoming request data
         print(f"Request data: {self.request.data}")
@@ -512,6 +552,8 @@ class AuctionImageListCreateView(generics.ListCreateAPIView):
     """
     serializer_class = AuctionImageSerializer
     permission_classes = [IsAuthenticated]
+    # Add parser classes for file uploads
+    parser_classes = [MultiPartParser, FormParser]
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
@@ -522,8 +564,23 @@ class AuctionImageListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         auction = get_object_or_404(Auction, id=self.kwargs.get('auction_id'))
         if not (self.request.user.has_role('admin') or auction.related_property.owner == self.request.user):
-            self.permission_denied(self.request, message=_('You do not have permission to add images to this auction.'))
-        serializer.save(auction=auction)
+            # self.permission_denied(self.request, message=_('You do not have permission to add images to this auction.'))
+            raise PermissionDenied(_('You do not have permission to add images to this auction.'))
+
+
+        # Make sure image is in request.FILES
+        if 'image' not in self.request.FILES:
+            raise ValidationError({'image': _('No image file provided')})
+
+        # Create the AuctionImage object with all relevant data
+        serializer.save(
+            auction=auction,
+            image=self.request.FILES['image'],
+            is_primary=self.request.data.get('is_primary') == 'true',
+            caption=self.request.data.get('caption', ''),
+            alt_text=self.request.data.get('alt_text', ''),
+            order=self.request.data.get('order', 0)
+        )
 
 class AuctionImageDetailView(generics.RetrieveAPIView):
     """
@@ -605,10 +662,15 @@ class BidListCreateView(generics.ListCreateAPIView):
         auction = get_object_or_404(Auction, id=auction_id)
         status = check_auction_status(auction)
         if status != 'live':
-            self.permission_denied(
-                self.request,
-                message=_('Bids can only be placed on live auctions. Current status: {status}').format(status=status)
+            # self.permission_denied(
+            #     self.request,
+            #     message=_('Bids can only be placed on live auctions. Current status: {status}').format(status=status)
+            # )
+            raise PermissionDenied(
+                _('Bids can only be placed on live auctions. Current status: {status}').format(status=status)
             )
+            
+            
         serializer.save(
             auction=auction,
             bidder=self.request.user,
@@ -1256,6 +1318,8 @@ class PropertyViewListCreateView(generics.ListCreateAPIView):
     serializer_class = PropertyViewSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = StandardResultsSetPagination
+    # Add parser classes for file uploads
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['view_type']
     ordering_fields = ['created_at']
@@ -1273,7 +1337,39 @@ class PropertyViewListCreateView(generics.ListCreateAPIView):
                 self.request,
                 message=_('You do not have permission to add property views to this auction.')
             )
-        serializer.save(auction=auction)
+
+        # Properly handle file uploads
+        data = {
+            'auction': auction,
+            'view_type': self.request.data.get('view_type'),
+            'address': self.request.data.get('address', ''),
+            'legal_description': self.request.data.get('legal_description', ''),
+            'size_sqm': self.request.data.get('size_sqm'),
+            'elevation': self.request.data.get('elevation'),
+            'external_url': self.request.data.get('external_url', ''),
+            'embed_code': self.request.data.get('embed_code', ''),
+        }
+
+        # Handle JSON fields
+        for field in ['location', 'dimensions', 'view_config']:
+            if field in self.request.data:
+                try:
+                    if isinstance(self.request.data[field], str):
+                        data[field] = json.loads(self.request.data[field])
+                    else:
+                        data[field] = self.request.data[field]
+                except json.JSONDecodeError:
+                    data[field] = {}
+
+        # Handle file uploads
+        if 'image' in self.request.FILES:
+            data['image'] = self.request.FILES['image']
+
+        if 'file' in self.request.FILES:
+            data['file'] = self.request.FILES['file']
+
+        serializer.save(**data)
+
 
 class PropertyViewDetailView(generics.RetrieveAPIView):
     """

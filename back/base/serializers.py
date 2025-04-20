@@ -2,8 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from .models import (
-    MessageThread, ThreadParticipant, Message, Property, PropertyImage,
-    PropertyView, Auction, AuctionImage, Bid, Document, Contract, Notification
+    MessageThread, ThreadParticipant, Message, Property, Auction, Bid, Document, Contract, Notification, Media
 )
 from accounts.models import Role
 from accounts.serializers import (
@@ -66,16 +65,44 @@ class BaseModelSerializer(serializers.ModelSerializer):
 # Message & Thread Serializers
 # -------------------------------------------------------------------------
 
+class MediaSerializer(serializers.ModelSerializer):
+    """Serializer for the generic Media model."""
+    file_url = serializers.SerializerMethodField(label=_('رابط الملف'))
+
+    class Meta:
+        model = Media
+        fields = [
+            'id', 'name', 'file', 'file_url', 'media_type', 'uploaded_at',
+            # Exclude generic foreign key fields from direct serialization
+            # 'content_type', 'object_id'
+        ]
+        read_only_fields = ('file_url', 'media_type', 'uploaded_at')
+        extra_kwargs = {
+            'file': {'write_only': True}, # File itself is write-only in basic serialization
+            'name': {'label': _('اسم الملف (اختياري)')},
+        }
+
+    def get_file_url(self, obj):
+        request = self.context.get('request')
+        if obj.file and hasattr(obj.file, 'url'):
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
+
+
 class MessageSerializer(BaseModelSerializer):
     """Serializer for Message model"""
     sender_details = UserBriefSerializer(source='sender', read_only=True, label=_('تفاصيل المرسل'))
     reply_to_details = serializers.SerializerMethodField(label=_('تفاصيل الرد على'))
+    media = MediaSerializer(many=True, read_only=True, label=_('المرفقات'))
 
     class Meta:
         model = Message
         fields = [
             'id', 'thread', 'sender', 'sender_details', 'content', 'message_type',
-            'status', 'attachment', 'attachment_type', 'attachment_name', 'attachment_size',
+            'status',
+            'media',
             'reply_to', 'reply_to_details', 'sent_at', 'delivered_at', 'read_at',
             'is_system_message', 'is_important', 'metadata', 'created_at', 'updated_at'
         ]
@@ -89,7 +116,7 @@ class MessageSerializer(BaseModelSerializer):
             'content': {'label': _('المحتوى')},
             'message_type': {'label': _('نوع الرسالة')},
             'status': {'label': _('الحالة')},
-            'attachment': {'label': _('المرفق')},
+            'media': {'label': _('المرفقات')},
             'is_system_message': {'label': _('رسالة نظام')},
             'is_important': {'label': _('مهمة')},
             'metadata': {'label': _('بيانات وصفية')},
@@ -109,9 +136,14 @@ class MessageSerializer(BaseModelSerializer):
         return None
 
     def validate(self, data):
-        # Ensure content or attachment is provided
-        if not data.get('content') and not data.get('attachment'):
-            raise serializers.ValidationError(_('يجب توفير محتوى أو مرفق للرسالة'))
+        # Ensure content or associated media (on create) is provided
+        # Note: Validating media presence on create is tricky here as it's read_only.
+        # This validation might need to happen in the view or via a separate upload step.
+        # For now, just check for content.
+        if not data.get('content'):
+             # If we enhance this serializer for writes later, we'd check for media here too.
+             pass # Allow messages with only attachments (handled separately)
+            # raise serializers.ValidationError(_('يجب توفير محتوى للرسالة'))
         return data
 
 
@@ -217,57 +249,15 @@ class MessageThreadSerializer(BaseModelSerializer):
         return thread
 
 
+
 # -------------------------------------------------------------------------
 # Property Serializers
 # -------------------------------------------------------------------------
 
-class PropertyImageSerializer(BaseModelSerializer):
-    """Serializer for PropertyImage model"""
-    image_url = serializers.SerializerMethodField(label=_('رابط الصورة'))
-    property_title = serializers.SerializerMethodField(label=_('عنوان العقار'))
-
-    class Meta:
-        model = PropertyImage
-        fields = [
-            'id', 'property', 'property_title', 'image', 'image_url', 'is_primary',
-            'caption', 'alt_text', 'order', 'width', 'height', 'file_size',
-            'metadata', 'created_at', 'updated_at'
-        ]
-        extra_kwargs = {
-            'property': {'write_only': True, 'label': _('العقار')},
-            'width': {'read_only': True, 'label': _('العرض')},
-            'height': {'read_only': True, 'label': _('الارتفاع')},
-            'file_size': {'read_only': True, 'label': _('حجم الملف (كيلوبايت)')},
-            'image': {'label': _('الصورة'), 'required': True},  # Explicitly mark as required
-            'is_primary': {'label': _('صورة رئيسية')},
-            'caption': {'label': _('التعليق')},
-            'alt_text': {'label': _('النص البديل')},
-            'order': {'label': _('ترتيب العرض')},
-            'metadata': {'label': _('بيانات وصفية')},
-        }
-
-    def get_image_url(self, obj):
-        if obj.image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.image.url)
-            return obj.image.url
-        return None
-
-    def get_property_title(self, obj):
-        return obj.property.title if obj.property else None
-
-    def validate(self, data):
-        """Validate that an image is provided for POST requests"""
-        if self.context['request'].method == 'POST' and 'image' not in self.context['request'].FILES:
-            raise serializers.ValidationError({"image": "An image file is required"})
-        return data
-
 
 class PropertySerializer(BaseModelSerializer):
     """Serializer for Property model"""
-    images = PropertyImageSerializer(many=True, read_only=True, label=_('الصور'))
-    cover_image_url = serializers.SerializerMethodField(label=_('رابط صورة الغلاف'))
+    media = MediaSerializer(many=True, read_only=True, label=_('ملفات الوسائط'))
     owner_details = UserBriefSerializer(source='owner', read_only=True, label=_('تفاصيل المالك'))
     property_type_display = serializers.CharField(source='get_property_type_display', read_only=True, label=_('نوع العقار المعروض'))
     status_display = serializers.CharField(source='get_status_display', read_only=True, label=_('الحالة المعروضة'))
@@ -281,8 +271,9 @@ class PropertySerializer(BaseModelSerializer):
             'rooms', 'specifications', 'size_sqm', 'bedrooms', 'bathrooms',
             'floors', 'parking_spaces', 'year_built', 'market_value', 'minimum_bid',
             'pricing_details', 'owner', 'owner_details', 'is_published',
-            'is_featured', 'is_verified', 'slug', 'cover_image', 'cover_image_url',
-            'images', 'metadata', 'created_at', 'updated_at',
+            'is_featured', 'is_verified', 'slug', 
+            'media', 
+            'metadata', 'created_at', 'updated_at',
             'deed_number', 'highQualityStreets'
         ]
         extra_kwargs = {
@@ -292,13 +283,8 @@ class PropertySerializer(BaseModelSerializer):
             'deed_number': {'label': _('رقم الصك')},
             'highQualityStreets': {'label': _('الشوارع الراقية')},
             'floors': {'label': _('عدد الطوابق')},
-            # Other field options...
+            'media': {'label': _('ملفات الوسائط')}, 
         }
-
-    def get_cover_image_url(self, obj):
-        if obj.cover_image:
-            return obj.cover_image.url
-        return None
 
     def validate_location(self, value):
         """Validate location data."""
@@ -361,47 +347,6 @@ class PropertySerializer(BaseModelSerializer):
                     representation[field] = {}
 
         return representation
-
-
-# -------------------------------------------------------------------------
-# Auction Image Serializer (needed for AuctionSerializer)
-# -------------------------------------------------------------------------
-
-class AuctionImageSerializer(BaseModelSerializer):
-    """Serializer for AuctionImage model"""
-    image_url = serializers.SerializerMethodField(label=_('رابط الصورة'))
-    auction_title = serializers.SerializerMethodField(label=_('عنوان المزاد'))
-
-    class Meta:
-        model = AuctionImage
-        fields = [
-            'id', 'auction', 'auction_title', 'image', 'image_url', 'is_primary',
-            'caption', 'alt_text', 'order', 'width', 'height', 'file_size',
-            'metadata', 'created_at', 'updated_at'
-        ]
-        extra_kwargs = {
-            'auction': {'write_only': True, 'label': _('المزاد')},
-            'width': {'read_only': True, 'label': _('العرض')},
-            'height': {'read_only': True, 'label': _('الارتفاع')},
-            'file_size': {'read_only': True, 'label': _('حجم الملف (كيلوبايت)')},
-            'image': {'label': _('الصورة'), 'required': True},
-            'is_primary': {'label': _('صورة رئيسية')},
-            'caption': {'label': _('التعليق')},
-            'alt_text': {'label': _('النص البديل')},
-            'order': {'label': _('ترتيب العرض')},
-            'metadata': {'label': _('بيانات وصفية')},
-        }
-
-    def get_image_url(self, obj):
-        if obj.image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.image.url)
-            return obj.image.url
-        return None
-
-    def get_auction_title(self, obj):
-        return obj.auction.title if obj.auction else None
 
 
 # -------------------------------------------------------------------------
@@ -485,9 +430,8 @@ class BidSerializer(BaseModelSerializer):
 
 class AuctionSerializer(BaseModelSerializer):
     """Serializer for Auction model"""
-    images = AuctionImageSerializer(many=True, read_only=True, label=_('الصور'))
+    media = MediaSerializer(many=True, read_only=True, label=_('ملفات الوسائط'))
     property_details = serializers.SerializerMethodField(label=_('تفاصيل العقار'))
-    cover_image_url = serializers.SerializerMethodField(label=_('رابط صورة الغلاف'))
     auction_type_display = serializers.CharField(source='get_auction_type_display', read_only=True, label=_('نوع المزاد المعروض'))
     status_display = serializers.CharField(source='get_status_display', read_only=True, label=_('الحالة المعروضة'))
     highest_bid = serializers.SerializerMethodField(label=_('أعلى مزايدة'))
@@ -503,10 +447,12 @@ class AuctionSerializer(BaseModelSerializer):
             'property_details', 'starting_bid', 'reserve_price', 'minimum_increment',
             'current_bid', 'estimated_value', 'bid_history', 'financial_terms',
             'buyer_premium_percent', 'registration_fee', 'deposit_required',
-            'is_published', 'is_featured', 'is_private', 'cover_image',
-            'cover_image_url', 'terms_conditions', 'special_notes', 'view_count',
+            'is_published', 'is_featured', 'is_private', 
+            'media', 
+            'terms_conditions', 'special_notes', 'view_count',
             'bid_count', 'registered_bidders', 'analytics', 'highest_bid',
-            'bids_count', 'time_remaining', 'images', 'created_at', 'updated_at'
+            'bids_count', 'time_remaining', 
+            'created_at', 'updated_at'
         ]
         extra_kwargs = {
             'uuid': {'read_only': True, 'label': _('معرف فريد')},
@@ -536,7 +482,7 @@ class AuctionSerializer(BaseModelSerializer):
             'is_published': {'label': _('منشور')},
             'is_featured': {'label': _('مميز')},
             'is_private': {'label': _('مزاد خاص')},
-            'cover_image': {'label': _('صورة الغلاف')},
+            'media': {'label': _('ملفات الوسائط')}, 
             'terms_conditions': {'label': _('الشروط والأحكام')},
             'special_notes': {'label': _('ملاحظات خاصة')},
             'analytics': {'label': _('بيانات تحليلية')},
@@ -544,6 +490,15 @@ class AuctionSerializer(BaseModelSerializer):
 
     def get_property_details(self, obj):
         if obj.related_property:
+            property_media = obj.related_property.media.filter(media_type='image').first()
+            property_cover_url = None
+            request = self.context.get('request')
+            if property_media and property_media.file:
+                if request:
+                    property_cover_url = request.build_absolute_uri(property_media.file.url)
+                else:
+                    property_cover_url = property_media.file.url
+
             return {
                 'id': obj.related_property.id,
                 'title': obj.related_property.title,
@@ -551,16 +506,11 @@ class AuctionSerializer(BaseModelSerializer):
                 'property_type_display': obj.related_property.get_property_type_display(),
                 'address': obj.related_property.address,
                 'city': obj.related_property.city,
-                'cover_image_url': obj.related_property.cover_image.url if obj.related_property.cover_image else None,
+                'cover_image_url': property_cover_url,
                 'size_sqm': obj.related_property.size_sqm,
                 'bedrooms': obj.related_property.bedrooms,
                 'bathrooms': obj.related_property.bathrooms,
             }
-        return None
-
-    def get_cover_image_url(self, obj):
-        if obj.cover_image:
-            return obj.cover_image.url
         return None
 
     def get_highest_bid(self, obj):
@@ -612,38 +562,34 @@ class AuctionSerializer(BaseModelSerializer):
 
 class DocumentSerializer(BaseModelSerializer):
     """Serializer for Document model"""
-    file_url = serializers.SerializerMethodField(label=_('رابط الملف'))
-    thumbnail_url = serializers.SerializerMethodField(label=_('رابط الصورة المصغرة'))
     uploaded_by_details = UserBriefSerializer(source='uploaded_by', read_only=True, label=_('تفاصيل الناشر'))
     verified_by_details = UserBriefSerializer(source='verified_by', read_only=True, label=_('تم التحقق بواسطة'))
     document_type_display = serializers.CharField(source='get_document_type_display', read_only=True, label=_('نوع الوثيقة المعروض'))
     verification_status_display = serializers.CharField(source='get_verification_status_display', read_only=True, label=_('حالة التحقق المعروضة'))
+    media = MediaSerializer(many=True, read_only=True, label=_('ملفات الوسائط'))
 
     class Meta:
         model = Document
         fields = [
             'id', 'document_number', 'title', 'document_type', 'document_type_display',
-            'description', 'file', 'file_url', 'thumbnail', 'thumbnail_url',
+            'description',
+            'media',
             'verification_status', 'verification_status_display', 'verification_date',
             'verification_notes', 'verification_details', 'issue_date', 'expiry_date',
             'related_property', 'related_auction', 'related_contract', 'uploaded_by',
-            'uploaded_by_details', 'verified_by', 'verified_by_details', 'file_size',
-            'page_count', 'content_type', 'document_metadata', 'is_public',
+            'uploaded_by_details', 'verified_by', 'verified_by_details',
+            'document_metadata', 'is_public',
             'access_code', 'created_at', 'updated_at'
         ]
         extra_kwargs = {
             'document_number': {'read_only': True, 'label': _('رقم الوثيقة')},
             'uploaded_by': {'write_only': True, 'label': _('تم التحميل بواسطة')},
             'verified_by': {'write_only': True, 'label': _('تم التحقق بواسطة')},
-            'file_size': {'read_only': True, 'label': _('حجم الملف (كيلوبايت)')},
-            'page_count': {'read_only': True, 'label': _('عدد الصفحات')},
-            'content_type': {'read_only': True, 'label': _('نوع المحتوى')},
             'verification_date': {'read_only': True, 'label': _('تاريخ التحقق')},
-            'thumbnail': {'read_only': True, 'label': _('صورة مصغرة')},
             'title': {'label': _('العنوان')},
             'document_type': {'label': _('نوع الوثيقة')},
             'description': {'label': _('الوصف')},
-            'file': {'label': _('ملف الوثيقة')},
+            'media': {'label': _('ملفات الوسائط')}, 
             'verification_status': {'label': _('حالة التحقق')},
             'verification_notes': {'label': _('ملاحظات التحقق')},
             'verification_details': {'label': _('تفاصيل التحقق')},
@@ -652,20 +598,10 @@ class DocumentSerializer(BaseModelSerializer):
             'related_property': {'label': _('العقار المرتبط')},
             'related_auction': {'label': _('المزاد المرتبط')},
             'related_contract': {'label': _('العقد المرتبط')},
-            'document_metadata': {'label': _('بيانات الوثيقة')},
-            'is_public': {'label': _('متاح للجميع')},
+            'document_metadata': {'label': _('بيانات وصفية للوثيقة')},
+            'is_public': {'label': _('عامة')},
             'access_code': {'label': _('رمز الوصول')},
         }
-
-    def get_file_url(self, obj):
-        if obj.file:
-            return obj.file.url
-        return None
-
-    def get_thumbnail_url(self, obj):
-        if obj.thumbnail:
-            return obj.thumbnail.url
-        return None
 
 
 # -------------------------------------------------------------------------
@@ -682,13 +618,14 @@ class ContractSerializer(BaseModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True, label=_('الحالة المعروضة'))
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True, label=_('طريقة الدفع المعروضة'))
     documents = DocumentSerializer(many=True, read_only=True, label=_('الوثائق'))
-    file_url = serializers.SerializerMethodField(label=_('رابط الملف'))
+    media = MediaSerializer(many=True, read_only=True, label=_('ملفات العقد'))
 
     class Meta:
         model = Contract
         fields = [
             'id', 'contract_number', 'title', 'description', 'status', 'status_display',
-            'contract_file', 'file_url', 'related_property', 'property_details',
+            'media',
+            'related_property', 'property_details',
             'related_auction', 'auction_details', 'buyer', 'buyer_details',
             'seller', 'seller_details', 'contract_date', 'effective_date',
             'expiry_date', 'timeline', 'total_amount', 'down_payment',
@@ -709,7 +646,7 @@ class ContractSerializer(BaseModelSerializer):
             'title': {'label': _('العنوان')},
             'description': {'label': _('الوصف')},
             'status': {'label': _('الحالة')},
-            'contract_file': {'label': _('ملف العقد')},
+            'media': {'label': _('ملفات العقد')},
             'related_property': {'label': _('العقار المرتبط')},
             'related_auction': {'label': _('المزاد المرتبط')},
             'contract_date': {'label': _('تاريخ العقد')},
@@ -748,11 +685,6 @@ class ContractSerializer(BaseModelSerializer):
                 'title': obj.related_auction.title,
                 'final_bid': obj.related_auction.current_bid,
             }
-        return None
-
-    def get_file_url(self, obj):
-        if obj.contract_file:
-            return obj.contract_file.url
         return None
 
     def validate(self, data):
@@ -836,141 +768,3 @@ class NotificationSerializer(BaseModelSerializer):
         return data
 
 
-
-class PropertyViewSerializer(BaseModelSerializer):
-    """Serializer for PropertyView model"""
-    auction_details = serializers.SerializerMethodField(label=_('تفاصيل المزاد'))
-    view_type_display = serializers.CharField(source='get_view_type_display', read_only=True, label=_('نوع العرض المعروض'))
-    image_url = serializers.SerializerMethodField(label=_('رابط الصورة'))
-    file_url = serializers.SerializerMethodField(label=_('رابط الملف'))
-
-    class Meta:
-        model = PropertyView
-        fields = [
-            'id', 'auction', 'auction_details', 'view_type', 'view_type_display',
-            'location', 'dimensions', 'address', 'legal_description', 'size_sqm',
-            'elevation', 'image', 'image_url', 'file', 'file_url', 'external_url',
-            'embed_code', 'view_config', 'created_at', 'updated_at'
-        ]
-        extra_kwargs = {
-            'auction': {'write_only': True, 'label': _('المزاد')},
-            'view_type': {'label': _('نوع العرض')},
-            'location': {'label': _('الموقع')},
-            'dimensions': {'label': _('الأبعاد')},
-            'address': {'label': _('العنوان')},
-            'legal_description': {'label': _('الوصف القانوني')},
-            'size_sqm': {'label': _('المساحة (متر مربع)')},
-            'elevation': {'label': _('الارتفاع')},
-            'image': {'label': _('الصورة')},
-            'file': {'label': _('الملف')},
-            'external_url': {'label': _('رابط خارجي')},
-            'embed_code': {'label': _('كود التضمين')},
-            'view_config': {'label': _('إعدادات العرض')},
-        }
-
-    def get_auction_details(self, obj):
-        if obj.auction:
-            return {
-                'id': obj.auction.id,
-                'title': obj.auction.title,
-                'property': {
-                    'id': obj.auction.related_property.id,
-                    'title': obj.auction.related_property.title,
-                    'property_type': obj.auction.related_property.property_type,
-                } if obj.auction.related_property else None
-            }
-        return None
-
-    def get_image_url(self, obj):
-        if obj.image:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.image.url)
-            return obj.image.url
-        return None
-
-    def get_file_url(self, obj):
-        if obj.file:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.file.url)
-            return obj.file.url
-        return None
-
-    def to_internal_value(self, data):
-        """
-        Handle JSON fields properly before validation
-        """
-        # Handle JSON fields if they come as strings
-        json_fields = ['location', 'dimensions', 'view_config']
-
-        data_copy = data.copy()
-        for field in json_fields:
-            if field in data_copy and isinstance(data_copy[field], str):
-                try:
-                    # Try to parse if it's a JSON string
-                    data_copy[field] = json.loads(data_copy[field])
-                except (json.JSONDecodeError, ValueError):
-                    # If it's not valid JSON, use an empty dict
-                    data_copy[field] = {}
-
-        return super().to_internal_value(data_copy)
-
-    def to_representation(self, instance):
-        """
-        Ensure JSON fields are properly serialized
-        """
-        representation = super().to_representation(instance)
-
-        # Ensure object fields are properly serialized
-        json_fields = ['location', 'dimensions', 'view_config']
-        for field in json_fields:
-            value = representation.get(field)
-            if value is None:
-                representation[field] = {}
-            elif isinstance(value, str):
-                try:
-                    representation[field] = json.loads(value)
-                except (json.JSONDecodeError, ValueError):
-                    representation[field] = {}
-
-        return representation
-
-    def validate_location(self, value):
-        """Validate location data."""
-        if value and not isinstance(value, dict):
-            raise serializers.ValidationError(_("يجب أن تكون بيانات الموقع على شكل قاموس."))
-        return value
-
-    def validate_dimensions(self, value):
-        """Validate dimensions data."""
-        if value and not isinstance(value, dict):
-            raise serializers.ValidationError(_("يجب أن تكون بيانات الأبعاد على شكل قاموس."))
-        return value
-
-    def validate_view_config(self, value):
-        """Validate view_config data."""
-        if value and not isinstance(value, dict):
-            raise serializers.ValidationError(_("يجب أن تكون إعدادات العرض على شكل قاموس."))
-        return value
-
-    def validate(self, data):
-        """Validate that necessary fields are provided based on view_type."""
-        view_type = data.get('view_type')
-
-        if view_type == '3d_model' and not (data.get('file') or data.get('external_url')):
-            raise serializers.ValidationError(
-                _("يجب توفير ملف أو رابط خارجي للنموذج ثلاثي الأبعاد.")
-            )
-
-        if view_type == 'virtual_tour' and not (data.get('external_url') or data.get('embed_code')):
-            raise serializers.ValidationError(
-                _("يجب توفير رابط خارجي أو كود تضمين للجولة الافتراضية.")
-            )
-
-        if view_type == 'floor_plan' and not data.get('file') and not data.get('image'):
-            raise serializers.ValidationError(
-                _("يجب توفير صورة أو ملف لمخطط الطابق.")
-            )
-
-        return data

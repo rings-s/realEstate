@@ -7,9 +7,7 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.tokens import default_token_generator
 from datetime import timedelta
 import random
-from base.decorators import RoleRequiredPermission
-from .models import UserImage
-
+from base.decorators import api_role_required
 
 from rest_framework import status
 from rest_framework.views import APIView
@@ -24,7 +22,6 @@ from .serializers import (
     UserProfileSerializer,
     UserProfileUpdateSerializer,
     UserRoleUpdateSerializer,
-    UserImageSerializer
 )
 from .utils import (
     send_verification_email,
@@ -736,7 +733,7 @@ class AssignRoleView(APIView):
     Only administrators can assign roles
     """
     def get_permissions(self):
-        return [RoleRequiredPermission([Role.ADMIN])]
+        return [api_role_required(Role.ADMIN)]
 
     def post(self, request, user_id):
         """Assign roles to a user (admin only)"""

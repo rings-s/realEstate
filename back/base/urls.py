@@ -9,28 +9,16 @@ urlpatterns = [
     path('properties/<slug:slug>/', views.PropertyDetailView.as_view(), name='property-detail'),
     path('properties/<slug:slug>/edit/', views.PropertyEditView.as_view(), name='property-edit'),
     path('properties/<slug:slug>/delete/', views.PropertyDeleteView.as_view(), name='property-delete'),
-    path('properties/<int:property_id>/images/', views.PropertyImageListCreateView.as_view(), name='property-image-list'),
-    path('properties/<int:property_id>/images/reorder/', views.PropertyImageReorderView.as_view(), name='property-image-reorder'),
-    path('property-images/<int:pk>/', views.PropertyImageDetailView.as_view(), name='property-image-detail'),
-    path('property-images/<int:pk>/edit/', views.PropertyImageEditView.as_view(), name='property-image-edit'),
-    path('property-images/<int:pk>/delete/', views.PropertyImageDeleteView.as_view(), name='property-image-delete'),
 
     # Auction URLs
     path('auctions/', views.AuctionListCreateView.as_view(), name='auction-list'),
     path('auctions/<slug:slug>/', views.AuctionDetailView.as_view(), name='auction-detail'),
     # path('auctions/<slug:slug>/edit/', views.AuctionEditView.as_view(), name='auction-edit'),
     # path('auctions/<slug:slug>/delete/', views.AuctionDeleteView.as_view(), name='auction-delete'),
-    # path('auctions/<int:auction_id>/images/', views.AuctionImageListCreateView.as_view(), name='auction-image-list'),
-    
     path('auctions/<uuid:uuid>/', views.AuctionDetailView.as_view(), name='auction-detail'),
     path('auctions/<uuid:uuid>/edit/', views.AuctionEditView.as_view(), name='auction-edit'),
     path('auctions/<uuid:uuid>/delete/', views.AuctionDeleteView.as_view(), name='auction-delete'),
     
-    
-    path('auction-images/<int:pk>/', views.AuctionImageDetailView.as_view(), name='auction-image-detail'),
-    path('auction-images/<int:pk>/edit/', views.AuctionImageEditView.as_view(), name='auction-image-edit'),
-    path('auction-images/<int:pk>/delete/', views.AuctionImageDeleteView.as_view(), name='auction-image-delete'),
-
     # Bid URLs
     path('auctions/<int:auction_id>/bids/', views.BidListCreateView.as_view(), name='bid-list'),
     path('bids/<int:pk>/', views.BidDetailView.as_view(), name='bid-detail'),
@@ -69,10 +57,4 @@ urlpatterns = [
     path('notifications/<int:pk>/', views.NotificationDetailView.as_view(), name='notification-detail'),
     path('notifications/<int:pk>/edit/', views.NotificationEditView.as_view(), name='notification-edit'),
     path('notifications/<int:pk>/delete/', views.NotificationDeleteView.as_view(), name='notification-delete'),
-
-    # Property View URLs (like floor plans, street views)
-    path('auctions/<int:auction_id>/property-views/', views.PropertyViewListCreateView.as_view(), name='property-view-list'),
-    path('property-views/<int:pk>/', views.PropertyViewDetailView.as_view(), name='property-view-detail'),
-    path('property-views/<int:pk>/edit/', views.PropertyViewEditView.as_view(), name='property-view-edit'),
-    path('property-views/<int:pk>/delete/', views.PropertyViewDeleteView.as_view(), name='property-view-delete'),
 ]

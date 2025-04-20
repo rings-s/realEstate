@@ -10,19 +10,24 @@ from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 import logging
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from rest_framework.exceptions import ValidationError  # Missing import
-from rest_framework.exceptions import PermissionDenied  # Add this import
+from rest_framework.exceptions import ValidationError  
+from rest_framework.exceptions import PermissionDenied  
 
 import json
 
 from .models import (
-    Property, PropertyImage, Auction, AuctionImage, Bid, Document, Contract,
-    MessageThread, ThreadParticipant, Message, PropertyView, Notification
+    Property, 
+    Auction, 
+    Bid, Document, Contract,
+    MessageThread, ThreadParticipant, Message, Notification,
+    Media 
 )
 from .serializers import (
-    PropertySerializer, PropertyImageSerializer, AuctionSerializer, AuctionImageSerializer,
+    PropertySerializer, 
+    AuctionSerializer, 
     BidSerializer, DocumentSerializer, ContractSerializer, MessageThreadSerializer,
-    ThreadParticipantSerializer, MessageSerializer, PropertyViewSerializer, NotificationSerializer
+    ThreadParticipantSerializer, MessageSerializer, NotificationSerializer,
+    MediaSerializer 
 )
 from .permissions import (
     IsAdminUser, IsVerifiedUser, HasRolePermission, IsPropertyOwner, IsAuctionParticipant,
@@ -129,17 +134,19 @@ class PropertyListCreateView(generics.ListCreateAPIView):
             logger.error(f"Error in PropertyListCreateView.get_queryset: {str(e)}")
             return Property.objects.none()
 
+    @log_api_calls
+    @api_verified_user_required
     def perform_create(self, serializer):
         """
         Create a new property with the current user as owner.
         Permissions are handled by permission classes and decorators.
+        # TODO: Implement associating Media objects (images, etc.) after creation.
         """
-        # Check if user has permission to create property
-        if not check_user_permission(self.request.user, 'can_create_property'):
-            raise PermissionDenied(_('You do not have permission to create properties.'))
+        if not check_user_permission(self.request.user, 'add_property'):
+            raise PermissionDenied(_("You do not have permission to create properties."))
 
-        # Save with current user as owner
         serializer.save(owner=self.request.user)
+        logger.info(f"Property created by user {self.request.user.id}")
 
 class PropertyDetailView(generics.RetrieveAPIView):
     """
@@ -285,135 +292,7 @@ class PropertyDeleteView(generics.DestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
-
-
-
-class PropertyImageListCreateView(generics.ListCreateAPIView):
-    """
-    List all images for a property or create a new image.
-
-    GET: List all images for a specific property
-    POST: Add a new image to a property
-    """
-    serializer_class = PropertyImageSerializer
-    permission_classes = [IsAuthenticated]
-    parser_classes = [MultiPartParser, FormParser]
-    pagination_class = StandardResultsSetPagination
-
-    def get_queryset(self):
-        property_id = self.kwargs.get('property_id')
-        return PropertyImage.objects.filter(property_id=property_id).order_by('order', '-is_primary')
-
-    def perform_create(self, serializer):
-        # Get property or return 404
-        property_obj = get_object_or_404(Property, id=self.kwargs.get('property_id'))
-
-        # Check permissions
-        if not (self.request.user.has_role('admin') or property_obj.owner == self.request.user):
-            raise PermissionDenied(_('You do not have permission to add images to this property.'))
-
-
-        # Debug the incoming request data
-        print(f"Request data: {self.request.data}")
-        print(f"Request FILES: {self.request.FILES}")
-
-        # Make sure image is in request.FILES
-        if 'image' not in self.request.FILES:
-            raise ValidationError({'image': _('No image file provided')})
-
-        # Create the PropertyImage object
-        serializer.save(
-            property=property_obj,
-            image=self.request.FILES['image'],
-            is_primary=self.request.data.get('is_primary') == 'true',
-            caption=self.request.data.get('caption', ''),
-            alt_text=self.request.data.get('alt_text', ''),
-            order=self.request.data.get('order', 0)
-        )
-
-# Property Image Detail View
-class PropertyImageDetailView(generics.RetrieveAPIView):
-    """
-    Retrieve a property image.
-
-    GET: Get details of a specific property image
-    """
-    queryset = PropertyImage.objects.all()
-    serializer_class = PropertyImageSerializer
-    permission_classes = [IsAuthenticated]
-
-# Property Image Edit View
-class PropertyImageEditView(generics.UpdateAPIView):
-    """
-    Update a property image.
-
-    PUT: Update all fields of a property image
-    PATCH: Update specific fields of a property image
-    """
-    queryset = PropertyImage.objects.all()
-    serializer_class = PropertyImageSerializer
-    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
-    parser_classes = [MultiPartParser, FormParser]
-
-    def get_owner(self, obj):
-        return obj.property.owner
-
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
-
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-# Property Image Delete View
-class PropertyImageDeleteView(generics.DestroyAPIView):
-    """
-    Delete a property image.
-
-    DELETE: Remove a property image
-    """
-    queryset = PropertyImage.objects.all()
-    serializer_class = PropertyImageSerializer
-    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
-
-    def get_owner(self, obj):
-        return obj.property.owner
-
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
-
-# Property Image Reorder View
-class PropertyImageReorderView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, property_id, format=None):
-        property = get_object_or_404(Property, id=property_id)
-        if not (request.user.has_role('admin') or property.owner == request.user):
-            return Response(
-                {'detail': _('You do not have permission to reorder images for this property.')},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        images_data = request.data.get('images', [])
-        if not images_data or not isinstance(images_data, list):
-            return Response(
-                {'detail': _('Invalid image order data provided.')},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        for image_data in images_data:
-            image_id = image_data.get('id')
-            new_order = image_data.get('order')
-            if image_id is None or new_order is None:
-                continue
-            try:
-                image = PropertyImage.objects.get(id=image_id, property_id=property_id)
-                image.order = new_order
-                image.save(update_fields=['order'])
-            except PropertyImage.DoesNotExist:
-                continue
-        return Response(
-            {'detail': _('Image order updated successfully.')},
-            status=status.HTTP_200_OK
-        )
-
+# -------------------------------------------------------------------------
 # Auction Views
 # -------------------------------------------------------------------------
 
@@ -542,89 +421,6 @@ class AuctionDeleteView(generics.DestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
-
-class AuctionImageListCreateView(generics.ListCreateAPIView):
-    """
-    List all images for an auction or create a new image.
-
-    GET: List all images for a specific auction
-    POST: Add a new image to an auction (owner or admin only)
-    """
-    serializer_class = AuctionImageSerializer
-    permission_classes = [IsAuthenticated]
-    # Add parser classes for file uploads
-    parser_classes = [MultiPartParser, FormParser]
-    pagination_class = StandardResultsSetPagination
-
-    def get_queryset(self):
-        auction_id = self.kwargs.get('auction_id')
-        return AuctionImage.objects.filter(auction_id=auction_id).order_by('order', '-is_primary')
-
-    @api_verified_user_required
-    def perform_create(self, serializer):
-        auction = get_object_or_404(Auction, id=self.kwargs.get('auction_id'))
-        if not (self.request.user.has_role('admin') or auction.related_property.owner == self.request.user):
-            # self.permission_denied(self.request, message=_('You do not have permission to add images to this auction.'))
-            raise PermissionDenied(_('You do not have permission to add images to this auction.'))
-
-
-        # Make sure image is in request.FILES
-        if 'image' not in self.request.FILES:
-            raise ValidationError({'image': _('No image file provided')})
-
-        # Create the AuctionImage object with all relevant data
-        serializer.save(
-            auction=auction,
-            image=self.request.FILES['image'],
-            is_primary=self.request.data.get('is_primary') == 'true',
-            caption=self.request.data.get('caption', ''),
-            alt_text=self.request.data.get('alt_text', ''),
-            order=self.request.data.get('order', 0)
-        )
-
-class AuctionImageDetailView(generics.RetrieveAPIView):
-    """
-    Retrieve an auction image.
-
-    GET: Get details of a specific auction image
-    """
-    queryset = AuctionImage.objects.all()
-    serializer_class = AuctionImageSerializer
-    permission_classes = [IsAuthenticated]
-
-class AuctionImageEditView(generics.UpdateAPIView):
-    """
-    Update an auction image.
-
-    PUT: Update all fields of an auction image
-    PATCH: Update specific fields of an auction image
-    """
-    queryset = AuctionImage.objects.all()
-    serializer_class = AuctionImageSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
-
-    @api_verified_user_required
-    def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
-
-    @api_verified_user_required
-    def partial_update(self, request, *args, **kwargs):
-        return super().partial_update(request, *args, **kwargs)
-
-class AuctionImageDeleteView(generics.DestroyAPIView):
-    """
-    Delete an auction image.
-
-    DELETE: Remove an auction image (admin only)
-    """
-    queryset = AuctionImage.objects.all()
-    serializer_class = AuctionImageSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
-
-    @api_verified_user_required
-    def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
-
 # -------------------------------------------------------------------------
 # Bid Views
 # -------------------------------------------------------------------------
@@ -662,10 +458,6 @@ class BidListCreateView(generics.ListCreateAPIView):
         auction = get_object_or_404(Auction, id=auction_id)
         status = check_auction_status(auction)
         if status != 'live':
-            # self.permission_denied(
-            #     self.request,
-            #     message=_('Bids can only be placed on live auctions. Current status: {status}').format(status=status)
-            # )
             raise PermissionDenied(
                 _('Bids can only be placed on live auctions. Current status: {status}').format(status=status)
             )
@@ -790,6 +582,34 @@ class DocumentListCreateView(generics.ListCreateAPIView):
 
     @api_verified_user_required
     def perform_create(self, serializer):
+        """
+        Create a document, ensuring the user has permission.
+        The document can be related to a Property or Auction.
+        # TODO: Implement associating Media object (the actual file) after creation.
+        """
+        related_obj = None
+        related_model_type = None
+
+        if 'related_property' in self.request.data:
+            related_obj = get_object_or_404(Property, id=self.request.data['related_property'])
+            related_model_type = 'property'
+        elif 'related_auction' in self.request.data:
+            related_obj = get_object_or_404(Auction, id=self.request.data['related_auction'])
+            related_model_type = 'auction'
+        elif 'related_contract' in self.request.data:
+            related_obj = get_object_or_404(Contract, id=self.request.data['related_contract'])
+            related_model_type = 'contract'
+
+        if related_model_type == 'property':
+            if not (self.request.user.has_role('admin') or related_obj.owner == self.request.user):
+                raise PermissionDenied(_('You do not have permission to create documents for this property.'))
+        elif related_model_type == 'auction':
+            if not (self.request.user.has_role('admin') or related_obj.related_property.owner == self.request.user):
+                raise PermissionDenied(_('You do not have permission to create documents for this auction.'))
+        elif related_model_type == 'contract':
+            if not (self.request.user.has_role('admin') or related_obj.seller == self.request.user or related_obj.buyer == self.request.user):
+                raise PermissionDenied(_('You do not have permission to create documents for this contract.'))
+
         serializer.save(uploaded_by=self.request.user)
 
 class DocumentDetailView(generics.RetrieveAPIView):
@@ -1304,136 +1124,5 @@ class NotificationDeleteView(generics.DestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
-# -------------------------------------------------------------------------
-# Property View Views
-# -------------------------------------------------------------------------
-
-class PropertyViewListCreateView(generics.ListCreateAPIView):
-    """
-    List all property views for an auction or create a new property view.
-
-    GET: List all property views for a specific auction
-    POST: Create a new property view for an auction
-    """
-    serializer_class = PropertyViewSerializer
-    permission_classes = [IsAuthenticated]
-    pagination_class = StandardResultsSetPagination
-    # Add parser classes for file uploads
-    parser_classes = [MultiPartParser, FormParser, JSONParser]
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-    filterset_fields = ['view_type']
-    ordering_fields = ['created_at']
-    ordering = ['-created_at']
-
-    def get_queryset(self):
-        auction_id = self.kwargs.get('auction_id')
-        return PropertyView.objects.filter(auction_id=auction_id)
-
-    @api_verified_user_required
-    def perform_create(self, serializer):
-        auction = get_object_or_404(Auction, id=self.kwargs.get('auction_id'))
-        if not (self.request.user.has_role('admin') or auction.related_property.owner == self.request.user):
-            self.permission_denied(
-                self.request,
-                message=_('You do not have permission to add property views to this auction.')
-            )
-
-        # Properly handle file uploads
-        data = {
-            'auction': auction,
-            'view_type': self.request.data.get('view_type'),
-            'address': self.request.data.get('address', ''),
-            'legal_description': self.request.data.get('legal_description', ''),
-            'size_sqm': self.request.data.get('size_sqm'),
-            'elevation': self.request.data.get('elevation'),
-            'external_url': self.request.data.get('external_url', ''),
-            'embed_code': self.request.data.get('embed_code', ''),
-        }
-
-        # Handle JSON fields
-        for field in ['location', 'dimensions', 'view_config']:
-            if field in self.request.data:
-                try:
-                    if isinstance(self.request.data[field], str):
-                        data[field] = json.loads(self.request.data[field])
-                    else:
-                        data[field] = self.request.data[field]
-                except json.JSONDecodeError:
-                    data[field] = {}
-
-        # Handle file uploads
-        if 'image' in self.request.FILES:
-            data['image'] = self.request.FILES['image']
-
-        if 'file' in self.request.FILES:
-            data['file'] = self.request.FILES['file']
-
-        serializer.save(**data)
-
-
-class PropertyViewDetailView(generics.RetrieveAPIView):
-    """
-    Retrieve a property view.
-
-    GET: Get details of a specific property view
-    """
-    queryset = PropertyView.objects.all()
-    serializer_class = PropertyViewSerializer
-    permission_classes = [IsAuthenticated]
-
-class PropertyViewEditView(generics.UpdateAPIView):
-    """
-    Update a property view.
-
-    PUT: Update all fields of a property view
-    PATCH: Update specific fields of a property view
-    """
-    queryset = PropertyView.objects.all()
-    serializer_class = PropertyViewSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
-
-    @log_api_calls
-    @api_verified_user_required
-    def update(self, request, *args, **kwargs):
-        property_view = self.get_object()
-        auction = property_view.auction
-        if not (request.user.has_role('admin') or auction.related_property.owner == request.user):
-            return Response(
-                {'detail': _('You do not have permission to update this property view.')},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().update(request, *args, **kwargs)
-
-    @log_api_calls
-    @api_verified_user_required
-    def partial_update(self, request, *args, **kwargs):
-        property_view = self.get_object()
-        auction = property_view.auction
-        if not (request.user.has_role('admin') or auction.related_property.owner == request.user):
-            return Response(
-                {'detail': _('You do not have permission to update this property view.')},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().partial_update(request, *args, **kwargs)
-
-class PropertyViewDeleteView(generics.DestroyAPIView):
-    """
-    Delete a property view.
-
-    DELETE: Remove a property view
-    """
-    queryset = PropertyView.objects.all()
-    serializer_class = PropertyViewSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
-
-    @log_api_calls
-    @api_verified_user_required
-    def destroy(self, request, *args, **kwargs):
-        property_view = self.get_object()
-        auction = property_view.auction
-        if not (request.user.has_role('admin') or auction.related_property.owner == request.user):
-            return Response(
-                {'detail': _('You do not have permission to delete this property view.')},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        return super().destroy(request, *args, **kwargs)
+# ----------------------------------------------------------------------
+# Documents

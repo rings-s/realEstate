@@ -121,9 +121,7 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 STATIC_URL = 'static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
-# Media files
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -150,6 +148,12 @@ REST_FRAMEWORK = {
     }
 }
 
+# Channel layers for WebSockets
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    }
+}
 
 
 # CORS settings
@@ -158,12 +162,19 @@ if not DEBUG:
     CORS_ALLOWED_ORIGINS = [os.getenv('FRONTEND_URL', 'http://localhost:5137')]
 CORS_ALLOW_CREDENTIALS = True
 
-# Channel layers for WebSockets
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
-    }
-}
+# Allow common headers needed for API interaction
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization', # Important if you add token auth later
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
 
 # Email configuration from .env
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

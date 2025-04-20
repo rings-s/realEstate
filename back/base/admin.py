@@ -3,11 +3,15 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from django.urls import reverse
 from django.utils import timezone
+from django.contrib.contenttypes.admin import GenericTabularInline
 
 from .models import (
-    Property, PropertyImage, Auction, AuctionImage, Bid,
+    Property,
+    Auction,
+    Bid,
     Document, Contract, MessageThread, ThreadParticipant, Message,
-    PropertyView, Notification
+     Notification,
+    Media
 )
 
 
@@ -15,16 +19,11 @@ from .models import (
 # Inline Admin Classes
 # -------------------------------------------------------------------------
 
-class PropertyImageInline(admin.TabularInline):
-    model = PropertyImage
+class MediaInline(GenericTabularInline):
+    model = Media
     extra = 1
-    fields = ('image', 'is_primary', 'order', 'caption', 'alt_text')
-
-
-class AuctionImageInline(admin.TabularInline):
-    model = AuctionImage
-    extra = 1
-    fields = ('image', 'is_primary', 'order', 'caption', 'alt_text')
+    fields = ('file', 'media_type', 'description', 'is_cover', 'order')
+    readonly_fields = ('uploaded_at',)
 
 
 class BidInline(admin.TabularInline):
@@ -52,7 +51,7 @@ class MessageInline(admin.TabularInline):
 class DocumentInline(admin.TabularInline):
     model = Document
     extra = 1
-    fields = ('title', 'document_type', 'file', 'verification_status')
+    fields = ('title', 'document_type', 'verification_status')
 
 
 # -------------------------------------------------------------------------
@@ -63,11 +62,11 @@ class DocumentInline(admin.TabularInline):
 class PropertyAdmin(admin.ModelAdmin):
     list_display = ('property_number', 'title', 'property_type', 'status', 'city', 'owner', 'is_published', 'deed_number')
     list_filter = ('property_type', 'status', 'city', 'is_published', 'is_featured')
-    search_fields = ('property_number', 'title', 'owner__email', 'address', 'city', 'deed_number')  # Added deed_number to search
+    search_fields = ('property_number', 'title', 'owner__email', 'address', 'city', 'deed_number')
     readonly_fields = ('property_number', 'slug', 'created_at', 'updated_at')
     fieldsets = (
         (_('Basic Information'), {
-            'fields': ('property_number', 'deed_number', 'title', 'property_type', 'status', 'description', 'owner')  # Added deed_number
+            'fields': ('property_number', 'deed_number', 'title', 'property_type', 'status', 'description', 'owner')
         }),
         (_('Location'), {
             'fields': ('address', 'city', 'state', 'postal_code', 'country', 'location')
@@ -80,10 +79,10 @@ class PropertyAdmin(admin.ModelAdmin):
             'fields': ('market_value', 'minimum_bid', 'pricing_details')
         }),
         (_('Publication'), {
-            'fields': ('is_published', 'is_featured', 'is_verified', 'cover_image', 'slug')
+            'fields': ('is_published', 'is_featured', 'is_verified', 'slug')
         }),
     )
-    inlines = [PropertyImageInline, DocumentInline]
+    inlines = [MediaInline, DocumentInline]
     actions = ['mark_as_published', 'mark_as_featured', 'mark_as_verified']
 
     def mark_as_published(self, request, queryset):
@@ -97,13 +96,6 @@ class PropertyAdmin(admin.ModelAdmin):
     def mark_as_verified(self, request, queryset):
         queryset.update(is_verified=True)
     mark_as_verified.short_description = _("Mark selected properties as verified")
-
-@admin.register(PropertyImage)
-class PropertyImageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'property', 'is_primary', 'order', 'created_at')
-    list_filter = ('is_primary', 'property__property_type')
-    search_fields = ('property__title', 'caption', 'alt_text')
-    readonly_fields = ('width', 'height', 'file_size', 'created_at', 'updated_at')
 
 
 @admin.register(Auction)
@@ -125,13 +117,13 @@ class AuctionAdmin(admin.ModelAdmin):
                       'estimated_value', 'buyer_premium_percent', 'registration_fee', 'deposit_required')
         }),
         (_('Publication'), {
-            'fields': ('is_published', 'is_featured', 'is_private', 'cover_image')
+            'fields': ('is_published', 'is_featured', 'slug')
         }),
         (_('Terms & Details'), {
             'fields': ('terms_conditions', 'special_notes', 'financial_terms')
         }),
     )
-    inlines = [AuctionImageInline, BidInline, DocumentInline]
+    inlines = [MediaInline, BidInline, DocumentInline]
     actions = ['update_auction_status', 'mark_as_published', 'mark_as_featured']
 
     def update_auction_status(self, request, queryset):
@@ -155,14 +147,6 @@ class AuctionAdmin(admin.ModelAdmin):
     def mark_as_featured(self, request, queryset):
         queryset.update(is_featured=True)
     mark_as_featured.short_description = _("Mark selected auctions as featured")
-
-
-@admin.register(AuctionImage)
-class AuctionImageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'auction', 'is_primary', 'order', 'created_at')
-    list_filter = ('is_primary', 'auction__auction_type')
-    search_fields = ('auction__title', 'caption', 'alt_text')
-    readonly_fields = ('width', 'height', 'file_size', 'created_at', 'updated_at')
 
 
 @admin.register(Bid)
@@ -196,8 +180,23 @@ class DocumentAdmin(admin.ModelAdmin):
     list_display = ('document_number', 'title', 'document_type', 'uploaded_by',
                     'verification_status', 'is_public', 'created_at')
     list_filter = ('document_type', 'verification_status', 'is_public')
-    search_fields = ('document_number', 'title', 'description', 'uploaded_by__email')
-    readonly_fields = ('document_number', 'file_size', 'verification_date', 'created_at', 'updated_at')
+    search_fields = ('document_number', 'title', 'uploaded_by__email', 'description')
+    readonly_fields = ('document_number', 'created_at', 'updated_at')
+    fieldsets = (
+        (_('Document Information'), {
+            'fields': ('document_number', 'title', 'document_type', 'description', 'related_property')
+        }),
+        (_('Association'), {
+            'fields': ('content_type', 'object_id')  # Keep these for generic relation
+        }),
+        (_('Status & Access'), {
+            'fields': ('uploaded_by', 'verification_status', 'verification_date', 'verified_by')
+        }),
+        (_('Publication'), {
+            'fields': ('is_public', 'public_link', 'expiry_date')
+        }),
+    )
+    inlines = [MediaInline]
     actions = ['mark_as_verified', 'mark_as_public', 'mark_as_private']
 
     def mark_as_verified(self, request, queryset):
@@ -219,30 +218,29 @@ class DocumentAdmin(admin.ModelAdmin):
 
 @admin.register(Contract)
 class ContractAdmin(admin.ModelAdmin):
-    list_display = ('contract_number', 'title', 'status', 'related_property',
-                    'buyer', 'seller', 'total_amount', 'contract_date')
-    list_filter = ('status', 'payment_method', 'is_verified', 'contract_date')
-    search_fields = ('contract_number', 'title', 'buyer__email', 'seller__email')
-    readonly_fields = ('contract_number', 'verification_date', 'buyer_signed_date',
-                     'seller_signed_date', 'created_at', 'updated_at')
-    inlines = [DocumentInline]
-    actions = ['mark_as_active', 'mark_as_fulfilled', 'mark_as_verified']
-
-    def mark_as_active(self, request, queryset):
-        queryset.update(status='active')
-        for contract in queryset:
-            if contract.related_property:
-                contract.related_property.status = 'under_contract'
-                contract.related_property.save(update_fields=['status'])
-    mark_as_active.short_description = _("Mark selected contracts as active")
-
-    def mark_as_fulfilled(self, request, queryset):
-        queryset.update(status='fulfilled')
-        for contract in queryset:
-            if contract.related_property:
-                contract.related_property.status = 'sold'
-                contract.related_property.save(update_fields=['status'])
-    mark_as_fulfilled.short_description = _("Mark selected contracts as fulfilled")
+    list_display = ('contract_number', 'title', 'status', 'related_property', 'related_auction', 'buyer', 'seller', 'is_verified')
+    list_filter = ('status', 'is_verified', 'contract_date', 'payment_method')
+    search_fields = ('contract_number', 'title', 'buyer__email', 'seller__email', 'related_property__title')
+    readonly_fields = ('contract_number', 'created_at', 'updated_at')
+    fieldsets = (
+        (_('Contract Information'), {
+            'fields': ('contract_number', 'title', 'contract_type', 'status', 'contract_date', 'expiry_date')
+        }),
+        (_('Parties & Property'), {
+            'fields': ('related_property', 'related_auction', 'buyer', 'seller', 'parties')
+        }),
+        (_('Financials'), {
+            'fields': ('total_amount', 'down_payment', 'payment_method', 'payment_status', 'payment_due_date')
+        }),
+        (_('Verification'), {
+            'fields': ('is_verified', 'verification_date', 'verified_by')
+        }),
+        (_('Signatures'), {
+            'fields': ('buyer_signed', 'buyer_signed_date', 'seller_signed', 'seller_signed_date')
+        }),
+    )
+    inlines = [MediaInline, DocumentInline]
+    actions = ['mark_as_verified']
 
     def mark_as_verified(self, request, queryset):
         queryset.update(
@@ -289,6 +287,7 @@ class MessageAdmin(admin.ModelAdmin):
     list_filter = ('message_type', 'status', 'is_system_message', 'is_important', 'sent_at')
     search_fields = ('content', 'sender__email', 'thread__subject')
     readonly_fields = ('sent_at', 'delivered_at', 'read_at', 'created_at', 'updated_at')
+    inlines = [MediaInline]
     actions = ['mark_as_delivered', 'mark_as_read', 'mark_as_important']
 
     def mark_as_delivered(self, request, queryset):
@@ -302,14 +301,6 @@ class MessageAdmin(admin.ModelAdmin):
     def mark_as_important(self, request, queryset):
         queryset.update(is_important=True)
     mark_as_important.short_description = _("Mark selected messages as important")
-
-
-@admin.register(PropertyView)
-class PropertyViewAdmin(admin.ModelAdmin):
-    list_display = ('id', 'auction', 'view_type', 'size_sqm', 'created_at')
-    list_filter = ('view_type', 'created_at')
-    search_fields = ('auction__title', 'address', 'legal_description')
-    readonly_fields = ('created_at', 'updated_at')
 
 
 @admin.register(Notification)
@@ -331,3 +322,30 @@ class NotificationAdmin(admin.ModelAdmin):
     def mark_as_important(self, request, queryset):
         queryset.update(is_important=True)
     mark_as_important.short_description = _("Mark selected notifications as important")
+
+
+@admin.register(Media)
+class MediaAdmin(admin.ModelAdmin):
+    list_display = ('id', 'file', 'media_type', 'content_type', 'object_id', 'get_related_object_link', 'uploaded_at')
+    list_filter = ('media_type', 'content_type', 'uploaded_at')
+    search_fields = ('file', 'description', 'object_id')
+    readonly_fields = ('content_type', 'object_id', 'content_object', 'uploaded_at', 'get_related_object_link')
+    list_select_related = ('content_type',)
+
+    fieldsets = (
+        (_('File Info'), {'fields': ('file', 'media_type', 'description')}),
+        (_('Association'), {'fields': ('content_type', 'object_id', 'get_related_object_link')}),
+        (_('Details'), {'fields': ('is_cover', 'order')}),
+        (_('Timestamps'), {'fields': ('uploaded_at',)}),
+    )
+
+    def get_related_object_link(self, obj):
+        if obj.content_object:
+            related_model_admin_url = reverse(
+                f"admin:{obj.content_type.app_label}_{obj.content_type.model}_change",
+                args=[obj.object_id]
+            )
+            return format_html('<a href="{}">{}</a>', related_model_admin_url, obj.content_object)
+        return _("No related object")
+    get_related_object_link.short_description = _('Related Object')
+    get_related_object_link.admin_order_field = 'content_type'

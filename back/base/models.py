@@ -13,108 +13,93 @@ from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from accounts.models import CustomUser, Role
 from django.core.exceptions import ValidationError
+from django.utils.translation import gettext_lazy as _
+from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
+from django.contrib.contenttypes.models import ContentType
 
 
 # -------------------------------------------------------------------------
 # Helper Functions for Image and File Uploads
 # -------------------------------------------------------------------------
 
-def validate_image_size(file):
-    """Validate that image size is under 5MB"""
-    max_size = 5 * 1024 * 1024  # 5MB
-    if file.size > max_size:
-        raise ValidationError(_('حجم الصورة يجب أن يكون أقل من 5 ميجابايت'))
 
 
-def property_image_path(instance, filename):
-    """Generate a unique path for property images"""
-    import os
-    import uuid
 
-    ext = filename.split('.')[-1].lower() if '.' in filename else ''
-    new_filename = f"{uuid.uuid4()}.{ext}"
+# Helper function to define upload paths
+def file_path(instance, filename):
+    # file will be uploaded to MEDIA_ROOT/resources/<resource_id>/<filename>
+    return f'resources/{instance.id}/files/{filename}'
 
-    # Handle case where property might not be set yet or accessible
-    property_id = None
-    try:
-        if hasattr(instance, 'property') and instance.property:
-            property_id = instance.property.id
-    except Exception:
-        # If we can't access property.id for any reason, use a fallback
-        pass
-
-    # Use a default directory if property ID is not available
-    if property_id is None:
-        return os.path.join('properties', 'temp', 'images', new_filename)
-
-    return os.path.join('properties', str(property_id), 'images', new_filename)
-
-
-def auction_image_path(instance, filename):
-    """Generate a unique path for auction images"""
-    ext = filename.split('.')[-1].lower() if '.' in filename else ''
-    filename = f"{uuid.uuid4()}.{ext}"
-    return os.path.join('auctions', str(instance.auction.id), 'images', filename)
-
-
-def document_file_path(instance, filename):
-    """Generate a unique path for document files"""
-    ext = filename.split('.')[-1].lower() if '.' in filename else ''
-    slug = slugify(instance.title)
-    filename = f"{slug}-{uuid.uuid4()}.{ext}"
-
-    # Organize by document type and year
-    doc_type = slugify(instance.document_type)
-    year = instance.created_at.strftime('%Y') if instance.created_at else datetime.now().strftime('%Y')
-    return os.path.join('documents', doc_type, year, filename)
-
-
-def contract_file_path(instance, filename):
-    """Generate a unique path for contract files"""
-    ext = filename.split('.')[-1].lower() if '.' in filename else ''
-    filename = f"contract-{instance.contract_number}-{uuid.uuid4()}.{ext}"
-    return os.path.join('contracts', filename)
+def image_path(instance, filename):
+    # file will be uploaded to MEDIA_ROOT/resources/<resource_id>/images/<filename>
+    # Using resource.id assumes the Resource instance is saved first if image is added simultaneously.
+    # Or, if ResourceImage is saved separately, instance.resource.id works.
+    return f'resources/{instance.resource.id}/images/{filename}'
 
 
 # -------------------------------------------------------------------------
-# Base Image Model
+# Media Model
 # -------------------------------------------------------------------------
+class Media(models.Model):
+    """
+    A generic model to store uploaded files (images, documents, etc.)
+    linked to any other model using GenericForeignKey.
+    """
+    # Choices for media type identification
+    MEDIA_TYPES = [
+        ('image', 'Image'),
+        ('document', 'Document'),
+        ('video', 'Video'),
+        ('audio', 'Audio'),
+        ('other', 'Other'),
+    ]
 
-class BaseImageModel(models.Model):
-    """Base model for all image models"""
-    alt_text = models.CharField(_('النص البديل'), max_length=255, blank=True)
-    width = models.PositiveIntegerField(_('العرض'), blank=True, null=True, editable=False)
-    height = models.PositiveIntegerField(_('الارتفاع'), blank=True, null=True, editable=False)
-    file_size = models.PositiveIntegerField(_('حجم الملف (كيلوبايت)'), blank=True, null=True, editable=False)
-    # Fields moved from BaseModel
-    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
+    file = models.FileField(upload_to='generic_media/%Y/%m/%d/', verbose_name="File")
+    name = models.CharField(max_length=255, blank=True, verbose_name="Optional Name")
+    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="Uploaded At")
+    media_type = models.CharField(
+        max_length=10,
+        choices=MEDIA_TYPES,
+        default='other',
+        verbose_name="Media Type"
+    )
 
-    class Meta:
-        abstract = True
+    # Fields for GenericForeignKey
+    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    object_id = models.PositiveIntegerField()
+    content_object = GenericForeignKey('content_type', 'object_id')
+
+    def __str__(self):
+        return self.name or os.path.basename(self.file.name)
 
     def save(self, *args, **kwargs):
-        # Save image metadata if the image file exists
-        if hasattr(self, 'image') and self.image and hasattr(self.image, 'file'):
-            try:
-                from PIL import Image
-                img = Image.open(self.image)
-                self.width, self.height = img.size
-
-                # Calculate file size in KB
-                if hasattr(self.image, 'size'):
-                    self.file_size = self.image.size // 1024
-            except Exception:
-                # Don't prevent saving if image processing fails
-                pass
-
+        if not self.name:
+            self.name = os.path.basename(self.file.name)
+        # Basic media type detection based on extension (can be expanded)
+        if not self.pk or not self.media_type or self.media_type == 'other': # Detect only if new or not set
+             _, extension = os.path.splitext(self.file.name)
+             extension = extension.lower()
+             if extension in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
+                 self.media_type = 'image'
+             elif extension in ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt']:
+                 self.media_type = 'document'
+             elif extension in ['.mp4', '.avi', '.mov', '.wmv', '.mkv']:
+                 self.media_type = 'video'
+             elif extension in ['.mp3', '.wav', '.ogg', '.aac']:
+                 self.media_type = 'audio'
+             else:
+                 self.media_type = 'other'
         super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "Media File"
+        verbose_name_plural = "Media Files"
+        ordering = ['-uploaded_at']
 
 
 # -------------------------------------------------------------------------
 # Messaging Models
 # -------------------------------------------------------------------------
-
 class MessageThread(models.Model):
     """Model for message threads/conversations"""
     THREAD_TYPES = [
@@ -286,18 +271,11 @@ class Message(models.Model):
     status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='sent')
 
     # File or image attachment
-    attachment = models.FileField(
-        _('المرفق'),
-        upload_to='messages/attachments/%Y/%m/',
-        null=True,
-        blank=True,
-        validators=[
-            FileExtensionValidator(
-                ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'zip']
-            ),
-        ]
+    media = GenericRelation(
+        Media,
+        related_query_name='message',
+        verbose_name=_('Media')
     )
-    attachment_type = models.CharField(_('نوع المرفق'), max_length=100, blank=True)
     attachment_name = models.CharField(_('اسم المرفق'), max_length=255, blank=True)
     attachment_size = models.PositiveIntegerField(_('حجم المرفق'), null=True, blank=True)
 
@@ -340,17 +318,12 @@ class Message(models.Model):
 
     def save(self, *args, **kwargs):
         # Set message type based on attachment
-        if self.attachment and not self.message_type:
-            ext = self.attachment.name.split('.')[-1].lower() if '.' in self.attachment.name else ''
-            if ext in ['jpg', 'jpeg', 'png', 'gif']:
-                self.message_type = 'image'
-            else:
-                self.message_type = 'file'
+        if self.media and not self.message_type:
+            self.message_type = self.media.media_type
 
             # Set attachment metadata
-            self.attachment_name = os.path.basename(self.attachment.name)
-            self.attachment_type = self.attachment.content_type if hasattr(self.attachment, 'content_type') else ''
-            self.attachment_size = self.attachment.size if hasattr(self.attachment, 'size') else None
+            self.attachment_name = os.path.basename(self.media.file.name)
+            self.attachment_size = self.media.file.size if hasattr(self.media.file, 'size') else None
 
         # For new messages, update thread's last_message_at
         is_new = self.pk is None
@@ -367,7 +340,6 @@ class Message(models.Model):
 # -------------------------------------------------------------------------
 # Property Models
 # -------------------------------------------------------------------------
-
 class Property(models.Model):
     """Model for real estate properties"""
     PROPERTY_TYPES = [
@@ -512,15 +484,10 @@ class Property(models.Model):
     slug = models.SlugField(_('الرابط المختصر'), max_length=255, unique=True, blank=True)
 
     # Cover image - main property image
-    cover_image = models.ImageField(
-        _('صورة الغلاف'),
-        upload_to='properties/covers/',
-        null=True,
-        blank=True,
-        validators=[
-            FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp']),
-            validate_image_size
-        ]
+    media = GenericRelation(
+        Media,
+        related_query_name='property',
+        verbose_name=_('Media')
     )
 
     # Additional metadata for API
@@ -637,158 +604,10 @@ class Property(models.Model):
         super().save(*args, **kwargs)
 
 
-class PropertyImage(BaseImageModel):
-    """Model for property images"""
-    property = models.ForeignKey(
-        Property,
-        on_delete=models.CASCADE,
-        related_name='images',
-        verbose_name=_('العقار')
-    )
-    image = models.ImageField(
-        _('الصورة'),
-        upload_to=property_image_path,
-        validators=[
-            FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp']),
-            validate_image_size
-        ]
-    )
-    is_primary = models.BooleanField(_('صورة رئيسية'), default=False)
-    caption = models.CharField(_('التعليق'), max_length=255, blank=True)
-    order = models.PositiveIntegerField(_('ترتيب العرض'), default=0)
-
-    # Additional metadata for the image
-    
-    metadata = models.JSONField(
-        _('بيانات وصفية'),
-        default=dict,
-        blank=True
-    )
-
-
-
-    class Meta:
-        verbose_name = _('صورة العقار')
-        verbose_name_plural = _('صور العقار')
-        ordering = ['order', '-is_primary', 'id']
-
-    def __str__(self):
-        return f"صورة للعقار {self.property.title} ({self.id})"
-
-    def save(self, *args, **kwargs):
-        # If this is marked as primary, unmark other primary images
-        if self.is_primary:
-            PropertyImage.objects.filter(
-                property=self.property,
-                is_primary=True
-            ).exclude(id=self.id).update(is_primary=False)
-
-            # Also update the property's cover image
-            if self.property and self.image:
-                self.property.cover_image = self.image
-                self.property.save(update_fields=['cover_image'])
-
-        # If this is the first image, make it primary
-        if not self.id and not PropertyImage.objects.filter(property=self.property).exists():
-            self.is_primary = True
-
-        super().save(*args, **kwargs)
-
-
-class PropertyView(models.Model):
-    """Model for property views (e.g., street view, floor plan)"""
-    VIEW_TYPES = [
-        ('street', _('عرض الشارع')),
-        ('satellite', _('عرض الأقمار الصناعية')),
-        ('floor_plan', _('مخطط الطابق')),
-        ('3d_model', _('نموذج ثلاثي الأبعاد')),
-        ('virtual_tour', _('جولة افتراضية')),
-    ]
-
-    auction = models.ForeignKey(
-        'Auction',
-        on_delete=models.CASCADE,
-        related_name='property_views',
-        verbose_name=_('المزاد')
-    )
-    view_type = models.CharField(_('نوع العرض'), max_length=20, choices=VIEW_TYPES)
-
-    # Location details
-    location = models.JSONField(
-        _('الموقع'),
-        default=dict,
-        blank=True,
-        help_text=_('بيانات الموقع في التصور')
-        # Example: {"latitude": 24.774265, "longitude": 46.738586, "floor": 2, "room": "غرفة المعيشة"}
-    )
-
-    # Physical details as JSON for better API structure
-    dimensions = models.JSONField(
-        _('الأبعاد'),
-        default=dict,
-        blank=True,
-        help_text=_('تفاصيل الأبعاد والمساحة')
-        # Example: {"width": 10, "length": 15, "height": 3, "size_sqm": 150, "elevation": 50}
-    )
-
-    # Keep some basic fields for backward compatibility
-    address = models.CharField(_('العنوان'), max_length=255, blank=True)
-    legal_description = models.TextField(_('الوصف القانوني'), blank=True)
-    size_sqm = models.DecimalField(_('المساحة (متر مربع)'), max_digits=10, decimal_places=2, null=True, blank=True)
-    elevation = models.DecimalField(_('الارتفاع'), max_digits=8, decimal_places=2, null=True, blank=True)
-
-    # Media content
-    image = models.ImageField(
-        _('الصورة'),
-        upload_to='properties/views/',
-        null=True,
-        blank=True,
-        validators=[
-            FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp']),
-            validate_image_size
-        ]
-    )
-    file = models.FileField(
-        _('الملف'),
-        upload_to='properties/views/files/',
-        null=True,
-        blank=True,
-        validators=[
-            FileExtensionValidator(['pdf', 'dwg', 'dxf', 'svg']),
-        ],
-        help_text=_('تحميل مخططات الطوابق، ملفات CAD، إلخ.')
-    )
-
-    # For 3D models or virtual tours
-    external_url = models.URLField(_('رابط خارجي'), blank=True, help_text=_('رابط للنموذج ثلاثي الأبعاد أو الجولة الافتراضية'))
-    embed_code = models.TextField(_('كود التضمين'), blank=True, help_text=_('كود HTML لتضمين الجولة الافتراضية'))
-
-    # Additional configuration for the view
-    view_config = models.JSONField(
-        _('إعدادات العرض'),
-        default=dict,
-        blank=True,
-        help_text=_('إعدادات وتكوين العرض')
-        # Example: {"camera_position": {"x": 0, "y": 1.5, "z": 0}, "lighting": "natural", "render_quality": "high"}
-    )
-
-    # Fields moved from BaseModel
-    created_at = models.DateTimeField(_('تاريخ الإنشاء'), auto_now_add=True)
-    updated_at = models.DateTimeField(_('تاريخ التحديث'), auto_now=True)
-
-    class Meta:
-        verbose_name = _('عرض العقار')
-        verbose_name_plural = _('عروض العقار')
-        ordering = ['view_type']
-
-    def __str__(self):
-        return f"{self.get_view_type_display()} للمزاد {self.auction}"
-
 
 # -------------------------------------------------------------------------
 # Auction Models
 # -------------------------------------------------------------------------
-
 class Auction(models.Model):
     """Model for property auctions"""
     AUCTION_TYPES = [
@@ -881,15 +700,10 @@ class Auction(models.Model):
     is_private = models.BooleanField(_('مزاد خاص'), default=False)
 
     # Cover image for the auction
-    cover_image = models.ImageField(
-        _('صورة الغلاف'),
-        upload_to='auctions/covers/',
-        null=True,
-        blank=True,
-        validators=[
-            FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp']),
-            validate_image_size
-        ]
+    media = GenericRelation(
+        Media,
+        related_query_name='auction',
+        verbose_name=_('Media')
     )
 
     # Auction rules and terms
@@ -931,65 +745,11 @@ class Auction(models.Model):
 
     def save(self, *args, **kwargs):
         # If using related_property's cover image when none is set
-        if not self.cover_image and self.related_property and self.related_property.cover_image:
-            self.cover_image = self.related_property.cover_image
+        if not self.media and self.related_property and self.related_property.media:
+            self.media = self.related_property.media
 
         super().save(*args, **kwargs)
 
-
-class AuctionImage(BaseImageModel):
-    """Model for auction-specific images"""
-    auction = models.ForeignKey(
-        Auction,
-        on_delete=models.CASCADE,
-        related_name='images',
-        verbose_name=_('المزاد')
-    )
-    image = models.ImageField(
-        _('الصورة'),
-        upload_to=auction_image_path,
-        validators=[
-            FileExtensionValidator(['jpg', 'jpeg', 'png', 'webp']),
-            validate_image_size
-        ]
-    )
-    is_primary = models.BooleanField(_('صورة رئيسية'), default=False)
-    caption = models.CharField(_('التعليق'), max_length=255, blank=True)
-    order = models.PositiveIntegerField(_('ترتيب العرض'), default=0)
-
-    # Additional metadata for the image
-    metadata = models.JSONField(
-        _('بيانات وصفية'),
-        default=dict,
-        blank=True
-    )
-
-    class Meta:
-        verbose_name = _('صورة المزاد')
-        verbose_name_plural = _('صور المزاد')
-        ordering = ['order', '-is_primary', 'id']
-
-    def __str__(self):
-        return f"صورة للمزاد {self.auction.title} ({self.id})"
-
-    def save(self, *args, **kwargs):
-        # If this is marked as primary, unmark other primary images
-        if self.is_primary:
-            AuctionImage.objects.filter(
-                auction=self.auction,
-                is_primary=True
-            ).exclude(id=self.id).update(is_primary=False)
-
-            # Also update the auction's cover image
-            if self.auction and self.image:
-                self.auction.cover_image = self.image
-                self.auction.save(update_fields=['cover_image'])
-
-        # If this is the first image, make it primary
-        if not self.id and not AuctionImage.objects.filter(auction=self.auction).exists():
-            self.is_primary = True
-
-        super().save(*args, **kwargs)
 
 
 class Bid(models.Model):
@@ -1113,7 +873,6 @@ class Bid(models.Model):
 # -------------------------------------------------------------------------
 # Document Models
 # -------------------------------------------------------------------------
-
 class Document(models.Model):
     """Model for document files"""
     DOCUMENT_TYPES = [
@@ -1138,13 +897,10 @@ class Document(models.Model):
     description = models.TextField(_('الوصف'), blank=True)
 
     # File field with validation
-    file = models.FileField(
-        _('ملف الوثيقة'),
-        upload_to=document_file_path,
-        validators=[
-            FileExtensionValidator(['pdf', 'doc', 'docx', 'jpg', 'jpeg', 'png']),
-        ],
-        help_text=_('تحميل ملف الوثيقة (PDF، Word، أو صور)')
+    media = GenericRelation(
+        Media,
+        related_query_name='document',
+        verbose_name=_('Media')
     )
 
     # Thumbnail for quick preview
@@ -1264,13 +1020,13 @@ class Document(models.Model):
             self.document_number = f"{prefix}-{random_num}"
 
         # Save file metadata if file exists
-        if self.file and hasattr(self.file, 'file'):
+        if self.media and hasattr(self.media.file, 'file'):
             # Get file size in KB
-            if hasattr(self.file, 'size'):
-                self.file_size = self.file.size // 1024
+            if hasattr(self.media.file, 'size'):
+                self.file_size = self.media.file.size // 1024
 
             # Set content type
-            file_name = self.file.name.lower()
+            file_name = self.media.file.name.lower()
             if file_name.endswith('.pdf'):
                 self.content_type = 'application/pdf'
             elif file_name.endswith('.doc'):
@@ -1294,7 +1050,7 @@ class Document(models.Model):
                     from django.core.files.base import ContentFile
 
                     # Open the image
-                    img = Image.open(self.file)
+                    img = Image.open(self.media.file)
 
                     # Create thumbnail
                     img.thumbnail((200, 200))
@@ -1305,7 +1061,7 @@ class Document(models.Model):
                     img.save(thumb_io, format=img_format, quality=70)
 
                     # Save to thumbnail field
-                    thumb_name = f"{os.path.splitext(os.path.basename(self.file.name))[0]}_thumb.jpg"
+                    thumb_name = f"{os.path.splitext(os.path.basename(self.media.file.name))[0]}_thumb.jpg"
                     self.thumbnail.save(thumb_name, ContentFile(thumb_io.getvalue()), save=False)
             except Exception:
                 # Don't prevent saving if thumbnail generation fails
@@ -1321,7 +1077,6 @@ class Document(models.Model):
 # -------------------------------------------------------------------------
 # Contract Model
 # -------------------------------------------------------------------------
-
 class Contract(models.Model):
     """Model for property contracts"""
     STATUS_CHOICES = [
@@ -1348,15 +1103,10 @@ class Contract(models.Model):
     status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='draft')
 
     # Contract file
-    contract_file = models.FileField(
-        _('ملف العقد'),
-        upload_to=contract_file_path,
-        null=True,
-        blank=True,
-        validators=[
-            FileExtensionValidator(['pdf', 'doc', 'docx']),
-        ],
-        help_text=_('تحميل وثيقة العقد (PDF أو Word)')
+    media = GenericRelation(
+        Media,
+        related_query_name='contract',
+        verbose_name=_('Media')
     )
 
     # Related entities
@@ -1500,7 +1250,6 @@ class Contract(models.Model):
 # -------------------------------------------------------------------------
 # Notification Models
 # -------------------------------------------------------------------------
-
 class Notification(models.Model):
     """Model for user notifications"""
     NOTIFICATION_TYPES = [

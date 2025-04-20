@@ -626,8 +626,8 @@ class Auction(models.Model):
     ]
 
     # Basic information
-    uuid = models.UUIDField(_('معرف فريد'), default=uuid.uuid4, editable=False, unique=True)
     title = models.CharField(_('العنوان'), max_length=255)
+    slug = models.SlugField(_('الرابط المختصر'), max_length=255, unique=True, blank=True)
     auction_type = models.CharField(_('نوع المزاد'), max_length=20, choices=AUCTION_TYPES)
     status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='draft')
     description = models.TextField(_('الوصف'))
@@ -643,7 +643,6 @@ class Auction(models.Model):
         default=list,
         blank=True,
         help_text=_('تواريخ وأوقات المعاينة المتاحة')
-        # Example: [{"date": "2023-01-15", "from": "10:00", "to": "16:00", "notes": "بحضور الوكيل"}, ...]
     )
 
     # Auction schedule and timeline
@@ -652,7 +651,6 @@ class Auction(models.Model):
         default=list,
         blank=True,
         help_text=_('مراحل المزاد المختلفة وتواريخها')
-        # Example: [{"phase": "التسجيل", "start": "2023-01-01", "end": "2023-01-10", "description": "فتح التسجيل للمزايدين"}, ...]
     )
 
     # Related property
@@ -677,7 +675,6 @@ class Auction(models.Model):
         blank=True,
         editable=False,
         help_text=_('سجل المزايدات وتفاصيلها')
-        # This will be updated automatically by signals
     )
 
     # Financial terms as JSON for better API structure
@@ -686,7 +683,6 @@ class Auction(models.Model):
         default=dict,
         blank=True,
         help_text=_('تفاصيل وشروط الدفع والرسوم')
-        # Example: {"buyer_premium": {"percentage": 2.5, "min": 1000}, "deposit": {"amount": 5000, "refundable": true}}
     )
 
     # Fees and deposits
@@ -721,7 +717,6 @@ class Auction(models.Model):
         default=dict,
         blank=True,
         help_text=_('إحصائيات وبيانات تحليلية عن المزاد')
-        # Example: {"daily_views": {"2023-01-01": 150, "2023-01-02": 210}, "bidder_demographics": {"regions": {"الرياض": 60%, "جدة": 25%}}}
     )
 
     # Fields moved from BaseModel
@@ -733,7 +728,7 @@ class Auction(models.Model):
         verbose_name_plural = _('المزادات')
         ordering = ['-start_date']
         indexes = [
-            models.Index(fields=['uuid']),
+            models.Index(fields=['slug']),
             models.Index(fields=['status']),
             models.Index(fields=['start_date']),
             models.Index(fields=['end_date']),
@@ -744,11 +739,32 @@ class Auction(models.Model):
         return self.title
 
     def save(self, *args, **kwargs):
-        # If using related_property's cover image when none is set
-        if not self.media and self.related_property and self.related_property.media:
-            self.media = self.related_property.media
+        # Generate slug if not provided
+        if not self.slug:
+            from .utils import arabic_slugify
+            self.slug = arabic_slugify(self.title)
+            
+            # Ensure uniqueness
+            from django.db import models
+            original_slug = self.slug
+            count = 1
+            while Auction.objects.filter(slug=self.slug).exclude(id=self.id).exists():
+                self.slug = f"{original_slug}-{count}"
+                count += 1
 
-        super().save(*args, **kwargs)
+        # If using related_property's cover image when none is set
+        if not hasattr(self, 'pk') or not self.pk:
+            super().save(*args, **kwargs)
+            if not self.media.exists() and self.related_property and self.related_property.media.exists():
+                # Copy the property's media to this auction
+                for media_item in self.related_property.media.all():
+                    self.media.create(
+                        file=media_item.file,
+                        name=media_item.name,
+                        media_type=media_item.media_type
+                    )
+        else:
+            super().save(*args, **kwargs)
 
 
 

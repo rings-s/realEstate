@@ -1,351 +1,510 @@
 from django.contrib import admin
-from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
+from django.utils.html import format_html
 from django.urls import reverse
-from django.utils import timezone
-from django.contrib.contenttypes.admin import GenericTabularInline
+from django.db import models
+from django.forms import Textarea, Select
 
 from .models import (
-    Property,
-    Auction,
-    Bid,
-    Document, Contract, MessageThread, ThreadParticipant, Message,
-     Notification,
+    Property, Auction, Bid, Document, Contract,
+    MessageThread, ThreadParticipant, Message, Notification,
     Media
 )
 
+# Register custom admin filters
+class PropertyTypeFilter(admin.SimpleListFilter):
+    title = _('نوع العقار')
+    parameter_name = 'property_type'
 
-# -------------------------------------------------------------------------
-# Inline Admin Classes
-# -------------------------------------------------------------------------
+    def lookups(self, request, model_admin):
+        return Property.PROPERTY_TYPES
 
-class MediaInline(GenericTabularInline):
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(property_type=self.value())
+        return queryset
+
+
+class AuctionStatusFilter(admin.SimpleListFilter):
+    title = _('حالة المزاد')
+    parameter_name = 'status'
+
+    def lookups(self, request, model_admin):
+        return Auction.STATUS_CHOICES
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(status=self.value())
+        return queryset
+
+
+# Inline models for related objects
+class MediaInline(admin.TabularInline):
     model = Media
     extra = 1
-    fields = ('file', 'media_type', 'description', 'is_cover', 'order')
-    readonly_fields = ('uploaded_at',)
+    fields = ['file', 'name', 'media_type']
+    readonly_fields = ['uploaded_at']
+    
+    def get_content_type_object(self, obj):
+        # This method will be needed to properly handle the generic relation
+        return obj
 
 
 class BidInline(admin.TabularInline):
     model = Bid
     extra = 0
-    fields = ('bidder', 'bid_amount', 'bid_time', 'status')
-    readonly_fields = ('bid_time',)
-    can_delete = False
-
-
-class ThreadParticipantInline(admin.TabularInline):
-    model = ThreadParticipant
-    extra = 1
-    fields = ('user', 'role', 'is_active', 'is_muted')
-
-
-class MessageInline(admin.TabularInline):
-    model = Message
-    extra = 0
-    fields = ('sender', 'content', 'message_type', 'status', 'sent_at')
-    readonly_fields = ('sent_at',)
+    fields = ['bidder', 'bid_amount', 'bid_time', 'status', 'is_auto_bid']
+    readonly_fields = ['bid_time']
+    max_num = 10
     can_delete = False
 
 
 class DocumentInline(admin.TabularInline):
     model = Document
+    extra = 0
+    fields = ['title', 'document_type', 'verification_status']
+    readonly_fields = ['document_number', 'uploaded_at']
+    max_num = 5
+
+
+class ThreadParticipantInline(admin.TabularInline):
+    model = ThreadParticipant
     extra = 1
-    fields = ('title', 'document_type', 'verification_status')
+    fields = ['user', 'role', 'is_active']
+    
 
-
-# -------------------------------------------------------------------------
-# Admin Classes
-# -------------------------------------------------------------------------
-
+# Main model admins
 @admin.register(Property)
 class PropertyAdmin(admin.ModelAdmin):
-    list_display = ('property_number', 'title', 'property_type', 'status', 'city', 'owner', 'is_published', 'deed_number')
-    list_filter = ('property_type', 'status', 'city', 'is_published', 'is_featured')
-    search_fields = ('property_number', 'title', 'owner__email', 'address', 'city', 'deed_number')
-    readonly_fields = ('property_number', 'slug', 'created_at', 'updated_at')
-    fieldsets = (
-        (_('Basic Information'), {
-            'fields': ('property_number', 'deed_number', 'title', 'property_type', 'status', 'description', 'owner')
+    list_display = ['property_number', 'title', 'property_type_display', 'city', 'owner_name', 'status', 'is_published']
+    list_filter = [PropertyTypeFilter, 'status', 'is_published', 'is_verified', 'city']
+    search_fields = ['title', 'property_number', 'deed_number', 'address', 'description']
+    readonly_fields = ['property_number', 'slug', 'created_at', 'updated_at']
+    fieldsets = [
+        (_('البيانات الأساسية'), {
+            'fields': [
+                'property_number', 'title', 'property_type', 'status', 'deed_number', 'slug'
+            ]
         }),
-        (_('Location'), {
-            'fields': ('address', 'city', 'state', 'postal_code', 'country', 'location')
+        (_('الموقع'), {
+            'fields': [
+                'location', 'address', 'city', 'state', 'postal_code', 'country'
+            ]
         }),
-        (_('Features'), {
-            'fields': ('size_sqm', 'bedrooms', 'bathrooms', 'parking_spaces', 'year_built',
-                      'features', 'amenities', 'rooms', 'specifications')
+        (_('التفاصيل'), {
+            'fields': [
+                'description', 'features', 'amenities', 'specifications', 'highQualityStreets'
+            ]
         }),
-        (_('Financial'), {
-            'fields': ('market_value', 'minimum_bid', 'pricing_details')
+        (_('المواصفات'), {
+            'fields': [
+                'size_sqm', 'bedrooms', 'bathrooms', 'floors', 'parking_spaces', 'year_built'
+            ]
         }),
-        (_('Publication'), {
-            'fields': ('is_published', 'is_featured', 'is_verified', 'slug')
+        (_('البيانات المالية'), {
+            'fields': [
+                'market_value', 'minimum_bid', 'pricing_details'
+            ]
         }),
-    )
-    inlines = [MediaInline, DocumentInline]
-    actions = ['mark_as_published', 'mark_as_featured', 'mark_as_verified']
-
-    def mark_as_published(self, request, queryset):
-        queryset.update(is_published=True)
-    mark_as_published.short_description = _("Mark selected properties as published")
-
-    def mark_as_featured(self, request, queryset):
-        queryset.update(is_featured=True)
-    mark_as_featured.short_description = _("Mark selected properties as featured")
-
-    def mark_as_verified(self, request, queryset):
-        queryset.update(is_verified=True)
-    mark_as_verified.short_description = _("Mark selected properties as verified")
+        (_('الملكية والنشر'), {
+            'fields': [
+                'owner', 'is_published', 'is_featured', 'is_verified'
+            ]
+        }),
+        (_('البيانات الإضافية'), {
+            'fields': [
+                'metadata', 'created_at', 'updated_at'
+            ],
+            'classes': ['collapse']
+        }),
+    ]
+    formfield_overrides = {
+        models.TextField: {'widget': Textarea(attrs={'rows': 4, 'cols': 60})},
+        models.JSONField: {'widget': Textarea(attrs={'rows': 4, 'cols': 60})},
+    }
+    
+    def property_type_display(self, obj):
+        return obj.get_property_type_display()
+    property_type_display.short_description = _('نوع العقار')
+    
+    def owner_name(self, obj):
+        if obj.owner:
+            return obj.owner.get_full_name() or obj.owner.email
+        return _('بدون مالك')
+    owner_name.short_description = _('المالك')
 
 
 @admin.register(Auction)
 class AuctionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'title', 'auction_type', 'status', 'related_property',
-                    'starting_bid', 'current_bid', 'start_date', 'end_date', 'is_published')
-    list_filter = ('auction_type', 'status', 'is_published', 'is_featured')
-    search_fields = ('title', 'description', 'related_property__title')
-    readonly_fields = ('uuid', 'current_bid', 'bid_count', 'view_count', 'created_at', 'updated_at')
-    fieldsets = (
-        (_('Basic Information'), {
-            'fields': ('uuid', 'title', 'auction_type', 'status', 'description', 'related_property')
+    list_display = ['title', 'property_link', 'auction_type_display', 'status', 'start_date', 'end_date', 'current_bid']
+    list_filter = ['auction_type', AuctionStatusFilter, 'is_published', 'is_featured']
+    search_fields = ['title', 'description', 'uuid', 'related_property__title']
+    readonly_fields = ['uuid', 'bid_count', 'view_count', 'created_at', 'updated_at']
+    inlines = [BidInline]
+    
+    fieldsets = [
+        (_('البيانات الأساسية'), {
+            'fields': [
+                'uuid', 'title', 'auction_type', 'status', 'description'
+            ]
         }),
-        (_('Schedule'), {
-            'fields': ('start_date', 'end_date', 'registration_deadline', 'viewing_dates', 'timeline')
+        (_('التواريخ'), {
+            'fields': [
+                'start_date', 'end_date', 'registration_deadline'
+            ]
         }),
-        (_('Financial'), {
-            'fields': ('starting_bid', 'reserve_price', 'minimum_increment', 'current_bid',
-                      'estimated_value', 'buyer_premium_percent', 'registration_fee', 'deposit_required')
+        (_('العقار والمزايدات'), {
+            'fields': [
+                'related_property', 'starting_bid', 'current_bid', 'reserve_price', 'minimum_increment'
+            ]
         }),
-        (_('Publication'), {
-            'fields': ('is_published', 'is_featured', 'slug')
+        (_('الرسوم والشروط'), {
+            'fields': [
+                'buyer_premium_percent', 'registration_fee', 'deposit_required',
+                'terms_conditions', 'special_notes'
+            ]
         }),
-        (_('Terms & Details'), {
-            'fields': ('terms_conditions', 'special_notes', 'financial_terms')
+        (_('البيانات الإحصائية'), {
+            'fields': [
+                'view_count', 'bid_count', 'registered_bidders'
+            ]
         }),
-    )
-    inlines = [MediaInline, BidInline, DocumentInline]
-    actions = ['update_auction_status', 'mark_as_published', 'mark_as_featured']
-
-    def update_auction_status(self, request, queryset):
-        now = timezone.now()
-        for auction in queryset:
-            if auction.start_date <= now and auction.end_date > now:
-                auction.status = 'live'
-                auction.save(update_fields=['status'])
-            elif auction.end_date <= now:
-                auction.status = 'ended'
-                auction.save(update_fields=['status'])
-            elif auction.start_date > now and auction.status == 'draft':
-                auction.status = 'scheduled'
-                auction.save(update_fields=['status'])
-    update_auction_status.short_description = _("Update auction status based on dates")
-
-    def mark_as_published(self, request, queryset):
-        queryset.update(is_published=True)
-    mark_as_published.short_description = _("Mark selected auctions as published")
-
-    def mark_as_featured(self, request, queryset):
-        queryset.update(is_featured=True)
-    mark_as_featured.short_description = _("Mark selected auctions as featured")
+        (_('الإعدادات'), {
+            'fields': [
+                'is_published', 'is_featured', 'is_private'
+            ]
+        }),
+        (_('البيانات الإضافية'), {
+            'fields': [
+                'viewing_dates', 'timeline', 'financial_terms', 'analytics',
+                'created_at', 'updated_at'
+            ],
+            'classes': ['collapse']
+        }),
+    ]
+    
+    def auction_type_display(self, obj):
+        return obj.get_auction_type_display()
+    auction_type_display.short_description = _('نوع المزاد')
+    
+    def property_link(self, obj):
+        if obj.related_property:
+            url = reverse('admin:auction_platform_property_change', args=[obj.related_property.id])
+            return format_html('<a href="{}">{}</a>', url, obj.related_property.title)
+        return _('غير مرتبط بعقار')
+    property_link.short_description = _('العقار المرتبط')
 
 
 @admin.register(Bid)
 class BidAdmin(admin.ModelAdmin):
-    list_display = ('id', 'auction', 'bidder', 'bid_amount', 'bid_time', 'status', 'is_auto_bid')
-    list_filter = ('status', 'is_auto_bid', 'bid_time')
-    search_fields = ('bidder__email', 'auction__title', 'notes')
-    readonly_fields = ('bid_time', 'created_at', 'updated_at')
-    actions = ['mark_as_winning', 'mark_as_outbid', 'mark_as_rejected']
-
-    def mark_as_winning(self, request, queryset):
-        for bid in queryset:
-            Bid.objects.filter(auction=bid.auction, status='winning').exclude(id=bid.id).update(status='outbid')
-        queryset.update(status='winning')
-        for bid in queryset:
-            bid.auction.current_bid = bid.bid_amount
-            bid.auction.save(update_fields=['current_bid'])
-    mark_as_winning.short_description = _("Mark selected bids as winning")
-
-    def mark_as_outbid(self, request, queryset):
-        queryset.update(status='outbid')
-    mark_as_outbid.short_description = _("Mark selected bids as outbid")
-
-    def mark_as_rejected(self, request, queryset):
-        queryset.update(status='rejected')
-    mark_as_rejected.short_description = _("Mark selected bids as rejected")
+    list_display = ['id', 'auction_link', 'bidder_name', 'bid_amount', 'bid_time', 'status']
+    list_filter = ['status', 'is_auto_bid']
+    search_fields = ['bidder__email', 'bidder__first_name', 'bidder__last_name', 'auction__title']
+    readonly_fields = ['bid_time', 'ip_address', 'user_agent', 'created_at', 'updated_at']
+    
+    fieldsets = [
+        (_('البيانات الأساسية'), {
+            'fields': [
+                'auction', 'bidder', 'bid_amount', 'bid_time', 'status'
+            ]
+        }),
+        (_('المزايدة التلقائية'), {
+            'fields': [
+                'is_auto_bid', 'max_auto_bid'
+            ]
+        }),
+        (_('معلومات الاتصال'), {
+            'fields': [
+                'ip_address', 'user_agent'
+            ]
+        }),
+        (_('البيانات الإضافية'), {
+            'fields': [
+                'notes', 'metadata', 'payment_info', 'created_at', 'updated_at'
+            ],
+            'classes': ['collapse']
+        }),
+    ]
+    
+    def auction_link(self, obj):
+        if obj.auction:
+            url = reverse('admin:auction_platform_auction_change', args=[obj.auction.id])
+            return format_html('<a href="{}">{}</a>', url, obj.auction.title)
+        return _('غير مرتبط بمزاد')
+    auction_link.short_description = _('المزاد')
+    
+    def bidder_name(self, obj):
+        if obj.bidder:
+            return obj.bidder.get_full_name() or obj.bidder.email
+        return _('مزايد غير معروف')
+    bidder_name.short_description = _('المزايد')
 
 
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):
-    list_display = ('document_number', 'title', 'document_type', 'uploaded_by',
-                    'verification_status', 'is_public', 'created_at')
-    list_filter = ('document_type', 'verification_status', 'is_public')
-    search_fields = ('document_number', 'title', 'uploaded_by__email', 'description')
-    readonly_fields = ('document_number', 'created_at', 'updated_at')
-    fieldsets = (
-        (_('Document Information'), {
-            'fields': ('document_number', 'title', 'document_type', 'description', 'related_property')
+    list_display = ['document_number', 'title', 'document_type_display', 'verification_status', 'uploaded_by_name']
+    list_filter = ['document_type', 'verification_status', 'is_public']
+    search_fields = ['title', 'document_number', 'description']
+    readonly_fields = ['document_number', 'file_size', 'content_type', 'created_at', 'updated_at']
+    
+    fieldsets = [
+        (_('البيانات الأساسية'), {
+            'fields': [
+                'document_number', 'title', 'document_type', 'description'
+            ]
         }),
-        (_('Association'), {
-            'fields': ('content_type', 'object_id')  # Keep these for generic relation
+        (_('التحقق'), {
+            'fields': [
+                'verification_status', 'verification_notes', 'verification_details',
+                'verified_by', 'verification_date'
+            ]
         }),
-        (_('Status & Access'), {
-            'fields': ('uploaded_by', 'verification_status', 'verification_date', 'verified_by')
+        (_('التواريخ'), {
+            'fields': [
+                'issue_date', 'expiry_date'
+            ]
         }),
-        (_('Publication'), {
-            'fields': ('is_public', 'public_link', 'expiry_date')
+        (_('العلاقات'), {
+            'fields': [
+                'related_property', 'related_auction', 'related_contract', 'uploaded_by'
+            ]
         }),
-    )
-    inlines = [MediaInline]
-    actions = ['mark_as_verified', 'mark_as_public', 'mark_as_private']
-
-    def mark_as_verified(self, request, queryset):
-        queryset.update(
-            verification_status='verified',
-            verification_date=timezone.now(),
-            verified_by=request.user
-        )
-    mark_as_verified.short_description = _("Mark selected documents as verified")
-
-    def mark_as_public(self, request, queryset):
-        queryset.update(is_public=True)
-    mark_as_public.short_description = _("Mark selected documents as public")
-
-    def mark_as_private(self, request, queryset):
-        queryset.update(is_public=False)
-    mark_as_private.short_description = _("Mark selected documents as private")
+        (_('الوصول'), {
+            'fields': [
+                'is_public', 'access_code'
+            ]
+        }),
+        (_('البيانات الفنية'), {
+            'fields': [
+                'file_size', 'content_type', 'document_metadata', 'created_at', 'updated_at'
+            ],
+            'classes': ['collapse']
+        }),
+    ]
+    
+    def document_type_display(self, obj):
+        return obj.get_document_type_display()
+    document_type_display.short_description = _('نوع الوثيقة')
+    
+    def uploaded_by_name(self, obj):
+        if obj.uploaded_by:
+            return obj.uploaded_by.get_full_name() or obj.uploaded_by.email
+        return _('غير معروف')
+    uploaded_by_name.short_description = _('تم التحميل بواسطة')
 
 
 @admin.register(Contract)
 class ContractAdmin(admin.ModelAdmin):
-    list_display = ('contract_number', 'title', 'status', 'related_property', 'related_auction', 'buyer', 'seller', 'is_verified')
-    list_filter = ('status', 'is_verified', 'contract_date', 'payment_method')
-    search_fields = ('contract_number', 'title', 'buyer__email', 'seller__email', 'related_property__title')
-    readonly_fields = ('contract_number', 'created_at', 'updated_at')
-    fieldsets = (
-        (_('Contract Information'), {
-            'fields': ('contract_number', 'title', 'contract_type', 'status', 'contract_date', 'expiry_date')
+    list_display = ['contract_number', 'title', 'property_link', 'status', 'total_amount', 'contract_date']
+    list_filter = ['status', 'payment_method', 'is_verified']
+    search_fields = ['title', 'contract_number', 'description']
+    readonly_fields = ['contract_number', 'verification_date', 'buyer_signed_date', 'seller_signed_date', 'created_at', 'updated_at']
+    inlines = [DocumentInline]
+    
+    fieldsets = [
+        (_('البيانات الأساسية'), {
+            'fields': [
+                'contract_number', 'title', 'description', 'status'
+            ]
         }),
-        (_('Parties & Property'), {
-            'fields': ('related_property', 'related_auction', 'buyer', 'seller', 'parties')
+        (_('العلاقات'), {
+            'fields': [
+                'related_property', 'related_auction', 'buyer', 'seller'
+            ]
         }),
-        (_('Financials'), {
-            'fields': ('total_amount', 'down_payment', 'payment_method', 'payment_status', 'payment_due_date')
+        (_('التواريخ'), {
+            'fields': [
+                'contract_date', 'effective_date', 'expiry_date', 'timeline'
+            ]
         }),
-        (_('Verification'), {
-            'fields': ('is_verified', 'verification_date', 'verified_by')
+        (_('البيانات المالية'), {
+            'fields': [
+                'total_amount', 'down_payment', 'payment_method', 'payment_terms',
+                'payment_details', 'payments_history'
+            ]
         }),
-        (_('Signatures'), {
-            'fields': ('buyer_signed', 'buyer_signed_date', 'seller_signed', 'seller_signed_date')
+        (_('التحقق والتوقيع'), {
+            'fields': [
+                'is_verified', 'verified_by', 'verification_date',
+                'buyer_signed', 'buyer_signed_date', 'seller_signed', 'seller_signed_date'
+            ]
         }),
-    )
-    inlines = [MediaInline, DocumentInline]
-    actions = ['mark_as_verified']
-
-    def mark_as_verified(self, request, queryset):
-        queryset.update(
-            is_verified=True,
-            verification_date=timezone.now(),
-            verified_by=request.user
-        )
-    mark_as_verified.short_description = _("Mark selected contracts as verified")
+        (_('البيانات الإضافية'), {
+            'fields': [
+                'special_conditions', 'parties', 'created_at', 'updated_at'
+            ],
+            'classes': ['collapse']
+        }),
+    ]
+    
+    def property_link(self, obj):
+        if obj.related_property:
+            url = reverse('admin:auction_platform_property_change', args=[obj.related_property.id])
+            return format_html('<a href="{}">{}</a>', url, obj.related_property.title)
+        return _('غير مرتبط بعقار')
+    property_link.short_description = _('العقار المرتبط')
 
 
 @admin.register(MessageThread)
 class MessageThreadAdmin(admin.ModelAdmin):
-    list_display = ('id', 'subject', 'thread_type', 'status', 'creator', 'last_message_at')
-    list_filter = ('thread_type', 'status', 'is_private', 'is_system_thread', 'created_at')
-    search_fields = ('subject', 'creator__email')
-    readonly_fields = ('uuid', 'last_message_at', 'created_at', 'updated_at')
-    inlines = [ThreadParticipantInline, MessageInline]
-    actions = ['mark_as_active', 'mark_as_closed', 'mark_as_archived']
-
-    def mark_as_active(self, request, queryset):
-        queryset.update(status='active')
-    mark_as_active.short_description = _("Mark selected threads as active")
-
-    def mark_as_closed(self, request, queryset):
-        queryset.update(status='closed')
-    mark_as_closed.short_description = _("Mark selected threads as closed")
-
-    def mark_as_archived(self, request, queryset):
-        queryset.update(status='archived')
-    mark_as_archived.short_description = _("Mark selected threads as archived")
-
-
-@admin.register(ThreadParticipant)
-class ThreadParticipantAdmin(admin.ModelAdmin):
-    list_display = ('id', 'thread', 'user', 'role', 'is_active', 'is_muted', 'last_read_at')
-    list_filter = ('is_active', 'is_muted', 'created_at')
-    search_fields = ('thread__subject', 'user__email')
-    readonly_fields = ('last_read_at', 'created_at', 'updated_at')
+    list_display = ['subject', 'thread_type_display', 'status', 'creator_name', 'last_message_at']
+    list_filter = ['thread_type', 'status', 'is_private', 'is_system_thread']
+    search_fields = ['subject', 'uuid']
+    readonly_fields = ['uuid', 'last_message_at', 'created_at', 'updated_at']
+    inlines = [ThreadParticipantInline]
+    
+    fieldsets = [
+        (_('البيانات الأساسية'), {
+            'fields': [
+                'uuid', 'subject', 'thread_type', 'status'
+            ]
+        }),
+        (_('العلاقات'), {
+            'fields': [
+                'creator', 'related_property', 'related_auction'
+            ]
+        }),
+        (_('الإعدادات'), {
+            'fields': [
+                'is_private', 'is_system_thread'
+            ]
+        }),
+        (_('البيانات الإضافية'), {
+            'fields': [
+                'last_message_at', 'metadata', 'created_at', 'updated_at'
+            ],
+            'classes': ['collapse']
+        }),
+    ]
+    
+    def thread_type_display(self, obj):
+        return obj.get_thread_type_display()
+    thread_type_display.short_description = _('نوع المحادثة')
+    
+    def creator_name(self, obj):
+        if obj.creator:
+            return obj.creator.get_full_name() or obj.creator.email
+        return _('غير معروف')
+    creator_name.short_description = _('المنشئ')
 
 
 @admin.register(Message)
 class MessageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'thread', 'sender', 'message_type', 'status', 'sent_at', 'read_at')
-    list_filter = ('message_type', 'status', 'is_system_message', 'is_important', 'sent_at')
-    search_fields = ('content', 'sender__email', 'thread__subject')
-    readonly_fields = ('sent_at', 'delivered_at', 'read_at', 'created_at', 'updated_at')
-    inlines = [MediaInline]
-    actions = ['mark_as_delivered', 'mark_as_read', 'mark_as_important']
-
-    def mark_as_delivered(self, request, queryset):
-        queryset.update(status='delivered', delivered_at=timezone.now())
-    mark_as_delivered.short_description = _("Mark selected messages as delivered")
-
-    def mark_as_read(self, request, queryset):
-        queryset.update(status='read', read_at=timezone.now())
-    mark_as_read.short_description = _("Mark selected messages as read")
-
-    def mark_as_important(self, request, queryset):
-        queryset.update(is_important=True)
-    mark_as_important.short_description = _("Mark selected messages as important")
+    list_display = ['id', 'thread_subject', 'sender_name', 'content_preview', 'sent_at', 'status']
+    list_filter = ['message_type', 'status', 'is_system_message', 'is_important']
+    search_fields = ['content', 'thread__subject', 'sender__email']
+    readonly_fields = ['sent_at', 'delivered_at', 'read_at', 'created_at', 'updated_at']
+    
+    fieldsets = [
+        (_('البيانات الأساسية'), {
+            'fields': [
+                'thread', 'sender', 'content', 'message_type', 'status'
+            ]
+        }),
+        (_('المرفقات'), {
+            'fields': [
+                'attachment_name', 'attachment_size'
+            ]
+        }),
+        (_('الردود'), {
+            'fields': [
+                'reply_to'
+            ]
+        }),
+        (_('التواريخ'), {
+            'fields': [
+                'sent_at', 'delivered_at', 'read_at'
+            ]
+        }),
+        (_('الإعدادات'), {
+            'fields': [
+                'is_system_message', 'is_important'
+            ]
+        }),
+        (_('البيانات الإضافية'), {
+            'fields': [
+                'metadata', 'created_at', 'updated_at'
+            ],
+            'classes': ['collapse']
+        }),
+    ]
+    
+    def thread_subject(self, obj):
+        if obj.thread:
+            url = reverse('admin:auction_platform_messagethread_change', args=[obj.thread.id])
+            return format_html('<a href="{}">{}</a>', url, obj.thread.subject)
+        return _('غير مرتبط بمحادثة')
+    thread_subject.short_description = _('المحادثة')
+    
+    def sender_name(self, obj):
+        if obj.sender:
+            return obj.sender.get_full_name() or obj.sender.email
+        return _('غير معروف')
+    sender_name.short_description = _('المرسل')
+    
+    def content_preview(self, obj):
+        return obj.content[:50] + '...' if len(obj.content) > 50 else obj.content
+    content_preview.short_description = _('المحتوى')
 
 
 @admin.register(Notification)
 class NotificationAdmin(admin.ModelAdmin):
-    list_display = ('id', 'recipient', 'notification_type', 'title', 'is_read', 'is_sent', 'channel', 'created_at')
-    list_filter = ('notification_type', 'is_read', 'is_sent', 'is_important', 'channel', 'created_at')
-    search_fields = ('title', 'content', 'recipient__email', 'action_url')
-    readonly_fields = ('read_at', 'sent_at', 'created_at', 'updated_at')
-    actions = ['mark_as_read', 'mark_as_sent', 'mark_as_important']
-
-    def mark_as_read(self, request, queryset):
-        queryset.update(is_read=True, read_at=timezone.now())
-    mark_as_read.short_description = _("Mark selected notifications as read")
-
-    def mark_as_sent(self, request, queryset):
-        queryset.update(is_sent=True, sent_at=timezone.now())
-    mark_as_sent.short_description = _("Mark selected notifications as sent")
-
-    def mark_as_important(self, request, queryset):
-        queryset.update(is_important=True)
-    mark_as_important.short_description = _("Mark selected notifications as important")
+    list_display = ['title', 'recipient_name', 'notification_type', 'is_read', 'sent_at']
+    list_filter = ['notification_type', 'is_read', 'is_sent', 'is_important']
+    search_fields = ['title', 'content', 'recipient__email']
+    readonly_fields = ['read_at', 'sent_at', 'created_at', 'updated_at']
+    
+    fieldsets = [
+        (_('البيانات الأساسية'), {
+            'fields': [
+                'recipient', 'notification_type', 'title', 'content', 'channel'
+            ]
+        }),
+        (_('الحالة'), {
+            'fields': [
+                'is_read', 'read_at', 'is_sent', 'sent_at'
+            ]
+        }),
+        (_('العلاقات'), {
+            'fields': [
+                'related_thread', 'related_auction', 'related_property', 'related_contract'
+            ]
+        }),
+        (_('الإعدادات'), {
+            'fields': [
+                'action_url', 'is_important', 'expiry_date'
+            ]
+        }),
+        (_('البيانات الإضافية'), {
+            'fields': [
+                'notification_data', 'created_at', 'updated_at'
+            ],
+            'classes': ['collapse']
+        }),
+    ]
+    
+    def recipient_name(self, obj):
+        if obj.recipient:
+            return obj.recipient.get_full_name() or obj.recipient.email
+        return _('غير معروف')
+    recipient_name.short_description = _('المستلم')
 
 
 @admin.register(Media)
 class MediaAdmin(admin.ModelAdmin):
-    list_display = ('id', 'file', 'media_type', 'content_type', 'object_id', 'get_related_object_link', 'uploaded_at')
-    list_filter = ('media_type', 'content_type', 'uploaded_at')
-    search_fields = ('file', 'description', 'object_id')
-    readonly_fields = ('content_type', 'object_id', 'content_object', 'uploaded_at', 'get_related_object_link')
-    list_select_related = ('content_type',)
-
-    fieldsets = (
-        (_('File Info'), {'fields': ('file', 'media_type', 'description')}),
-        (_('Association'), {'fields': ('content_type', 'object_id', 'get_related_object_link')}),
-        (_('Details'), {'fields': ('is_cover', 'order')}),
-        (_('Timestamps'), {'fields': ('uploaded_at',)}),
-    )
-
-    def get_related_object_link(self, obj):
+    list_display = ['id', 'name', 'file', 'media_type', 'content_object_repr', 'uploaded_at']
+    list_filter = ['media_type', 'uploaded_at']
+    search_fields = ['name', 'file']
+    readonly_fields = ['uploaded_at']
+    
+    def content_object_repr(self, obj):
         if obj.content_object:
-            related_model_admin_url = reverse(
-                f"admin:{obj.content_type.app_label}_{obj.content_type.model}_change",
-                args=[obj.object_id]
-            )
-            return format_html('<a href="{}">{}</a>', related_model_admin_url, obj.content_object)
-        return _("No related object")
-    get_related_object_link.short_description = _('Related Object')
-    get_related_object_link.admin_order_field = 'content_type'
+            return str(obj.content_object)
+        return _('غير مرتبط')
+    content_object_repr.short_description = _('المرتبط بـ')
+
+
+# Custom admin site configuration
+admin.site.site_header = _('منصة المزاد العقاري - لوحة الإدارة')
+admin.site.site_title = _('إدارة منصة المزاد')
+admin.site.index_title = _('مرحباً بك في لوحة إدارة المزادات العقارية')

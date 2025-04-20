@@ -441,7 +441,7 @@ class AuctionSerializer(BaseModelSerializer):
     class Meta:
         model = Auction
         fields = [
-            'id', 'uuid', 'title', 'auction_type', 'auction_type_display',
+            'id', 'slug', 'title', 'auction_type', 'auction_type_display',
             'status', 'status_display', 'description', 'start_date', 'end_date',
             'registration_deadline', 'viewing_dates', 'timeline', 'related_property',
             'property_details', 'starting_bid', 'reserve_price', 'minimum_increment',
@@ -455,7 +455,7 @@ class AuctionSerializer(BaseModelSerializer):
             'created_at', 'updated_at'
         ]
         extra_kwargs = {
-            'uuid': {'read_only': True, 'label': _('معرف فريد')},
+            'slug': {'read_only': True, 'label': _('الرابط المختصر')},
             'current_bid': {'read_only': True, 'label': _('المزايدة الحالية')},
             'bid_history': {'read_only': True, 'label': _('سجل المزايدات')},
             'view_count': {'read_only': True, 'label': _('عدد المشاهدات')},
@@ -554,8 +554,6 @@ class AuctionSerializer(BaseModelSerializer):
             'seconds': 0,
             'total_seconds': 0
         }
-
-
 # -------------------------------------------------------------------------
 # Document Serializers
 # -------------------------------------------------------------------------

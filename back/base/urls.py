@@ -10,14 +10,11 @@ urlpatterns = [
     path('properties/<slug:slug>/edit/', views.PropertyEditView.as_view(), name='property-edit'),
     path('properties/<slug:slug>/delete/', views.PropertyDeleteView.as_view(), name='property-delete'),
 
-    # Auction URLs
+    # Auction URLs - using slug consistently
     path('auctions/', views.AuctionListCreateView.as_view(), name='auction-list'),
     path('auctions/<slug:slug>/', views.AuctionDetailView.as_view(), name='auction-detail'),
-    # path('auctions/<slug:slug>/edit/', views.AuctionEditView.as_view(), name='auction-edit'),
-    # path('auctions/<slug:slug>/delete/', views.AuctionDeleteView.as_view(), name='auction-delete'),
-    path('auctions/<uuid:uuid>/', views.AuctionDetailView.as_view(), name='auction-detail'),
-    path('auctions/<uuid:uuid>/edit/', views.AuctionEditView.as_view(), name='auction-edit'),
-    path('auctions/<uuid:uuid>/delete/', views.AuctionDeleteView.as_view(), name='auction-delete'),
+    path('auctions/<slug:slug>/edit/', views.AuctionEditView.as_view(), name='auction-edit'),
+    path('auctions/<slug:slug>/delete/', views.AuctionDeleteView.as_view(), name='auction-delete'),
     
     # Bid URLs
     path('auctions/<int:auction_id>/bids/', views.BidListCreateView.as_view(), name='bid-list'),

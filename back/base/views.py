@@ -50,6 +50,7 @@ logger = logging.getLogger(__name__)
 # Custom Pagination Classes
 # -------------------------------------------------------------------------
 
+
 class StandardResultsSetPagination(PageNumberPagination):
     """Standard pagination for most views"""
     page_size = 20
@@ -76,6 +77,8 @@ class SmallResultsSetPagination(PageNumberPagination):
 # -------------------------------------------------------------------------
 # Property Views
 # -------------------------------------------------------------------------
+
+
 
 class PropertyListCreateView(generics.ListCreateAPIView):
     """
@@ -296,6 +299,9 @@ class PropertyDeleteView(generics.DestroyAPIView):
 # Auction Views
 # -------------------------------------------------------------------------
 
+
+
+
 class AuctionListCreateView(generics.ListCreateAPIView):
     """
     List all auctions or create a new auction.
@@ -336,6 +342,7 @@ class AuctionListCreateView(generics.ListCreateAPIView):
                 )
         return super().create(request, *args, **kwargs)
 
+
 class AuctionDetailView(generics.RetrieveAPIView):
     """
     Retrieve an auction.
@@ -345,7 +352,7 @@ class AuctionDetailView(generics.RetrieveAPIView):
     queryset = Auction.objects.all()
     serializer_class = AuctionSerializer
     permission_classes = [IsAuthenticated]
-    lookup_field = 'uuid'  # Changed from 'slug' to 'uuid'
+    lookup_field = 'slug'
 
     def get_queryset(self):
         user = self.request.user
@@ -380,7 +387,7 @@ class AuctionEditView(generics.UpdateAPIView):
     queryset = Auction.objects.all()
     serializer_class = AuctionSerializer
     permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
-    lookup_field = 'uuid'  # Changed from 'slug' to 'uuid'
+    lookup_field = 'slug'
 
     @log_api_calls
     @api_verified_user_required
@@ -414,12 +421,14 @@ class AuctionDeleteView(generics.DestroyAPIView):
     queryset = Auction.objects.all()
     serializer_class = AuctionSerializer
     permission_classes = [IsAuthenticated, IsAdminUser]
-    lookup_field = 'uuid'  # Changed from 'slug' to 'uuid'
+    lookup_field = 'slug'
 
     @log_api_calls
     @api_verified_user_required
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
+
+
 
 # -------------------------------------------------------------------------
 # Bid Views
@@ -543,6 +552,10 @@ class BidSuggestionsView(APIView):
 # -------------------------------------------------------------------------
 # Document Views
 # -------------------------------------------------------------------------
+
+
+
+
 
 class DocumentListCreateView(generics.ListCreateAPIView):
     """
@@ -681,6 +694,9 @@ class DocumentDeleteView(generics.DestroyAPIView):
 # Contract Views
 # -------------------------------------------------------------------------
 
+
+
+
 class ContractListCreateView(generics.ListCreateAPIView):
     """
     List all contracts or create a new contract.
@@ -798,6 +814,8 @@ class ContractDeleteView(generics.DestroyAPIView):
 # -------------------------------------------------------------------------
 # Message Thread Views
 # -------------------------------------------------------------------------
+
+
 
 class MessageThreadListCreateView(generics.ListCreateAPIView):
     """
@@ -1045,6 +1063,10 @@ class MessageDeleteView(generics.DestroyAPIView):
 # Notification Views
 # -------------------------------------------------------------------------
 
+
+
+
+
 class NotificationListView(generics.ListAPIView):
     """
     List all notifications for the current user.
@@ -1124,5 +1146,3 @@ class NotificationDeleteView(generics.DestroyAPIView):
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
-# ----------------------------------------------------------------------
-# Documents

@@ -3,19 +3,12 @@
  * Handles user authentication, registration, and token management
  */
 
-import { API_URL, ENDPOINTS } from '$lib/config/api';
-import { setTokens, clearTokens, getRefreshToken } from '$lib/utils/tokenManager';
+import { API_URL } from '$lib/config/api';
+import { setTokens, clearTokens, getAccessToken } from '$lib/utils/tokenManager';
 
 /**
  * Register a new user
  * @param {Object} userData - User registration data
- * @param {string} userData.email - User email
- * @param {string} userData.password - User password
- * @param {string} userData.confirm_password - Password confirmation
- * @param {string} userData.first_name - User first name
- * @param {string} userData.last_name - User last name
- * @param {string} userData.phone_number - User phone number (optional)
- * @param {string} userData.role - User role (e.g. 'buyer', 'seller')
  * @returns {Promise<Object>} Registration response
  */
 export const register = async (userData) => {
@@ -31,6 +24,9 @@ export const register = async (userData) => {
 		const data = await response.json();
 
 		if (!response.ok) {
+			if (data.error_code === 'validation_error') {
+				throw new Error(JSON.stringify(data.error));
+			}
 			throw new Error(data.error || 'Registration failed');
 		}
 
@@ -45,8 +41,9 @@ export const register = async (userData) => {
  * Verify user email with verification code
  * @param {string} email - User email
  * @param {string} verificationCode - Verification code received via email
- * @returns {Promise<Object>} Verification response with tokens
+ * @returns {Promise<Object>} Verification response with token
  */
+
 export const verifyEmail = async (email, verificationCode) => {
 	try {
 		const response = await fetch(`${API_URL}/accounts/verify-email/`, {
@@ -63,13 +60,20 @@ export const verifyEmail = async (email, verificationCode) => {
 		const data = await response.json();
 
 		if (!response.ok) {
-			throw new Error(data.error || 'Email verification failed');
+			if (data.error_code === 'invalid_code') {
+				throw new Error(data.error || 'Invalid verification code');
+			} else if (data.error_code === 'verification_code_expired') {
+				throw new Error(data.error || 'Verification code has expired');
+			} else if (data.error_code === 'user_not_found') {
+				throw new Error('User not found');
+			} else {
+				throw new Error(data.error || 'Email verification failed');
+			}
 		}
 
-		if (data.refresh && data.access) {
+		if (data.token && data.user) {
 			setTokens({
-				access: data.access,
-				refresh: data.refresh
+				access: data.token
 			});
 		}
 
@@ -111,11 +115,12 @@ export const resendVerification = async (email) => {
 		throw error;
 	}
 };
+
 /**
  * Login user
  * @param {string} email - User email
  * @param {string} password - User password
- * @returns {Promise<Object>} Login response with tokens and user data
+ * @returns {Promise<Object>} Login response with token and user data
  */
 export const login = async (email, password) => {
 	try {
@@ -130,20 +135,24 @@ export const login = async (email, password) => {
 		const data = await response.json();
 
 		if (!response.ok) {
-			// Try to provide a better error message based on backend response
+			// Match backend error codes
 			if (data.error_code === 'email_not_verified') {
 				throw new Error('email_not_verified');
 			} else if (data.error_code === 'account_disabled') {
 				throw new Error('account_disabled');
+			} else if (data.error_code === 'invalid_credentials') {
+				throw new Error('invalid_credentials');
+			} else if (data.error_code === 'missing_credentials') {
+				throw new Error('missing_credentials');
 			} else {
 				throw new Error(data.error || 'Login failed');
 			}
 		}
 
-		if (data.access && data.refresh && data.user) {
+		// Store token and user data
+		if (data.token && data.user) {
 			setTokens({
-				access: data.access,
-				refresh: data.refresh
+				access: data.token
 			});
 		}
 
@@ -160,22 +169,19 @@ export const login = async (email, password) => {
  */
 export const logout = async () => {
 	try {
-		const refreshToken = getRefreshToken();
+		const token = getAccessToken();
 
-		if (!refreshToken) {
+		if (!token) {
 			clearTokens();
 			return { status: 'success', message: 'Logged out' };
 		}
-
-		const accessToken = localStorage.getItem('access_token');
 
 		const response = await fetch(`${API_URL}/accounts/logout/`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				Authorization: `Bearer ${accessToken}`
-			},
-			body: JSON.stringify({ refresh: refreshToken })
+				Authorization: `Bearer ${token}`
+			}
 		});
 
 		// Clear tokens regardless of server response
@@ -262,7 +268,7 @@ export const verifyResetCode = async (email, resetCode) => {
  * @param {string} resetCode - Reset code received via email
  * @param {string} newPassword - New password
  * @param {string} confirmPassword - Confirm new password
- * @returns {Promise<Object>} Reset response with tokens
+ * @returns {Promise<Object>} Reset response with token
  */
 export const resetPassword = async (email, resetCode, newPassword, confirmPassword) => {
 	try {
@@ -285,10 +291,9 @@ export const resetPassword = async (email, resetCode, newPassword, confirmPasswo
 			throw new Error(data.error || 'Password reset failed');
 		}
 
-		if (data.access && data.refresh) {
+		if (data.token && data.user) {
 			setTokens({
-				access: data.access,
-				refresh: data.refresh
+				access: data.token
 			});
 		}
 
@@ -308,13 +313,17 @@ export const resetPassword = async (email, resetCode, newPassword, confirmPasswo
  */
 export const changePassword = async (currentPassword, newPassword, confirmPassword) => {
 	try {
-		const accessToken = localStorage.getItem('access_token');
+		const token = getAccessToken();
+
+		if (!token) {
+			throw new Error('Not authenticated');
+		}
 
 		const response = await fetch(`${API_URL}/accounts/password/`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				Authorization: `Bearer ${accessToken}`
+				Authorization: `Bearer ${token}`
 			},
 			body: JSON.stringify({
 				current_password: currentPassword,
@@ -329,10 +338,10 @@ export const changePassword = async (currentPassword, newPassword, confirmPasswo
 			throw new Error(data.error || 'Password change failed');
 		}
 
-		if (data.access && data.refresh) {
+		// If a new token is provided, update it
+		if (data.token) {
 			setTokens({
-				access: data.access,
-				refresh: data.refresh
+				access: data.token
 			});
 		}
 
@@ -349,9 +358,9 @@ export const changePassword = async (currentPassword, newPassword, confirmPasswo
  */
 export const verifyToken = async () => {
 	try {
-		const accessToken = localStorage.getItem('access_token');
+		const token = getAccessToken();
 
-		if (!accessToken) {
+		if (!token) {
 			return false;
 		}
 
@@ -359,7 +368,7 @@ export const verifyToken = async () => {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				Authorization: `Bearer ${accessToken}`
+				Authorization: `Bearer ${token}`
 			}
 		});
 
@@ -381,9 +390,9 @@ export const verifyToken = async () => {
  */
 export const getUserProfile = async () => {
 	try {
-		const accessToken = localStorage.getItem('access_token');
+		const token = getAccessToken();
 
-		if (!accessToken) {
+		if (!token) {
 			throw new Error('Not authenticated');
 		}
 
@@ -391,7 +400,7 @@ export const getUserProfile = async () => {
 			method: 'GET',
 			headers: {
 				'Content-Type': 'application/json',
-				Authorization: `Bearer ${accessToken}`
+				Authorization: `Bearer ${token}`
 			}
 		});
 
@@ -415,9 +424,9 @@ export const getUserProfile = async () => {
  */
 export const updateProfile = async (profileData) => {
 	try {
-		const accessToken = localStorage.getItem('access_token');
+		const token = getAccessToken();
 
-		if (!accessToken) {
+		if (!token) {
 			throw new Error('Not authenticated');
 		}
 
@@ -425,7 +434,7 @@ export const updateProfile = async (profileData) => {
 			method: 'PATCH',
 			headers: {
 				'Content-Type': 'application/json',
-				Authorization: `Bearer ${accessToken}`
+				Authorization: `Bearer ${token}`
 			},
 			body: JSON.stringify(profileData)
 		});
@@ -450,9 +459,9 @@ export const updateProfile = async (profileData) => {
  */
 export const uploadAvatar = async (file) => {
 	try {
-		const accessToken = localStorage.getItem('access_token');
+		const token = getAccessToken();
 
-		if (!accessToken) {
+		if (!token) {
 			throw new Error('Not authenticated');
 		}
 
@@ -462,7 +471,7 @@ export const uploadAvatar = async (file) => {
 		const response = await fetch(`${API_URL}/accounts/profile/avatar/`, {
 			method: 'POST',
 			headers: {
-				Authorization: `Bearer ${accessToken}`
+				Authorization: `Bearer ${token}`
 			},
 			body: formData
 		});

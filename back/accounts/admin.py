@@ -14,7 +14,7 @@ from django.contrib.contenttypes.admin import GenericTabularInline
 class MediaInline(GenericTabularInline):
     model = Media
     extra = 1
-    fields = ('file', 'media_type', 'description', 'is_cover', 'order')
+    fields = ('file', 'media_type', 'is_cover', 'order')
     readonly_fields = ('uploaded_at',)
 
 
@@ -139,7 +139,6 @@ class UserProfileAdmin(admin.ModelAdmin):
     list_display = ('user', 'company_name', 'city', 'country', 'credit_limit', 'rating')
     list_filter = ('city', 'country')
     search_fields = ('user__email', 'company_name', 'address', 'city')
-    readonly_fields = ('created_at', 'updated_at')
     fieldsets = (
         (_('المستخدم'), {
             'fields': ('user',)

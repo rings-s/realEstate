@@ -26,25 +26,82 @@ export const ar = {
 	required_field: 'هذا الحقل مطلوب',
 	no_results: 'لا توجد نتائج',
 
-	// Auth
+	// Auth - General
+	auth_title: 'المصادقة',
 	login: 'تسجيل الدخول',
 	logout: 'تسجيل الخروج',
 	register: 'تسجيل حساب جديد',
-	email: 'البريد الإلكتروني',
-	password: 'كلمة المرور',
-	confirm_password: 'تأكيد كلمة المرور',
+	reset_password: 'إعادة تعيين كلمة المرور',
+	verify_email: 'تأكيد البريد الإلكتروني',
+
+	// Registration
+	register_subtitle: 'إنشاء حساب جديد للوصول إلى منصة مزادات العقارات',
+	first_name_placeholder: 'الاسم الأول',
+	last_name_placeholder: 'اسم العائلة',
+	email_placeholder: 'أدخل بريدك الإلكتروني',
+	phone_placeholder: 'رقم الهاتف (اختياري)',
+	password_placeholder: 'أدخل كلمة المرور',
+	confirm_password_placeholder: 'تأكيد كلمة المرور',
+	agree_terms: 'أوافق على',
+	terms_and_conditions: 'الشروط والأحكام',
+	registering: 'جاري التسجيل...',
+	have_account: 'لديك حساب بالفعل؟',
+	registration_failed: 'فشل التسجيل. يرجى المحاولة مرة أخرى.',
+	register_success: 'تم التسجيل بنجاح! تحقق من بريدك الإلكتروني للتحقق.',
+	terms_required: 'يجب الموافقة على الشروط والأحكام',
+
+	// Login
+	login_subtitle: 'تسجيل الدخول إلى حسابك',
 	remember_me: 'تذكرني',
 	forgot_password: 'نسيت كلمة المرور؟',
-	reset_password: 'إعادة تعيين كلمة المرور',
-	current_password: 'كلمة المرور الحالية',
-	new_password: 'كلمة المرور الجديدة',
+	logging_in: 'جاري تسجيل الدخول...',
+	no_account: 'ليس لديك حساب؟',
+	create_account: 'إنشاء حساب',
+	login_success: 'تم تسجيل الدخول بنجاح',
+	login_failed: 'فشل تسجيل الدخول. يرجى التحقق من بريدك الإلكتروني وكلمة المرور.',
+	account_disabled: 'تم تعطيل الحساب. يرجى الاتصال بالدعم.',
+	email_not_verified: 'البريد الإلكتروني غير مؤكد. يرجى التحقق من بريدك الإلكتروني.',
+
+	// Email Verification
 	verify_email: 'تأكيد البريد الإلكتروني',
-	verification_code: 'رمز التحقق',
-	resend_code: 'إعادة إرسال الرمز',
-	first_name: 'الاسم الأول',
-	last_name: 'اسم العائلة',
-	phone_number: 'رقم الهاتف',
-	date_of_birth: 'تاريخ الميلاد',
+  verification_subtitle: 'أدخل رمز التحقق المرسل إلى بريدك الإلكتروني',
+  email: 'البريد الإلكتروني',
+  email_placeholder: 'أدخل بريدك الإلكتروني',
+  verification_code: 'رمز التحقق',
+  verification_code_placeholder: 'أدخل رمز التحقق المكون من 6 أرقام',
+  verifying: 'جاري التحقق...',
+  verify_button: 'تحقق',
+  didnt_receive_code: 'لم تستلم الرمز؟',
+  resend_code: 'إعادة إرسال الرمز',
+  resending: 'جاري إعادة الإرسال...',
+  back_to_login: 'العودة إلى تسجيل الدخول',
+  verification_required_fields: 'البريد الإلكتروني ورمز التحقق مطلوبان',
+  email_verified_success: 'تم التحقق من البريد الإلكتروني بنجاح',
+  verification_failed: 'فشل التحقق من البريد الإلكتروني',
+  verification_code_resent: 'تم إعادة إرسال رمز التحقق',
+  resend_failed: 'فشل إعادة إرسال رمز التحقق'
+
+	// Password Reset
+	reset_password_subtitle: 'أدخل بريدك الإلكتروني لإعادة تعيين كلمة المرور',
+	reset_password_button: 'إرسال رابط إعادة التعيين',
+	reset_password_sending: 'جاري إرسال رابط إعادة التعيين...',
+	reset_password_success: 'تم إرسال تعليمات إعادة تعيين كلمة المرور إلى بريدك الإلكتروني',
+	reset_password_failed: 'فشل طلب إعادة تعيين كلمة المرور',
+	new_password: 'كلمة المرور الجديدة',
+	confirm_new_password: 'تأكيد كلمة المرور الجديدة',
+	reset_code: 'رمز إعادة التعيين',
+	reset_code_placeholder: 'أدخل رمز إعادة التعيين',
+	reset_button: 'إعادة تعيين كلمة المرور',
+	resetting: 'جاري إعادة التعيين...',
+
+	// Errors
+	invalid_credentials: 'بيانات الاعتماد غير صالحة',
+	fill_required_fields: 'يرجى ملء جميع الحقول المطلوبة',
+	passwords_not_match: 'كلمات المرور غير متطابقة',
+	password_too_short: 'كلمة المرور قصيرة جدًا (الحد الأدنى 8 أحرف)',
+	invalid_email: 'البريد الإلكتروني غير صالح',
+	invalid_verification_code: 'رمز التحقق غير صالح',
+	field_required: 'هذا الحقل مطلوب',
 
 	// Navigation
 	home: 'الرئيسية',
@@ -292,7 +349,7 @@ export const ar = {
 
 // English translations (abbreviated version, expand as needed)
 export const en = {
-	app_name: 'Real Estate Auction Platform',
+	app_name: 'Auction',
 	loading: 'Loading...',
 	error: 'Error',
 	success: 'Success'

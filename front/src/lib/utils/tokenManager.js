@@ -1,154 +1,144 @@
 /**
  * Token Manager
- * Utility for managing JWT tokens and authentication state
+ * Utility for managing authentication tokens in the frontend
  */
 
 import { browser } from '$app/environment';
-import { TOKEN_KEY, REFRESH_TOKEN_KEY, TOKEN_EXPIRY_KEY, USER_KEY } from '$lib/config/constants';
+import { TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY } from '$lib/config/constants';
 import { isAuthenticated, currentUser } from '$lib/stores/auth';
 
-// Check if token exists
+/**
+ * Check if token exists
+ * @returns {boolean} Whether the token exists
+ */
 export const hasToken = () => {
-	if (!browser) return false;
-	return Boolean(localStorage.getItem(TOKEN_KEY));
+  if (!browser) return false;
+  return Boolean(localStorage.getItem(TOKEN_KEY));
 };
 
-// Get access token
+/**
+ * Get access token
+ * @returns {string|null} Access token
+ */
 export const getAccessToken = () => {
-	if (!browser) return null;
-	return localStorage.getItem(TOKEN_KEY);
+  if (!browser) return null;
+  return localStorage.getItem(TOKEN_KEY);
 };
 
-// Get refresh token
+/**
+ * Get refresh token
+ * @returns {string|null} Refresh token
+ */
 export const getRefreshToken = () => {
-	if (!browser) return null;
-	return localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!browser) return null;
+  return localStorage.getItem(REFRESH_TOKEN_KEY);
 };
 
-// Check if token is expired
+/**
+ * Check if token is expired
+ * Note: Simple token auth doesn't have built-in expiry
+ * @returns {boolean} Whether the token is expired
+ */
 export const isTokenExpired = () => {
-	if (!browser) return true;
-
-	const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
-	if (!expiry) return true;
-
-	try {
-		const expiryDate = new Date(expiry);
-		const now = new Date();
-		return now >= expiryDate;
-	} catch (error) {
-		console.error('Error parsing token expiry date:', error);
-		return true; // If we can't parse the date, consider the token expired
-	}
+  // With Django's simple token authentication, tokens don't expire automatically
+  // Return false to indicate token is valid as long as it exists
+  return !hasToken();
 };
 
-// Set tokens in localStorage
+/**
+ * Set tokens in localStorage
+ * @param {Object} params - Token parameters
+ * @param {string} params.access - Access token
+ * @param {string} params.refresh - Refresh token (optional)
+ */
 export const setTokens = ({ access, refresh }) => {
-	if (!browser) return;
+  if (!browser) return;
 
-	if (access) {
-		localStorage.setItem(TOKEN_KEY, access);
+  if (access) {
+    localStorage.setItem(TOKEN_KEY, access);
+  }
+  
+  if (refresh) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+  }
 
-		// Calculate token expiry (1 hour from now)
-		const expiry = new Date();
-		expiry.setHours(expiry.getHours() + 1);
-		localStorage.setItem(TOKEN_EXPIRY_KEY, expiry.toISOString());
-	}
-
-	if (refresh) {
-		localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
-	}
-
-	// Update authentication state
-	isAuthenticated.set(true);
+  // Update authentication state
+  isAuthenticated.set(true);
 };
 
-// Set user data
+/**
+ * Set user data
+ * @param {Object} userData - User data
+ */
 export const setUserData = (userData) => {
-	if (!browser || !userData) return;
+  if (!browser || !userData) return;
 
-	try {
-		localStorage.setItem(USER_KEY, JSON.stringify(userData));
-		currentUser.set(userData);
-	} catch (error) {
-		console.error('Error storing user data:', error);
-	}
+  try {
+    localStorage.setItem(USER_KEY, JSON.stringify(userData));
+    currentUser.set(userData);
+  } catch (error) {
+    console.error('Error storing user data:', error);
+  }
 };
 
-// Get user data from localStorage
+/**
+ * Get user data from localStorage
+ * @returns {Object|null} User data
+ */
 export const getUserData = () => {
-	if (!browser) return null;
+  if (!browser) return null;
 
-	try {
-		const userData = localStorage.getItem(USER_KEY);
-		return userData ? JSON.parse(userData) : null;
-	} catch (error) {
-		console.error('Error parsing user data:', error);
-		return null;
-	}
+  try {
+    const userData = localStorage.getItem(USER_KEY);
+    return userData ? JSON.parse(userData) : null;
+  } catch (error) {
+    console.error('Error parsing user data:', error);
+    return null;
+  }
 };
 
-// Clear all tokens and user data
+/**
+ * Clear all tokens and user data
+ */
 export const clearTokens = () => {
-	if (!browser) return;
+  if (!browser) return;
 
-	localStorage.removeItem(TOKEN_KEY);
-	localStorage.removeItem(REFRESH_TOKEN_KEY);
-	localStorage.removeItem(TOKEN_EXPIRY_KEY);
-	localStorage.removeItem(USER_KEY);
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
 
-	// Update authentication state
-	isAuthenticated.set(false);
-	currentUser.set(null);
+  // Update authentication state
+  isAuthenticated.set(false);
+  currentUser.set(null);
 };
 
-// Parse token payload
-export const parseToken = (token) => {
-	if (!token) return null;
-
-	try {
-		const base64Url = token.split('.')[1];
-		const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-		const jsonPayload = decodeURIComponent(
-			atob(base64)
-				.split('')
-				.map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-				.join('')
-		);
-
-		return JSON.parse(jsonPayload);
-	} catch (error) {
-		console.error('Error parsing token:', error);
-		return null;
-	}
-};
-
-// Get token expiry time in seconds
-export const getTokenExpiryTime = () => {
-	if (!browser) return 0;
-
-	const expiry = localStorage.getItem(TOKEN_EXPIRY_KEY);
-	if (!expiry) return 0;
-
-	try {
-		const expiryDate = new Date(expiry);
-		const now = new Date();
-		return Math.floor((expiryDate.getTime() - now.getTime()) / 1000);
-	} catch (error) {
-		console.error('Error calculating token expiry time:', error);
-		return 0;
-	}
+/**
+ * Check if user is authenticated
+ * @returns {boolean} Whether the user is authenticated
+ */
+export const checkAuth = () => {
+  if (!browser) return false;
+  
+  // Check if token exists
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) {
+    isAuthenticated.set(false);
+    return false;
+  }
+  
+  // Token exists, user is authenticated
+  isAuthenticated.set(true);
+  return true;
 };
 
 export default {
-	hasToken,
-	getAccessToken,
-	getRefreshToken,
-	isTokenExpired,
-	setTokens,
-	setUserData,
-	getUserData,
-	clearTokens,
-	parseToken,
-	getTokenExpiryTime
+  hasToken,
+  getAccessToken,
+  getRefreshToken,
+  isTokenExpired,
+  setTokens,
+  setUserData,
+  getUserData,
+  clearTokens,
+  checkAuth
 };

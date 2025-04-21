@@ -33,7 +33,7 @@ urlpatterns = [
 
     # Role management
     path('roles/assign/<uuid:user_id>/', views.AssignRoleView.as_view(), name='assign-role'),
-    path('dashboard/role/', views.RoleDashboardView.as_view(), name='role-dashboard'),
+    # path('dashboard/role/', views.RoleDashboardView.as_view(), name='role-dashboard'),
 
 
 ]

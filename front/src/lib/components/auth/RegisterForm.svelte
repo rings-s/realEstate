@@ -2,19 +2,19 @@
   Updated RegisterForm Component
   With complete roles from permissions utils
 -->
+<!-- Improved RegisterForm Component -->
 <script>
-	import { onMount } from 'svelte';
 	import { createEventDispatcher } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { language, isRTL, textClass, uiStore } from '$lib/stores/ui';
 	import { t } from '$lib/config/translations';
 	import { User, Mail, Lock, Eye, EyeOff, Phone, Calendar, Users } from 'lucide-svelte';
 	import * as authService from '$lib/services/authService';
-	import { ROLES, ROLE_NAMES } from '$lib/utils/permissions';
-	import { isAuthenticated } from '$lib/stores/auth';
-
+	import { validateEmail, validatePassword, validatePhone } from '$lib/utils/validators';
+	import { ROLES } from '$lib/utils/permissions';
+  
 	const dispatch = createEventDispatcher();
-
+  
 	// Form data
 	let email = '';
 	let password = '';
@@ -27,102 +27,110 @@
 	let showPassword = false;
 	let showConfirmPassword = false;
 	let agreeTerms = false;
-
-	// Form state
+  
+	// Form errors
+	let errors = {};
 	let loading = false;
-	let error = '';
 	let success = false;
-
-	// Available roles for registration
-	// We'll exclude the ADMIN role as it's typically assigned by existing admins
-	const availableRoles = [
-		{ code: ROLES.BUYER, name: ROLE_NAMES[ROLES.BUYER] },
-		{ code: ROLES.SELLER, name: ROLE_NAMES[ROLES.SELLER] },
-		{ code: ROLES.AGENT, name: ROLE_NAMES[ROLES.AGENT] },
-		{ code: ROLES.INSPECTOR, name: ROLE_NAMES[ROLES.INSPECTOR] },
-		{ code: ROLES.LEGAL, name: ROLE_NAMES[ROLES.LEGAL] },
-		{ code: ROLES.APPRAISER, name: ROLE_NAMES[ROLES.APPRAISER] }
-	];
-
-	// Redirect if already authenticated
-	onMount(() => {
-		if ($isAuthenticated) {
-			goto('/dashboard');
-		}
-	});
-
+  
 	// Toggle password visibility
 	const togglePassword = () => {
-		showPassword = !showPassword;
+	  showPassword = !showPassword;
 	};
-
+  
 	const toggleConfirmPassword = () => {
-		showConfirmPassword = !showConfirmPassword;
+	  showConfirmPassword = !showConfirmPassword;
 	};
-
+  
+	// Validate form
+	function validateForm() {
+	  errors = {};
+	  
+	  // Required fields
+	  if (!first_name) errors.first_name = t('field_required', $language);
+	  if (!last_name) errors.last_name = t('field_required', $language);
+	  if (!role) errors.role = t('field_required', $language);
+	  
+	  // Email validation
+	  const emailError = validateEmail(email);
+	  if (emailError) errors.email = emailError;
+	  
+	  // Phone validation (optional field)
+	  if (phone_number) {
+		const phoneError = validatePhone(phone_number);
+		if (phoneError) errors.phone_number = phoneError;
+	  }
+	  
+	  // Password validation
+	  const passwordError = validatePassword(password);
+	  if (passwordError) errors.password = passwordError;
+	  
+	  // Confirm password
+	  if (password !== confirm_password) {
+		errors.confirm_password = t('passwords_not_match', $language);
+	  }
+	  
+	  // Terms agreement
+	  if (!agreeTerms) {
+		errors.terms = t('terms_required', $language, { default: 'يجب الموافقة على الشروط والأحكام' });
+	  }
+	  
+	  return Object.keys(errors).length === 0;
+	}
+  
 	// Handle form submission
 	async function handleSubmit() {
-		error = '';
-		success = false;
-
-		// Form validation
-		if (!email || !password || !confirm_password || !first_name || !last_name || !role) {
-			error = t('fill_required_fields', $language, { default: 'يرجى ملء جميع الحقول المطلوبة' });
-			return;
-		}
-
-		if (password !== confirm_password) {
-			error = t('passwords_not_match', $language, { default: 'كلمات المرور غير متطابقة' });
-			return;
-		}
-
-		if (password.length < 8) {
-			error = t('password_too_short', $language, { default: 'كلمة المرور قصيرة جداً' });
-			return;
-		}
-
-		if (!agreeTerms) {
-			error = t('terms_required', $language, { default: 'يجب الموافقة على الشروط والأحكام' });
-			return;
-		}
-
-		loading = true;
-
+	  // Reset state
+	  errors = {};
+	  success = false;
+	  
+	  // Validate form
+	  if (!validateForm()) return;
+	  
+	  loading = true;
+  
+	  try {
+		// Call register service with correct field names
+		const response = await authService.register({
+		  email,
+		  password,
+		  confirm_password,
+		  first_name,
+		  last_name,
+		  phone_number: phone_number || undefined,
+		  role,
+		  date_of_birth: date_of_birth || undefined
+		});
+  
+		// Show success message
+		success = true;
+		uiStore.showToast(
+		  t('register_success', $language, {
+			default: 'تم التسجيل بنجاح! تحقق من بريدك الإلكتروني للتحقق.'
+		  }),
+		  'success'
+		);
+  
+		// Redirect to verification page
+		goto(`/auth/verify-email?email=${encodeURIComponent(email)}`);
+	  } catch (err) {
+		console.error('Registration error:', err);
+		
+		// Try to parse error message if it's JSON
 		try {
-			// Call register service
-			const response = await authService.register({
-				email,
-				password,
-				confirm_password,
-				first_name,
-				last_name,
-				phone_number,
-				role,
-				date_of_birth: date_of_birth || undefined
-			});
-
-			// Show success message
-			success = true;
-			uiStore.showToast(
-				t('register_success', $language, {
-					default: 'تم التسجيل بنجاح! تحقق من بريدك الإلكتروني للتحقق.'
-				}),
-				'success'
-			);
-
-			// Redirect to verification page
-			goto(`/auth/verify-email?email=${encodeURIComponent(email)}`);
-		} catch (err) {
-			console.error('Registration error:', err);
-			error =
-				err.message ||
-				t('registration_failed', $language, { default: 'فشل التسجيل. يرجى المحاولة مرة أخرى.' });
-		} finally {
-			loading = false;
+		  const errorObj = JSON.parse(err.message);
+		  errors = errorObj;
+		} catch {
+		  errors.general = err.message || t('registration_failed', $language, { 
+			default: 'فشل التسجيل. يرجى المحاولة مرة أخرى.' 
+		  });
 		}
+	  } finally {
+		loading = false;
+	  }
 	}
-</script>
-
+  </script>
+  
 <svelte:head>
 	<title>{t('register', $language)} | {t('app_name', $language)}</title>
 </svelte:head>

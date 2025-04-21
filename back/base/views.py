@@ -10,24 +10,25 @@ from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 import logging
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from rest_framework.exceptions import ValidationError  
-from rest_framework.exceptions import PermissionDenied  
+from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.authtoken.models import Token  # Make sure this import is correct
 
 import json
 
 from .models import (
-    Property, 
-    Auction, 
+    Property,
+    Auction,
     Bid, Document, Contract,
     MessageThread, ThreadParticipant, Message, Notification,
-    Media 
+    Media
 )
 from .serializers import (
-    PropertySerializer, 
-    AuctionSerializer, 
+    PropertySerializer,
+    AuctionSerializer,
     BidSerializer, DocumentSerializer, ContractSerializer, MessageThreadSerializer,
     ThreadParticipantSerializer, MessageSerializer, NotificationSerializer,
-    MediaSerializer 
+    MediaSerializer
 )
 from .permissions import (
     IsAdminUser, IsVerifiedUser, HasRolePermission, IsPropertyOwner, IsAuctionParticipant,
@@ -470,8 +471,8 @@ class BidListCreateView(generics.ListCreateAPIView):
             raise PermissionDenied(
                 _('Bids can only be placed on live auctions. Current status: {status}').format(status=status)
             )
-            
-            
+
+
         serializer.save(
             auction=auction,
             bidder=self.request.user,
@@ -1145,4 +1146,3 @@ class NotificationDeleteView(generics.DestroyAPIView):
     @api_verified_user_required
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
-

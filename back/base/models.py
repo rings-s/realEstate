@@ -9,6 +9,7 @@ from django.core.validators import (
     FileExtensionValidator, MinLengthValidator,
     RegexValidator
 )
+
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from accounts.models import CustomUser, Role
@@ -92,8 +93,8 @@ class Media(models.Model):
         super().save(*args, **kwargs)
 
     class Meta:
-        verbose_name = "Media File"
-        verbose_name_plural = "Media Files"
+        verbose_name = "الملف"
+        verbose_name_plural = "الملفات و الصور"
         ordering = ['-uploaded_at']
 
 

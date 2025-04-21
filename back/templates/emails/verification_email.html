@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="UTF-8" />
+        <title>Verify Your Email</title>
+    </head>
+    <body>
+        <h1>Welcome {{ user_name }}!</h1>
+        <p>Thank you for registering with {{ company_name }}.</p>
+        <p>
+            Your verification code is: <strong>{{ verification_code }}</strong>
+        </p>
+        <p>This code will expire in {{ expiry_hours }} hours.</p>
+
+        {% if verification_url %}
+        <p>Or click the following link to verify your email:</p>
+        <p><a href="{{ verification_url }}">{{ verification_url }}</a></p>
+        {% endif %}
+
+        <p>If you didn't create this account, please ignore this email.</p>
+
+        <p>
+            Best regards,<br />
+            {{ company_name }} Team
+        </p>
+    </body>
+</html>

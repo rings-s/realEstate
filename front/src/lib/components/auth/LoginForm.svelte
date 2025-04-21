@@ -1,106 +1,88 @@
+<!-- Improved LoginForm component -->
 <script>
-	import { createEventDispatcher } from 'svelte';
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { language, isRTL, textClass, uiStore } from '$lib/stores/ui';
+	import { isAuthenticated, login } from '$lib/stores/auth';
 	import { t } from '$lib/config/translations';
-	import { User, Lock, Eye, EyeOff, Mail } from 'lucide-svelte';
-	import * as authService from '$lib/services/authService';
-	import { isAuthenticated, currentUser } from '$lib/stores/auth';
-	import { fade } from 'svelte/transition';
-
-	const dispatch = createEventDispatcher();
-
+	import { Mail, Lock, Eye, EyeOff } from 'lucide-svelte';
+  
 	// Form data
 	let email = '';
 	let password = '';
-	let rememberMe = false;
 	let showPassword = false;
-
-	// Form state
+	let rememberMe = false;
 	let loading = false;
 	let error = '';
-
+	
 	// Toggle password visibility
 	const togglePassword = () => {
-		showPassword = !showPassword;
+	  showPassword = !showPassword;
 	};
-
-	// Handle form submission
+  
+	onMount(() => {
+	  // Check for verified=true URL param and show success message
+	  const urlParams = new URLSearchParams(window.location.search);
+	  if (urlParams.get('verified') === 'true') {
+		uiStore.showToast(
+		  t('verification_success', $language, { 
+			default: 'تم التحقق من البريد الإلكتروني بنجاح' 
+		  }),
+		  'success'
+		);
+	  }
+	  
+	  // If already authenticated, redirect to dashboard
+	  if ($isAuthenticated) {
+		goto('/dashboard');
+	  }
+	});
+  
+	// Handle login form submission
 	async function handleSubmit() {
-		error = '';
-
-		// Validate form
-		if (!email) {
-			error = t('email_required', $language);
-			return;
+	  if (!email || !password) {
+		error = t('fill_required_fields', $language);
+		return;
+	  }
+  
+	  loading = true;
+	  error = '';
+  
+	  try {
+		await login(email, password);
+		
+		// Redirect to dashboard on success
+		goto('/dashboard');
+	  } catch (err) {
+		// Handle specific error codes
+		if (err.message === 'email_not_verified') {
+		  error = t('email_not_verified', $language);
+		  
+		  // Give option to resend verification
+		  uiStore.showToast(
+			t('verification_required', $language, { 
+			  default: 'البريد الإلكتروني غير مؤكد. يرجى التحقق من بريدك الإلكتروني أو طلب رمز تحقق جديد.' 
+			}),
+			'warning'
+		  );
+		  
+		  // Redirect to verification page
+		  goto(`/auth/verify-email?email=${encodeURIComponent(email)}`);
+		} else if (err.message === 'account_disabled') {
+		  error = t('account_disabled', $language);
+		} else if (err.message === 'invalid_credentials') {
+		  error = t('invalid_credentials', $language);
+		} else {
+		  error = err.message || t('login_failed', $language);
 		}
-
-		if (!password) {
-			error = t('password_required', $language);
-			return;
-		}
-
-		loading = true;
-
-		try {
-			// Call login service
-			const response = await authService.login(email, password);
-
-			// Update auth store with user data
-			if (response.user) {
-				isAuthenticated.set(true);
-				currentUser.set(response.user);
-
-				// Show success message
-				uiStore.showToast(
-					t('login_success', $language, { default: 'تم تسجيل الدخول بنجاح' }),
-					'success'
-				);
-
-				// Navigate to dashboard
-				goto('/dashboard');
-			} else {
-				throw new Error(t('login_error', $language, { default: 'حدث خطأ أثناء تسجيل الدخول' }));
-			}
-		} catch (err) {
-			console.error('Login error:', err);
-
-			// Handle different error types
-			if (err.message && err.message.includes('email_not_verified')) {
-				error = t('email_not_verified', $language, {
-					default: 'البريد الإلكتروني غير مُوثق. يرجى التحقق من بريدك الإلكتروني لرمز التحقق.'
-				});
-
-				// Offer to resend verification email
-				const resendLink = document.createElement('a');
-				resendLink.href = `/auth/verify-email?email=${encodeURIComponent(email)}`;
-				resendLink.textContent = t('resend_verification', $language, {
-					default: 'إعادة إرسال رمز التحقق'
-				});
-				resendLink.className = 'anchor ml-2';
-
-				// Add the link to the error message
-				setTimeout(() => {
-					const errorElement = document.querySelector('.error-message');
-					if (errorElement) {
-						errorElement.appendChild(document.createTextNode(' '));
-						errorElement.appendChild(resendLink);
-					}
-				}, 0);
-			} else if (err.message && err.message.includes('account_disabled')) {
-				error = t('account_disabled', $language, {
-					default: 'تم تعطيل الحساب. يرجى الاتصال بالدعم.'
-				});
-			} else {
-				error =
-					err.message ||
-					t('invalid_credentials', $language, { default: 'بيانات الاعتماد غير صالحة' });
-			}
-		} finally {
-			loading = false;
-		}
+	  } finally {
+		loading = false;
+	  }
 	}
 </script>
+  
+  <!-- Form UI here -->
 
 <div class="card p-5 w-full max-w-md mx-auto shadow-lg">
 	<header class="text-center mb-5">

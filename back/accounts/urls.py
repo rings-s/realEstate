@@ -1,23 +1,17 @@
-# accounts/urls.py
 from django.urls import path
+from rest_framework_simplejwt.views import TokenVerifyView
 from . import views
 
 app_name = 'accounts'
 
-from django.http import JsonResponse
-
-def api_test(request):
-    return JsonResponse({'status': 'ok', 'message': 'API is working!'})
-
 urlpatterns = [
-    path('api/test/', api_test, name='api-test'),
-
     # Authentication endpoints
     path('register/', views.RegisterView.as_view(), name='register'),
     path('verify-email/', views.VerifyEmailView.as_view(), name='verify-email'),
     path('login/', views.LoginView.as_view(), name='login'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
-    path('token/verify/', views.VerifyTokenView.as_view(), name='verify-token'),
+    path('token/refresh/', views.TokenRefreshView.as_view(), name='token-refresh'),
+    path('token/verify/', TokenVerifyView.as_view(), name='token-verify'),
 
     # Profile management
     path('profile/', views.UserProfileView.as_view(), name='profile'),
@@ -25,35 +19,28 @@ urlpatterns = [
     path('profile/avatar/', views.UpdateAvatarView.as_view(), name='update-avatar'),
 
     # Password management
-    path('password/', views.ChangePasswordView.as_view(), name='change-password'),
-    path('password/reset/', views.PasswordResetRequestView.as_view(), name='request-password-reset'),
-    path('resend-verification/', views.ResendVerificationView.as_view(), name='resend-verification'),
+    path('password/change/', views.ChangePasswordView.as_view(), name='change-password'),
+    path('password/reset/request/', views.PasswordResetRequestView.as_view(), name='request-password-reset'),
     path('password/reset/verify/', views.VerifyResetCodeView.as_view(), name='verify-reset-token'),
     path('password/reset/confirm/', views.ResetPasswordView.as_view(), name='reset-password'),
-
-    # Role management
-    path('roles/assign/<uuid:user_id>/', views.AssignRoleView.as_view(), name='assign-role'),
-    # path('dashboard/role/', views.RoleDashboardView.as_view(), name='role-dashboard'),
-
-
+    path('resend-verification/', views.ResendVerificationView.as_view(), name='resend-verification'),
 ]
 
 """
-Real Estate Auction Platform API Endpoints:
------------------------------------------
+API Documentation:
 
 Authentication Endpoints:
------------------------
+------------------------
 POST /accounts/register/
     Register a new user
     Body: {
         "email": string,
         "password": string,
-        "password_confirmation": string,
+        "confirm_password": string,
         "first_name": string,
         "last_name": string,
-        "phone_number": string,
-        "role": string (seller, buyer, inspector, legal, agent)
+        "phone_number": string (optional),
+        "date_of_birth": date (optional)
     }
 
 POST /accounts/verify-email/
@@ -64,14 +51,23 @@ POST /accounts/verify-email/
     }
 
 POST /accounts/login/
-    Login user
+    Login user and get JWT tokens
     Body: {
         "email": string,
         "password": string
     }
+    Returns: {
+        "data": {
+            "tokens": {
+                "refresh": string,
+                "access": string
+            },
+            "user": {...} // User profile data
+        }
+    }
 
 POST /accounts/logout/
-    Logout user (requires authentication)
+    Blacklist JWT refresh token
     Body: {
         "refresh": string
     }
@@ -81,38 +77,39 @@ POST /accounts/token/refresh/
     Body: {
         "refresh": string
     }
+    Returns: {
+        "data": {
+            "access": string
+        }
+    }
 
 POST /accounts/token/verify/
     Verify the validity of access token
+    Body: {
+        "token": string
+    }
 
 Profile Management:
 -----------------
 GET /accounts/profile/
-    Get current user's profile (requires authentication)
+    Get current user's profile
+    Authorization: Bearer <access_token>
 
-PUT/PATCH /accounts/profile/
-    Update current user's profile (requires authentication)
+PATCH /accounts/profile/
+    Update current user's profile
+    Authorization: Bearer <access_token>
     Body: {
         "first_name": string,
         "last_name": string,
         "phone_number": string,
         "bio": string,
         "company_name": string,
-        "company_registration": string,
-        "tax_id": string,
-        "address": string,
-        "city": string,
-        "state": string,
-        "postal_code": string,
-        "country": string,
-        "license_number": string,
-        "license_expiry": date,
-        "preferred_locations": string,
-        "property_preferences": string
+        ... other profile fields
     }
 
 POST /accounts/profile/avatar/
-    Update user avatar (requires authentication)
+    Update user avatar
+    Authorization: Bearer <access_token>
     Body: multipart/form-data with 'avatar' file
 
 GET /accounts/profile/<uuid:user_id>/
@@ -120,15 +117,16 @@ GET /accounts/profile/<uuid:user_id>/
 
 Password Management:
 ------------------
-POST /accounts/password/
-    Change password (requires authentication)
+POST /accounts/password/change/
+    Change password (for authenticated users)
+    Authorization: Bearer <access_token>
     Body: {
         "current_password": string,
         "new_password": string,
         "confirm_password": string
     }
 
-POST /accounts/password/reset/
+POST /accounts/password/reset/request/
     Request password reset
     Body: {
         "email": string
@@ -155,15 +153,4 @@ POST /accounts/resend-verification/
     Body: {
         "email": string
     }
-
-Role Management:
---------------
-POST /accounts/roles/assign/<uuid:user_id>/
-    Assign roles to a user (admin only)
-    Body: {
-        "roles": [string]
-    }
-
-GET /accounts/dashboard/role/
-    Get dashboard data based on user's role (requires authentication)
 """

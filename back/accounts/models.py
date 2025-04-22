@@ -30,6 +30,21 @@ def user_document_path(instance, filename):
     user_uuid = getattr(getattr(instance, 'user', instance), 'uuid', 'temp') # More robust check
     return f'users/{user_uuid}/documents/{timestamp}_{filename}'
 
+
+
+class Role:
+    """Role constants"""
+    ADMIN = 'admin'
+    SELLER = 'seller'
+    OWNER = 'owner'
+    AGENT = 'agent'
+    LEGAL = 'legal'
+    INSPECTOR = 'inspector'
+    BIDDER = 'bidder'
+# --- Custom User Model ---
+
+
+
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -61,7 +76,6 @@ class CustomUserManager(BaseUserManager):
 # --- Custom User Model ---
 
 class CustomUser(AbstractUser):
-    # Remove roles field
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, verbose_name=_('UUID'), db_index=True)
     username = None
     email = models.EmailField(_('Email'), unique=True, db_index=True)
@@ -88,8 +102,65 @@ class CustomUser(AbstractUser):
     objects = CustomUserManager()
 
 
-    # Keep verification and reset methods
 
+    def generate_verification_code(self, length=6):
+        """Generate a random verification code"""
+        if length < 4: length = 4
+        code = str(random.randint(10**(length-1), 10**length-1))
+        self.verification_code = code
+        self.verification_code_created = timezone.now()
+        self.is_verified = False
+        self.save(update_fields=['verification_code', 'verification_code_created', 'is_verified'])
+        return code
+
+    def verify_account(self, code):
+        """Verify user account with provided code"""
+        if not self.verification_code or not self.verification_code_created:
+            return False
+
+        if self.verification_code != code:
+            return False
+
+        # Check expiry (24 hours)
+        expiry_time = self.verification_code_created + timezone.timedelta(hours=24)
+        if timezone.now() > expiry_time:
+            return False
+
+        # Verification successful
+        self.is_verified = True
+        self.verification_code = None
+        self.verification_code_created = None
+        self.save(update_fields=['is_verified', 'verification_code', 'verification_code_created'])
+        return True
+
+    def generate_reset_code(self, length=6):
+        """Generate password reset code"""
+        if length < 4: length = 4
+        code = str(random.randint(10**(length-1), 10**length-1))
+        self.reset_code = code
+        self.reset_code_created = timezone.now()
+        self.save(update_fields=['reset_code', 'reset_code_created'])
+        return code
+
+    def reset_password(self, code, new_password):
+        """Reset password with provided code"""
+        if not self.reset_code or not self.reset_code_created:
+            return False
+
+        if self.reset_code != code:
+            return False
+
+        # Check expiry (1 hour)
+        expiry_time = self.reset_code_created + timezone.timedelta(hours=1)
+        if timezone.now() > expiry_time:
+            return False
+
+        # Reset successful
+        self.set_password(new_password)
+        self.reset_code = None
+        self.reset_code_created = None
+        self.save(update_fields=['password', 'reset_code', 'reset_code_created'])
+        return True
     @transaction.atomic
     def save(self, *args, **kwargs):
         is_new = self._state.adding
@@ -99,6 +170,14 @@ class CustomUser(AbstractUser):
 
         if is_new:
             UserProfile.objects.get_or_create(user=self)
+
+    def has_role(self, role_name):
+        """Simple role check based on user privileges"""
+        # Admin users have access to everything
+        if self.is_staff or self.is_superuser:
+            return True
+        # For regular users, you could implement basic logic here
+        return False
 class UserProfile(models.Model):
     # Use settings.AUTH_USER_MODEL for flexibility
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile', verbose_name=_('المستخدم'), primary_key=True) # Added primary_key=True for OneToOneField

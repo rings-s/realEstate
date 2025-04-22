@@ -1,165 +1,157 @@
-# Path: accounts/admin.py
-# This file configures the Django admin interface for user accounts
-# It includes customized forms and displays for roles and user profiles
-
 from django.contrib import admin
-from django.contrib.auth.admin import UserAdmin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.forms import UserCreationForm, UserChangeForm
 from django.utils.translation import gettext_lazy as _
-from .models import CustomUser, Role, UserProfile
-from django.contrib.auth.models import Group
-from base.models import Media
-from django.contrib.contenttypes.admin import GenericTabularInline
+from django.utils.html import format_html
+from django.urls import reverse
+from django.db.models import Count
+
+from .models import CustomUser, UserProfile
 
 
-class MediaInline(GenericTabularInline):
-    model = Media
-    extra = 1
-    fields = ('file', 'media_type', 'is_cover', 'order')
-    readonly_fields = ('uploaded_at',)
+class CustomUserCreationForm(UserCreationForm):
+    """
+    Custom form for creating new users in admin with email as username.
+    """
+    class Meta:
+        model = CustomUser
+        fields = ('email', 'first_name', 'last_name')
+
+
+class CustomUserChangeForm(UserChangeForm):
+    """
+    Custom form for updating users in admin.
+    """
+    class Meta:
+        model = CustomUser
+        fields = '__all__'
 
 
 class UserProfileInline(admin.StackedInline):
     """
-    Inline admin for UserProfile to be displayed on the user admin page
+    Inline admin for UserProfile to edit within CustomUser admin.
     """
     model = UserProfile
     can_delete = False
-    verbose_name_plural = _('ملف تعريف المستخدم')
+    verbose_name = _('Profile')
+    verbose_name_plural = _('Profile')
+    fk_name = 'user'
+
     fieldsets = (
-        (_('معلومات الملف الشخصي'), {
-            'fields': ('bio', 'company_name', 'company_registration', 'tax_id')
+        (_('Personal Information'), {
+            'fields': ('bio',)
         }),
-        (_('معلومات العنوان'), {
+        (_('Company Details'), {
+            'fields': ('company_name', 'company_registration', 'tax_id', 'license_number', 'license_expiry')
+        }),
+        (_('Address'), {
             'fields': ('address', 'city', 'state', 'postal_code', 'country')
         }),
-        (_('معلومات مالية'), {
-            'fields': ('credit_limit', 'rating')
+        (_('Financial'), {
+            'fields': ('credit_limit', 'rating'),
+            'classes': ('collapse',),
         }),
-        (_('معلومات المهنة'), {
-            'fields': ('license_number', 'license_expiry')
-        }),
-        (_('تفضيلات'), {
-            'fields': ('preferred_locations', 'property_preferences')
-        }),
-    )
-
-
-@admin.register(Role)
-class RoleAdmin(admin.ModelAdmin):
-    """
-    Admin configuration for the Role model
-    """
-    list_display = ('get_name_display', 'description', 'created_at', 'updated_at')
-    fieldsets = (
-        (_('معلومات الدور'), {
-            'fields': ('name', 'description')
-        }),
-        (_('الصلاحيات'), {
-            'fields': ('permissions',)
+        (_('Preferences'), {
+            'fields': ('preferred_locations', 'property_preferences'),
+            'classes': ('collapse',),
         }),
     )
-    filter_horizontal = ('permissions',)
-    search_fields = ('name', 'description')
-    list_filter = ('created_at',)
-    readonly_fields = ('created_at', 'updated_at')
-
-    def get_name_display(self, obj):
-        """
-        Format the role name for display in the admin
-        """
-        return obj.get_name_display()
-    get_name_display.short_description = _('الاسم')
 
 
 @admin.register(CustomUser)
-class CustomUserAdmin(UserAdmin):
+class CustomUserAdmin(BaseUserAdmin):
     """
-    Admin configuration for the CustomUser model
-    Includes both the UUID and regular ID fields
+    Admin interface for CustomUser with improved usability.
     """
-    list_display = ('id', 'uuid', 'email', 'first_name', 'last_name', 'primary_role', 'is_active', 'is_verified', 'date_joined')
-    list_filter = ('is_active', 'is_verified', 'is_staff', 'roles')
+    form = CustomUserChangeForm
+    add_form = CustomUserCreationForm
+    inlines = (UserProfileInline,)
+
+    list_display = (
+        'email', 'get_full_name', 'is_verified', 'is_active', 'is_staff',
+        'date_joined', 'last_login'
+    )
+    list_filter = (
+        'is_active', 'is_verified', 'is_staff', 'is_superuser',
+        'date_joined', 'last_login'
+    )
     search_fields = ('email', 'first_name', 'last_name', 'phone_number', 'uuid')
-    ordering = ('email',)
-    readonly_fields = ('id', 'uuid',)
+    ordering = ('-date_joined',)
+    readonly_fields = ('date_joined', 'last_login', 'uuid', 'display_avatar')
 
     fieldsets = (
-        (_('معلومات الحساب'), {
-            'fields': ('id', 'uuid', 'email', 'password', 'is_active', 'is_verified')
+        (None, {'fields': ('email', 'password')}),
+        (_('Personal info'), {'fields': ('first_name', 'last_name', 'phone_number', 'date_of_birth', 'display_avatar', 'avatar')}),
+        (_('Verification'), {'fields': ('is_verified', 'verification_code', 'verification_code_created')}),
+        (_('Password Reset'), {'fields': ('reset_code', 'reset_code_created')}),
+        (_('Permissions'), {
+            'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions'),
+            'classes': ('collapse',),
         }),
-        (_('معلومات شخصية'), {
-            'fields': ('first_name', 'last_name', 'phone_number', 'date_of_birth')
-        }),
-        (_('الأدوار والصلاحيات'), {
-            'fields': ('roles', 'is_staff', 'is_superuser')
-        }),
-        (_('التحقق'), {
-            'fields': ('verification_code', 'verification_code_created', 'reset_code', 'reset_code_created')
-        }),
-        (_('تواريخ'), {
-            'fields': ('date_joined', 'last_login')
-        }),
+        (_('Important dates'), {'fields': ('last_login', 'date_joined', 'uuid')}),
     )
 
     add_fieldsets = (
-        (_('معلومات الحساب'), {
+        (None, {
             'classes': ('wide',),
-            'fields': ('email', 'password1', 'password2', 'is_active', 'is_verified'),
-        }),
-        (_('معلومات شخصية'), {
-            'classes': ('wide',),
-            'fields': ('first_name', 'last_name', 'phone_number', 'date_of_birth'),
-        }),
-        (_('الأدوار والصلاحيات'), {
-            'classes': ('wide',),
-            'fields': ('roles', 'is_staff', 'is_superuser'),
+            'fields': ('email', 'first_name', 'last_name', 'password1', 'password2'),
         }),
     )
 
-    filter_horizontal = ('roles', 'groups', 'user_permissions')
-    inlines = [UserProfileInline, MediaInline]
+    actions = ['mark_verified', 'mark_unverified', 'reset_verification_code']
 
-    def primary_role(self, obj):
-        """
-        Get the user's primary role for display in the admin
-        """
-        return obj.primary_role or _('لا يوجد')
-    primary_role.short_description = _('الدور الأساسي')
+    def get_full_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}"
+    get_full_name.short_description = _('Full Name')
+
+    def display_avatar(self, obj):
+        if obj.avatar:
+            return format_html('<img src="{}" width="100" height="100" style="border-radius: 50%;" />', obj.avatar.url)
+        return _('No avatar')
+    display_avatar.short_description = _('Avatar Preview')
+
+    def mark_verified(self, request, queryset):
+        updated = queryset.update(is_verified=True, verification_code=None, verification_code_created=None)
+        self.message_user(request, _(f"{updated} users marked as verified."))
+    mark_verified.short_description = _("Mark selected users as verified")
+
+    def mark_unverified(self, request, queryset):
+        updated = queryset.update(is_verified=False)
+        self.message_user(request, _(f"{updated} users marked as unverified."))
+    mark_unverified.short_description = _("Mark selected users as unverified")
+
+    def reset_verification_code(self, request, queryset):
+        count = 0
+        for user in queryset:
+            if not user.is_verified:
+                user.generate_verification_code()
+                count += 1
+        self.message_user(request, _(f"Generated new verification codes for {count} users."))
+    reset_verification_code.short_description = _("Reset verification codes for unverified users")
 
 
-# Unregister the Group model from admin
-admin.site.unregister(Group)
-
-
+# Register UserProfile separately for direct access if needed
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
     """
-    Admin configuration for the UserProfile model
+    Admin interface for directly managing UserProfiles.
     """
-    list_display = ('user', 'company_name', 'city', 'country', 'credit_limit', 'rating')
-    list_filter = ('city', 'country')
-    search_fields = ('user__email', 'company_name', 'address', 'city')
+    list_display = ('user_email', 'company_name', 'city', 'country')
+    search_fields = ('user__email', 'company_name', 'city', 'country')
+    list_filter = ('country', 'city')
+    readonly_fields = ('user',)
+
     fieldsets = (
-        (_('المستخدم'), {
-            'fields': ('user',)
-        }),
-        (_('معلومات الملف الشخصي'), {
-            'fields': ('bio', 'company_name', 'company_registration', 'tax_id')
-        }),
-        (_('معلومات العنوان'), {
-            'fields': ('address', 'city', 'state', 'postal_code', 'country')
-        }),
-        (_('معلومات مالية'), {
-            'fields': ('credit_limit', 'rating')
-        }),
-        (_('معلومات المهنة'), {
-            'fields': ('license_number', 'license_expiry')
-        }),
-        (_('تفضيلات'), {
-            'fields': ('preferred_locations', 'property_preferences')
-        }),
-        (_('تواريخ'), {
-            'fields': ('created_at', 'updated_at')
-        }),
+        (_('User'), {'fields': ('user',)}),
+        (_('Personal'), {'fields': ('bio',)}),
+        (_('Company'), {'fields': ('company_name', 'company_registration', 'tax_id')}),
+        (_('Professional'), {'fields': ('license_number', 'license_expiry')}),
+        (_('Address'), {'fields': ('address', 'city', 'state', 'postal_code', 'country')}),
+        (_('Financial'), {'fields': ('credit_limit', 'rating')}),
+        (_('Preferences'), {'fields': ('preferred_locations', 'property_preferences')}),
     )
-    inlines = [MediaInline]
+
+    def user_email(self, obj):
+        return obj.user.email
+    user_email.short_description = _('User Email')
+    user_email.admin_order_field = 'user__email'

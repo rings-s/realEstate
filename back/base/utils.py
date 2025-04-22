@@ -17,11 +17,7 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.utils.text import slugify
 from django.db.models import Avg, Max, Min, Q
-from accounts.models import Role
-
-# arabic Slug
-from django.utils.text import slugify
-import re
+from .models import RoleChoices
 
 # -------------------------------------------------------------------------
 # File and Image Handling Utilities
@@ -160,11 +156,11 @@ def validate_image_file(file_obj, max_size_mb: int = 5,
 
     max_size_bytes = max_size_mb * 1024 * 1024
     if file_obj.size > max_size_bytes:
-        raise ValidationError(_('حجم الملف يتجاوز الحد المسموح به (%(max_size)s ميجابايت).') % {'max_size': max_size_mb})
+        raise ValidationError(_('File size exceeds the limit (%(max_size)s MB).') % {'max_size': max_size_mb})
 
     ext = os.path.splitext(file_obj.name)[1].lower().lstrip('.')
     if ext not in allowed_extensions:
-        raise ValidationError(_('نوع الملف غير مدعوم. الأنواع المدعومة: %(ext_list)s.') % {'ext_list': ', '.join(allowed_extensions)})
+        raise ValidationError(_('Unsupported file type. Supported types: %(ext_list)s.') % {'ext_list': ', '.join(allowed_extensions)})
 
     return True
 
@@ -785,7 +781,7 @@ def calculate_similar_properties(property_obj, limit: int = 5) -> List[Dict[str,
                 'bathrooms': prop.bathrooms,
                 'city': prop.city,
                 'address': prop.address,
-                'cover_image_url': prop.cover_image.url if prop.cover_image else None,
+                'cover_image_url': prop.cover_image.url if hasattr(prop, 'cover_image') and prop.cover_image else None,
                 'similarity_score': score
             })
 
@@ -795,27 +791,13 @@ def calculate_similar_properties(property_obj, limit: int = 5) -> List[Dict[str,
 
 
 # -------------------------------------------------------------------------
-# Role and Permission Utilities
+# Permission Utilities
 # -------------------------------------------------------------------------
 
-def get_user_role_display(user) -> List[str]:
+
+def get_user_permissions(user):
     """
-    Get displayable role names for a user.
-
-    Args:
-        user: User object
-
-    Returns:
-        List of role display names
-    """
-    if not user or not hasattr(user, 'roles'):
-        return []
-    return [role.get_name_display() for role in user.roles.all()]
-
-
-def get_user_permissions(user) -> set:
-    """
-    Get all permissions for a user based on their roles.
+    Get all permissions for a user based on roles and attributes.
 
     Args:
         user: User object
@@ -825,149 +807,109 @@ def get_user_permissions(user) -> set:
     """
     if not user or not hasattr(user, 'is_authenticated') or not user.is_authenticated:
         return set()
+
     permissions = set()
-    if user.has_role('admin'):
+
+    # Admin users have all permissions
+    if user.is_staff or (hasattr(user, 'has_role') and user.has_role(RoleChoices.ADMIN)):
         permissions.update([
-            'can_create_property',
-            'can_create_auction',
-            'can_verify_documents',
-            'can_manage_users',
-            'can_approve_contracts',
-            'can_view_all_bids',
-            'can_manage_notifications'
+            'manage_properties',
+            'manage_auctions',
+            'manage_bids',
+            'verify_documents',
+            'manage_users',
+            'approve_contracts',
+            'view_all_bids',
+            'manage_notifications',
+            'create_property',
+            'create_auction',
+            'place_bids',
+            'send_messages',
         ])
         return permissions
 
     # Role-based permissions
-    if user.has_role('seller') or user.has_role('owner'):
-        permissions.update(['can_create_property', 'can_create_auction', 'can_manage_owned_properties'])
+    if hasattr(user, 'has_role'):
+        if user.has_role(RoleChoices.SELLER) or user.has_role(RoleChoices.OWNER):
+            permissions.update([
+                'create_property',
+                'create_auction',
+                'manage_owned_properties'
+            ])
 
-    if user.has_role('agent'):
-        permissions.update(['can_create_property', 'can_create_auction', 'can_represent_clients'])
+        if user.has_role(RoleChoices.AGENT):
+            permissions.update([
+                'create_property',
+                'create_auction',
+                'represent_clients'
+            ])
 
-    if user.has_role('legal'):
-        permissions.update(['can_verify_documents', 'can_approve_contracts'])
+        if user.has_role(RoleChoices.LEGAL):
+            permissions.update([
+                'verify_documents',
+                'approve_contracts'
+            ])
 
-    if user.has_role('inspector'):
-        permissions.update(['can_create_property_reports', 'can_verify_properties'])
+        if user.has_role(RoleChoices.INSPECTOR):
+            permissions.update([
+                'create_property_reports',
+                'verify_properties'
+            ])
 
-    if user.has_role('bidder'):  # Changed from Role.BIDDER to 'bidder'
-        permissions.update(['can_place_bids', 'can_view_auction_details'])
+        if user.has_role(RoleChoices.BIDDER):
+            permissions.update([
+                'place_bids',
+                'view_auction_details'
+            ])
+
+    # Basic permissions for authenticated users
+    permissions.add('view_public_resources')
+
+    # Verified users get additional permissions
+    if hasattr(user, 'is_verified') and user.is_verified:
+        permissions.update([
+            'place_bids',
+            'send_messages'
+        ])
+
+    # Property owner permissions
+    if hasattr(user, 'owned_properties') and user.owned_properties.exists():
+        permissions.add('manage_owned_properties')
+
+    # Add Django permission system permissions
+    if hasattr(user, 'get_all_permissions'):
+        for perm in user.get_all_permissions():
+            permissions.add(perm.split('.')[-1])
 
     return permissions
 
-def check_user_permission(user, permission_name: str) -> bool:
+
+
+
+
+def check_user_permission(user, permission_name):
     """
-    Check if a user has a specific permission.
+    Check if user has a specific permission.
 
     Args:
         user: User object
-        permission_name: Name of the permission to check
+        permission_name: Permission to check
 
     Returns:
         True if user has the permission
     """
     if not user or not hasattr(user, 'is_authenticated') or not user.is_authenticated:
         return False
-    if user.has_role(Role.ADMIN):
+
+    # Admin users have all permissions
+    if user.is_staff or (hasattr(user, 'has_role') and user.has_role(RoleChoices.ADMIN)):
         return True
+
+    # Check explicit permissions
     return permission_name in get_user_permissions(user)
-
-
-def get_role_based_menu_items(user) -> List[Dict[str, Any]]:
-    """
-    Get menu items based on user roles and permissions.
-
-    Args:
-        user: User object
-
-    Returns:
-        List of menu item dictionaries
-    """
-    if not user or not hasattr(user, 'is_authenticated') or not user.is_authenticated:
-        return []
-
-    menu_items = [
-        # Basic menu items for all authenticated users
-        {
-            'id': 'dashboard',
-            'title': _('لوحة التحكم'),
-            'icon': 'dashboard',
-            'url': '/dashboard',
-            'order': 1
-        },
-        {
-            'id': 'profile',
-            'title': _('الملف الشخصي'),
-            'icon': 'user',
-            'url': '/profile',
-            'order': 100
-        }
-    ]
-
-    # Role-specific menu items
-    if user.has_role(Role.ADMIN):
-        menu_items.extend([
-            {
-                'id': 'admin',
-                'title': _('إدارة النظام'),
-                'icon': 'settings',
-                'url': '/admin',
-                'order': 2
-            },
-            {
-                'id': 'users',
-                'title': _('إدارة المستخدمين'),
-                'icon': 'users',
-                'url': '/admin/users',
-                'order': 3
-            }
-        ])
-
-    if user.has_role(Role.SELLER) or user.has_role(Role.OWNER) or user.has_role(Role.AGENT):
-        menu_items.extend([
-            {
-                'id': 'properties',
-                'title': _('العقارات'),
-                'icon': 'building',
-                'url': '/properties',
-                'order': 10
-            },
-            {
-                'id': 'my-auctions',
-                'title': _('مزاداتي'),
-                'icon': 'gavel',
-                'url': '/my-auctions',
-                'order': 11
-            }
-        ])
-
-    if user.has_role(Role.BIDDER):
-        menu_items.extend([
-            {
-                'id': 'auctions',
-                'title': _('المزادات'),
-                'icon': 'gavel',
-                'url': '/auctions',
-                'order': 15
-            },
-            {
-                'id': 'my-bids',
-                'title': _('مزايداتي'),
-                'icon': 'money',
-                'url': '/my-bids',
-                'order': 16
-            }
-        ])
-
-    # Sort by order
-    menu_items.sort(key=lambda x: x['order'])
-    return menu_items
-
-
-
-
-
+# -------------------------------------------------------------------------
+# Arabic Slug Utility
+# -------------------------------------------------------------------------
 
 def arabic_slugify(text):
     """
@@ -979,7 +921,7 @@ def arabic_slugify(text):
     Returns:
         A URL-friendly slug with Arabic characters preserved
     """
-
+    import re
 
     # Replace spaces with hyphens
     text = re.sub(r'\s+', '-', text.strip())

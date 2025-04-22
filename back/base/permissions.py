@@ -1,162 +1,149 @@
 from rest_framework import permissions
 from django.utils.translation import gettext_lazy as _
-from accounts.models import Role
+from .utils import check_user_permission
 
-
-class IsAdminUser(permissions.BasePermission):
-    """
-    Allow access only to admin users.
-    """
-    message = _('يتطلب الوصول إلى هذا المورد صلاحيات المشرف.')
+class IsAdmin(permissions.BasePermission):
+    """Allow access only to admin users"""
+    message = _('You must be an administrator to perform this action.')
 
     def has_permission(self, request, view):
-        return request.user and request.user.is_authenticated and request.user.has_role(Role.ADMIN)
-
+        return request.user and request.user.is_authenticated and request.user.is_staff
 
 class IsVerifiedUser(permissions.BasePermission):
-    """
-    Allow access only to verified users.
-    """
-    message = _('يجب أن يكون حسابك مُوثقاً للوصول إلى هذا المورد.')
+    """Allow access only to email-verified users"""
+    message = _('You must verify your email address to perform this action.')
 
     def has_permission(self, request, view):
         return request.user and request.user.is_authenticated and request.user.is_verified
 
+class HasPermission(permissions.BasePermission):
+    """Allow access based on specific permissions"""
 
-class HasRolePermission(permissions.BasePermission):
-    """
-    Allow access based on user role and required auction permission.
-    """
-    message = _('ليس لديك الدور المطلوب للوصول إلى هذا المورد.')
-
-    def __init__(self, required_roles=None, required_permission=None):
-        self.required_roles = required_roles or []
+    def __init__(self, required_permission=None):
         self.required_permission = required_permission
+        self.message = _(f'You do not have the required permission to perform this action.')
 
     def has_permission(self, request, view):
-        # Check if user is authenticated
         if not request.user or not request.user.is_authenticated:
             return False
 
         # Admin users have all permissions
-        if request.user.has_role(Role.ADMIN):
+        if request.user.is_staff:
             return True
 
-        # Check if user has any of the required roles
-        if self.required_roles:
-            for role in self.required_roles:
-                if request.user.has_role(role):
-                    return True
-            return False
-
-        # Check if user has the specific permission
+        # Check if user has the required permission
         if self.required_permission:
-            return request.user.has_auction_permission(self.required_permission)
+            return check_user_permission(request.user, self.required_permission)
 
-        # If no specific requirements, authenticated users have permission
         return True
 
-
-class IsPropertyOwner(permissions.BasePermission):
+class IsObjectOwner(permissions.BasePermission):
     """
-    Object-level permission to allow property owners or their agents to edit properties.
+    Object-level permission allowing owners to edit their objects.
+    Customizable via owner_field attribute on the view.
     """
-    message = _('يمكن تعديل العقار فقط من قِبل المالك أو الوكيل المفوض.')
+    message = _('You must be the owner of this object to perform this action.')
 
     def has_object_permission(self, request, view, obj):
-        # Allow admin users
-        if request.user.has_role(Role.ADMIN):
-            return True
-
-        # READ permissions are allowed to any authenticated user
+        # READ permissions allowed to any authenticated user
         if request.method in permissions.SAFE_METHODS:
             return True
 
-        # Check if user is the property owner
-        if obj.owner == request.user:
+        # Staff users have all permissions
+        if request.user.is_staff:
             return True
 
-        # Check if user is an agent representing the owner
-        # This requires checking if the user is an agent AND has a relationship with the owner
-        if request.user.has_role(Role.AGENT):
-            # This implementation assumes a relationship model between agents and sellers
-            # You would need to implement this based on your specific data model
-            # Example: return AgentClientRelationship.objects.filter(agent=request.user, client=obj.owner).exists()
-            return False
+        # Get owner field name from view or use default
+        owner_field = getattr(view, 'owner_field', 'owner')
+
+        # Handle nested ownership via '.' notation
+        if '.' in owner_field:
+            parts = owner_field.split('.')
+            current = obj
+            for part in parts:
+                if not hasattr(current, part):
+                    return False
+                current = getattr(current, part)
+            return current == request.user
+
+        # Direct ownership
+        if hasattr(obj, owner_field):
+            return getattr(obj, owner_field) == request.user
 
         return False
 
-
-class IsAuctionParticipant(permissions.BasePermission):
-    """
-    Object-level permission to allow auction participants (seller, bidders) to access auction data.
-    """
-    message = _('يمكن الوصول إلى هذه البيانات فقط من قبل المشاركين في المزاد.')
+class IsPropertyOwner(permissions.BasePermission):
+    """Allow property owners to edit their properties"""
+    message = _('You must be the owner of this property to perform this action.')
 
     def has_object_permission(self, request, view, obj):
-        # Allow admin users
-        if request.user.has_role(Role.ADMIN):
+        # Staff users have all permissions
+        if request.user.is_staff:
+            return True
+
+        # READ permissions allowed to any authenticated user
+        if request.method in permissions.SAFE_METHODS:
+            return True
+
+        # Check if user is property owner
+        return obj.owner == request.user
+
+class IsAuctionParticipant(permissions.BasePermission):
+    """Allow auction participants to access auction data"""
+    message = _('You must be a participant in this auction to perform this action.')
+
+    def has_object_permission(self, request, view, obj):
+        # Staff users have all permissions
+        if request.user.is_staff:
             return True
 
         # READ permissions for public auctions
         if request.method in permissions.SAFE_METHODS and not obj.is_private:
             return True
 
-        # Check if user is the property owner
+        # Check if user is property owner
         if obj.related_property.owner == request.user:
             return True
 
-        # Check if user has placed a bid in this auction
+        # Check if user has placed a bid
         if obj.bids.filter(bidder=request.user).exists():
             return True
 
-        # Check if user is an agent for the property owner
-        if request.user.has_role(Role.AGENT):
-            # Implement agent-client relationship check here
-            return False
-
         return False
 
-
 class IsBidOwner(permissions.BasePermission):
-    """
-    Object-level permission to allow bid owners to edit their bids.
-    """
-    message = _('يمكن تعديل المزايدة فقط من قِبل المزايد نفسه.')
+    """Allow bid owners to manage their bids"""
+    message = _('You must be the owner of this bid to perform this action.')
 
     def has_object_permission(self, request, view, obj):
-        # Allow admin users
-        if request.user.has_role(Role.ADMIN):
+        # Staff users have all permissions
+        if request.user.is_staff:
             return True
 
-        # READ permissions for the bidder, property owner, or auction admin
+        # READ permissions for bidder or property owner
         if request.method in permissions.SAFE_METHODS:
             if obj.bidder == request.user:
                 return True
             if obj.auction.related_property.owner == request.user:
                 return True
-            # Add more conditions as needed
 
-        # WRITE permissions only for the bidder
+        # WRITE permissions only for bidder
         return obj.bidder == request.user
 
-
 class IsDocumentAuthorized(permissions.BasePermission):
-    """
-    Object-level permission to control access to documents based on their access settings.
-    """
-    message = _('ليس لديك صلاحية الوصول إلى هذه الوثيقة.')
+    """Control access to documents based on user relationship"""
+    message = _('You do not have permission to access this document.')
 
     def has_object_permission(self, request, view, obj):
-        # Allow admin users
-        if request.user.has_role(Role.ADMIN):
+        # Staff users have all permissions
+        if request.user.is_staff:
             return True
 
         # Document uploader always has access
         if obj.uploaded_by == request.user:
             return True
 
-        # If document is public, allow read access
+        # Public documents are readable by anyone
         if obj.is_public and request.method in permissions.SAFE_METHODS:
             return True
 
@@ -165,95 +152,78 @@ class IsDocumentAuthorized(permissions.BasePermission):
             return True
 
         # Contract parties have access to contract documents
-        if obj.related_contract and (obj.related_contract.buyer == request.user or obj.related_contract.seller == request.user):
+        if obj.related_contract and (obj.related_contract.buyer == request.user or
+                                     obj.related_contract.seller == request.user):
             return True
 
-        # Legal users can access documents they need to verify
-        if request.user.has_role(Role.LEGAL) and obj.verification_status == 'pending':
+        # Users with specific permissions can access certain documents
+        if request.user.has_perm('base.verify_documents') and obj.verification_status == 'pending':
             return True
 
-        # Inspector users can access documents they need to review
-        if request.user.has_role(Role.INSPECTOR) and obj.document_type in ['deed', 'report', 'certificate']:
+        if request.user.has_perm('base.review_documents') and obj.document_type in ['deed', 'report', 'certificate']:
             return True
 
         return False
 
-
 class IsMessageParticipant(permissions.BasePermission):
-    """
-    Object-level permission to allow only thread participants to access messages.
-    """
-    message = _('يمكن الوصول إلى الرسائل فقط من قِبل المشاركين في المحادثة.')
+    """Allow only thread participants to access messages"""
+    message = _('You must be a participant in this thread to access messages.')
 
     def has_object_permission(self, request, view, obj):
-        # Allow admin users
-        if request.user.has_role(Role.ADMIN):
+        # Staff users have all permissions
+        if request.user.is_staff:
             return True
 
-        # Check if user is a participant in the thread
+        # Check if user is a thread participant
         thread = obj if hasattr(obj, 'participants') else obj.thread
         return thread.participants.filter(user=request.user, is_active=True).exists()
 
-
 class IsContractParty(permissions.BasePermission):
-    """
-    Object-level permission to allow only contract parties to access contract details.
-    """
-    message = _('يمكن الوصول إلى تفاصيل العقد فقط من قِبل أطراف العقد.')
+    """Allow only contract parties to access contract details"""
+    message = _('You must be a party to this contract to access details.')
 
     def has_object_permission(self, request, view, obj):
-        # Allow admin users
-        if request.user.has_role(Role.ADMIN):
+        # Staff users have all permissions
+        if request.user.is_staff:
             return True
 
-        # Allow legal users for verification
-        if request.user.has_role(Role.LEGAL) and request.method in permissions.SAFE_METHODS:
+        # Users with verification permission can read
+        if request.user.has_perm('base.verify_contracts') and request.method in permissions.SAFE_METHODS:
             return True
 
-        # Check if user is a party in the contract
+        # Check if user is a contract party
         return request.user in [obj.buyer, obj.seller]
 
-
 class ReadOnly(permissions.BasePermission):
-    """
-    Allow only read-only access to the resource.
-    """
-    message = _('مسموح فقط بعمليات القراءة على هذا المورد.')
+    """Allow only read-only access to resources"""
+    message = _('This resource is read-only.')
 
     def has_permission(self, request, view):
         return request.method in permissions.SAFE_METHODS
 
-
-# Permission combinations for common use cases
 class IsOwnerOrReadOnly(permissions.BasePermission):
-    """
-    Object-level permission to allow owners to edit their objects,
-    but allow read-only access to other authenticated users.
-    """
-    message = _('يمكن تعديل هذا العنصر فقط من قِبل المالك.')
+    """Allow owners to edit objects, but others only read access"""
+    message = _('You must be the owner of this object to modify it.')
 
     def has_object_permission(self, request, view, obj):
-        # Read permissions are allowed to any authenticated user
+        # READ permissions allowed to any authenticated user
         if request.method in permissions.SAFE_METHODS:
             return True
 
-        # Write permissions are only allowed to the owner
+        # Get owner field from view or use default
         owner_field = getattr(view, 'owner_field', 'owner')
         owner = getattr(obj, owner_field, None)
 
         return owner == request.user
 
-
 class IsAdminOrReadOnly(permissions.BasePermission):
-    """
-    Allow full access to admin users, but only read access to others.
-    """
-    message = _('يتطلب تعديل هذا المورد صلاحيات المشرف.')
+    """Allow admin users full access, others only read access"""
+    message = _('You must be an administrator to modify this resource.')
 
     def has_permission(self, request, view):
-        # Read permissions are allowed to any authenticated user
+        # READ permissions allowed to any authenticated user
         if request.method in permissions.SAFE_METHODS:
             return request.user and request.user.is_authenticated
 
-        # Write permissions are only allowed to admin users
-        return request.user and request.user.is_authenticated and request.user.has_role(Role.ADMIN)
+        # WRITE permissions only for staff users
+        return request.user and request.user.is_authenticated and request.user.is_staff

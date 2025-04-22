@@ -12,11 +12,12 @@ from django.core.validators import (
 
 from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
-from accounts.models import CustomUser, Role
+from accounts.models import CustomUser
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
+from django.utils.translation import gettext_lazy as _
 
 
 # -------------------------------------------------------------------------
@@ -37,7 +38,25 @@ def image_path(instance, filename):
     # Or, if ResourceImage is saved separately, instance.resource.id works.
     return f'resources/{instance.resource.id}/images/{filename}'
 
+class RoleChoices:
+    """Role constants"""
+    ADMIN = 'admin'
+    SELLER = 'seller'
+    OWNER = 'owner'
+    AGENT = 'agent'
+    LEGAL = 'legal'
+    INSPECTOR = 'inspector'
+    BIDDER = 'bidder'
 
+    CHOICES = [
+        (ADMIN, _('Administrator')),
+        (SELLER, _('Seller')),
+        (OWNER, _('Property Owner')),
+        (AGENT, _('Agent')),
+        (LEGAL, _('Legal Advisor')),
+        (INSPECTOR, _('Property Inspector')),
+        (BIDDER, _('Bidder')),
+    ]
 # -------------------------------------------------------------------------
 # Media Model
 # -------------------------------------------------------------------------
@@ -201,14 +220,13 @@ class ThreadParticipant(models.Model):
         related_name='thread_participations',
         verbose_name=_('المستخدم')
     )
-    role = models.ForeignKey(
-        Role,
-        on_delete=models.SET_NULL,
-        related_name='thread_participants',
-        null=True,
-        blank=True,
-        verbose_name=_('دور المستخدم')
-    )
+    role = models.CharField(
+            _('دور المستخدم'),
+            max_length=20,
+            choices=RoleChoices.CHOICES,
+            null=True,
+            blank=True
+        )
 
     # Status flags
     is_active = models.BooleanField(_('نشط'), default=True)
@@ -744,7 +762,7 @@ class Auction(models.Model):
         if not self.slug:
             from .utils import arabic_slugify
             self.slug = arabic_slugify(self.title)
-            
+
             # Ensure uniqueness
             from django.db import models
             original_slug = self.slug

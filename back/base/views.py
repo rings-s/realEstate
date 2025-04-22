@@ -2,18 +2,14 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Q
-from rest_framework import generics, status, filters
+from rest_framework import generics, status, filters, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from django_filters.rest_framework import DjangoFilterBackend
 import logging
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
-from rest_framework.exceptions import ValidationError
-from rest_framework.exceptions import PermissionDenied
-from rest_framework.authtoken.models import Token  # Make sure this import is correct
-
+from rest_framework.exceptions import ValidationError, PermissionDenied
 import json
 
 from .models import (
@@ -31,17 +27,18 @@ from .serializers import (
     MediaSerializer
 )
 from .permissions import (
-    IsAdminUser, IsVerifiedUser, HasRolePermission, IsPropertyOwner, IsAuctionParticipant,
-    IsBidOwner, IsDocumentAuthorized, IsMessageParticipant, IsContractParty, ReadOnly,
-    IsOwnerOrReadOnly, IsAdminOrReadOnly
+    IsAdmin, IsVerifiedUser, HasPermission, IsObjectOwner,
+    IsPropertyOwner, IsAuctionParticipant, IsBidOwner,
+    IsDocumentAuthorized, IsMessageParticipant, IsContractParty,
+    ReadOnly, IsOwnerOrReadOnly, IsAdminOrReadOnly
 )
 from .decorators import (
-    api_role_required, api_verified_user_required, api_permission_required,
-    log_api_calls, timing_decorator
+    api_permission_required, api_verified_user_required,
+    api_admin_required, log_api_calls, timing_decorator
 )
 from .utils import (
-    get_bid_increment_suggestions, check_auction_status, get_user_permissions,
-    check_user_permission
+    get_bid_increment_suggestions, check_auction_status,
+    get_user_permissions, check_user_permission
 )
 
 # Set up logging for debugging
@@ -82,12 +79,6 @@ class SmallResultsSetPagination(PageNumberPagination):
 
 
 class PropertyListCreateView(generics.ListCreateAPIView):
-    """
-    List all properties or create a new property.
-
-    GET: List all properties based on user role and permissions
-    POST: Create a new property (requires verification)
-    """
     serializer_class = PropertySerializer
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -97,60 +88,39 @@ class PropertyListCreateView(generics.ListCreateAPIView):
     ordering = ['-is_featured', '-created_at']
 
     def get_permissions(self):
-        """
-        Dynamic permissions based on the action:
-        - List: Any authenticated user can list properties
-        - Create: Only verified users with proper permissions can create properties
-        """
         if self.request.method == 'GET':
-            return [IsAuthenticated()]
-        elif self.request.method == 'POST':
-            return [IsAuthenticated(), IsVerifiedUser()]
-        return [IsAuthenticated()]
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), IsVerifiedUser()]
 
     def get_queryset(self):
-        """
-        Filter properties based on user role.
-        - Admins see all properties
-        - Sellers/Owners see their own properties and published ones
-        - Other users see only published properties
-        """
         user = self.request.user
-
-        # Default queryset for safety
         base_queryset = Property.objects.all()
 
         try:
             # Admin sees all properties
-            if user.has_role('admin'):
+            if user.is_staff:
                 return base_queryset
 
-            # Sellers and owners see their own properties + published ones
-            if user.has_role('seller') or user.has_role('owner'):
-                own_properties = Q(owner=user)
-                published_properties = Q(is_published=True)
+            # Filter by ownership and publication status
+            own_properties = Q(owner=user)
+            published_properties = Q(is_published=True)
+
+            if check_user_permission(user, 'manage_owned_properties'):
                 return base_queryset.filter(own_properties | published_properties)
 
-            # Everyone else sees only published properties
-            return base_queryset.filter(is_published=True)
-
+            # Others see only published properties
+            return base_queryset.filter(published_properties)
         except Exception as e:
-            logger.error(f"Error in PropertyListCreateView.get_queryset: {str(e)}")
+            logger.error(f"PropertyListCreateView.get_queryset error: {str(e)}")
             return Property.objects.none()
 
     @log_api_calls
     @api_verified_user_required
     def perform_create(self, serializer):
-        """
-        Create a new property with the current user as owner.
-        Permissions are handled by permission classes and decorators.
-        # TODO: Implement associating Media objects (images, etc.) after creation.
-        """
-        if not check_user_permission(self.request.user, 'add_property'):
-            raise PermissionDenied(_("You do not have permission to create properties."))
-
+        if not check_user_permission(self.request.user, 'create_property'):
+            raise PermissionDenied(_("You don't have permission to create properties."))
         serializer.save(owner=self.request.user)
-        logger.info(f"Property created by user {self.request.user.id}")
+
 
 class PropertyDetailView(generics.RetrieveAPIView):
     """
@@ -345,28 +315,25 @@ class AuctionListCreateView(generics.ListCreateAPIView):
 
 
 class AuctionDetailView(generics.RetrieveAPIView):
-    """
-    Retrieve an auction.
-
-    GET: Get detailed information about a specific auction
-    """
-    queryset = Auction.objects.all()
     serializer_class = AuctionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     lookup_field = 'slug'
 
     def get_queryset(self):
         user = self.request.user
-        if user.has_role('admin'):
+
+        # Admin sees all auctions
+        if user.is_staff:
             return Auction.objects.all()
-        if user.has_role('seller') or user.has_role('owner'):
-            own_auctions = Q(related_property__owner=user)
-            public_auctions = Q(is_published=True, is_private=False)
-            bid_auctions = Q(is_private=True, bids__bidder=user)
-            return Auction.objects.filter(own_auctions | public_auctions | bid_auctions).distinct()
+
+        # Define access queries
+        own_auctions = Q(related_property__owner=user)
         public_auctions = Q(is_published=True, is_private=False)
-        bid_auctions = Q(is_private=True, bids__bidder=user)
-        return Auction.objects.filter(public_auctions | bid_auctions).distinct()
+        bid_auctions = Q(bids__bidder=user)
+
+        return Auction.objects.filter(
+            own_auctions | public_auctions | bid_auctions
+        ).distinct()
 
     @timing_decorator
     def retrieve(self, request, *args, **kwargs):
@@ -376,7 +343,6 @@ class AuctionDetailView(generics.RetrieveAPIView):
         instance.save(update_fields=['view_count'])
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
-
 
 class AuctionEditView(generics.UpdateAPIView):
     """
@@ -436,14 +402,8 @@ class AuctionDeleteView(generics.DestroyAPIView):
 # -------------------------------------------------------------------------
 
 class BidListCreateView(generics.ListCreateAPIView):
-    """
-    List all bids for an auction or create a new bid.
-
-    GET: List all bids for a specific auction (filtered by user role)
-    POST: Place a new bid on an auction (verified users only)
-    """
     serializer_class = BidSerializer
-    permission_classes = [IsAuthenticated, IsVerifiedUser]
+    permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['status', 'is_auto_bid']
@@ -453,12 +413,17 @@ class BidListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         auction_id = self.kwargs.get('auction_id')
         user = self.request.user
+
         try:
             auction = Auction.objects.get(id=auction_id)
         except Auction.DoesNotExist:
             return Bid.objects.none()
-        if user.has_role('admin') or auction.related_property.owner == user:
+
+        # Admin or property owner sees all bids
+        if user.is_staff or auction.related_property.owner == user:
             return Bid.objects.filter(auction_id=auction_id)
+
+        # Others see only their own bids
         return Bid.objects.filter(auction_id=auction_id, bidder=user)
 
     @log_api_calls
@@ -467,11 +432,11 @@ class BidListCreateView(generics.ListCreateAPIView):
         auction_id = self.kwargs.get('auction_id')
         auction = get_object_or_404(Auction, id=auction_id)
         status = check_auction_status(auction)
+
         if status != 'live':
             raise PermissionDenied(
                 _('Bids can only be placed on live auctions. Current status: {status}').format(status=status)
             )
-
 
         serializer.save(
             auction=auction,

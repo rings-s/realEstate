@@ -10,8 +10,6 @@ import uuid
 from django.core.validators import RegexValidator, MinValueValidator
 
 # --- Path Functions ---
-# Corrected to use the instance directly (assuming instance is CustomUser)
-# Using UUID for folder name for better uniqueness and obscurity than integer ID
 def user_avatar_path(instance, filename):
     """ File will be uploaded to MEDIA_ROOT/users/<user_uuid>/avatars/<timestamp>_<filename> """
     timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
@@ -19,32 +17,14 @@ def user_avatar_path(instance, filename):
     user_uuid = instance.uuid if instance.uuid else 'temp'
     return f'users/{user_uuid}/avatars/{timestamp}_{filename}'
 
-# Corrected similarly for consistency (assuming instance is CustomUser or related model)
-# If used for UserProfile, it should be instance.user.uuid
 def user_document_path(instance, filename):
     """ For any other user-related documents """
     timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
-    # Adjust based on the model using this function
-    # If used on UserProfile: user_uuid = instance.user.uuid if instance.user.uuid else 'temp'
-    # If used on CustomUser: user_uuid = instance.uuid if instance.uuid else 'temp'
-    user_uuid = getattr(getattr(instance, 'user', instance), 'uuid', 'temp') # More robust check
+    # More robust check for different types of instances
+    user_uuid = getattr(getattr(instance, 'user', instance), 'uuid', 'temp')
     return f'users/{user_uuid}/documents/{timestamp}_{filename}'
 
-
-
-class Role:
-    """Role constants"""
-    ADMIN = 'admin'
-    SELLER = 'seller'
-    OWNER = 'owner'
-    AGENT = 'agent'
-    LEGAL = 'legal'
-    INSPECTOR = 'inspector'
-    BIDDER = 'bidder'
-# --- Custom User Model ---
-
-
-
+# --- Custom User Manager ---
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
@@ -73,8 +53,8 @@ class CustomUserManager(BaseUserManager):
         with transaction.atomic():
             user = self.create_user(email, password, **extra_fields)
         return user
-# --- Custom User Model ---
 
+# --- Custom User Model ---
 class CustomUser(AbstractUser):
     uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True, verbose_name=_('UUID'), db_index=True)
     username = None
@@ -100,8 +80,6 @@ class CustomUser(AbstractUser):
     REQUIRED_FIELDS = ['first_name', 'last_name']
 
     objects = CustomUserManager()
-
-
 
     def generate_verification_code(self, length=6):
         """Generate a random verification code"""
@@ -161,6 +139,7 @@ class CustomUser(AbstractUser):
         self.reset_code_created = None
         self.save(update_fields=['password', 'reset_code', 'reset_code_created'])
         return True
+
     @transaction.atomic
     def save(self, *args, **kwargs):
         is_new = self._state.adding
@@ -171,26 +150,17 @@ class CustomUser(AbstractUser):
         if is_new:
             UserProfile.objects.get_or_create(user=self)
 
-    def has_role(self, role_name):
-        """Simple role check based on user privileges"""
-        # Admin users have access to everything
-        if self.is_staff or self.is_superuser:
-            return True
-        # For regular users, you could implement basic logic here
-        return False
+# --- User Profile Model ---
 class UserProfile(models.Model):
     # Use settings.AUTH_USER_MODEL for flexibility
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile', verbose_name=_('المستخدم'), primary_key=True) # Added primary_key=True for OneToOneField
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile', verbose_name=_('المستخدم'), primary_key=True)
     bio = models.TextField(blank=True, verbose_name=_('نبذة شخصية'))
-    # Removed created_at/updated_at, often redundant if CustomUser tracks this
-    # created_at = models.DateTimeField(auto_now_add=True, verbose_name=_('تاريخ الإنشاء'))
-    # updated_at = models.DateTimeField(auto_now=True, verbose_name=_('تاريخ التحديث'))
     company_name = models.CharField(max_length=200, blank=True, verbose_name=_('اسم الشركة'))
     company_registration = models.CharField(
         max_length=100,
         blank=True,
-        unique=True, # Be cautious with unique=True on blank=True fields
-        null=True,   # Allow null in DB to properly handle uniqueness on empty strings
+        unique=True,
+        null=True,
         verbose_name=_('رقم تسجيل الشركة')
     )
     tax_id = models.CharField(max_length=50, blank=True, verbose_name=_('الرقم الضريبي'))
@@ -211,7 +181,7 @@ class UserProfile(models.Model):
         decimal_places=2,
         null=True,
         blank=True,
-        validators=[MinValueValidator(0)], # Rating typically >= 0, maybe MaxValueValidator(5)?
+        validators=[MinValueValidator(0)],
         verbose_name=_('التقييم')
     )
     license_number = models.CharField(max_length=50, blank=True,
@@ -220,15 +190,15 @@ class UserProfile(models.Model):
     license_expiry = models.DateField(null=True, blank=True, verbose_name=_('تاريخ انتهاء الترخيص'))
     preferred_locations = models.TextField(blank=True,
                                            verbose_name=_('المواقع المفضلة'),
-                                           help_text=_("قائمة المواقع المفضلة مفصولة بفواصل (أو JSON)")) # Suggest JSON?
+                                           help_text=_("قائمة المواقع المفضلة مفصولة بفواصل (أو JSON)"))
     property_preferences = models.TextField(blank=True,
                                             verbose_name=_('تفضيلات العقارات'),
-                                            help_text=_("تفضيلات نوع العقار للمشترين (أو JSON)")) # Suggest JSON?
+                                            help_text=_("تفضيلات نوع العقار للمشترين (أو JSON)"))
 
     class Meta:
         verbose_name = _('ملف تعريف المستخدم')
         verbose_name_plural = _('ملفات تعريف المستخدمين')
-        app_label = 'accounts' # Explicitly set the app_label
+        app_label = 'accounts'
 
     def __str__(self):
         return f"Profile for {self.user.email}"

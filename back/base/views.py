@@ -44,39 +44,25 @@ from .utils import (
 # Set up logging for debugging
 logger = logging.getLogger(__name__)
 
-# -------------------------------------------------------------------------
-# Custom Pagination Classes
-# -------------------------------------------------------------------------
-
-
+# Pagination classes remain unchanged
 class StandardResultsSetPagination(PageNumberPagination):
-    """Standard pagination for most views"""
     page_size = 20
     page_size_query_param = 'page_size'
     max_page_size = 100
 
 class LargeResultsSetPagination(PageNumberPagination):
-    """Pagination for views that might have many results"""
     page_size = 50
     page_size_query_param = 'page_size'
     max_page_size = 200
 
 class SmallResultsSetPagination(PageNumberPagination):
-    """Pagination for views with few items per page"""
     page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 50
 
-
-
-
-
-
 # -------------------------------------------------------------------------
 # Property Views
 # -------------------------------------------------------------------------
-
-
 
 class PropertyListCreateView(generics.ListCreateAPIView):
     serializer_class = PropertySerializer
@@ -121,39 +107,30 @@ class PropertyListCreateView(generics.ListCreateAPIView):
             raise PermissionDenied(_("You don't have permission to create properties."))
         serializer.save(owner=self.request.user)
 
-
 class PropertyDetailView(generics.RetrieveAPIView):
     """
     Retrieve a property using slug field (with Arabic support).
-
-    GET: Get detailed information about a specific property
     """
     serializer_class = PropertySerializer
-    permission_classes = [IsAuthenticated]
-    lookup_field = 'slug'  # This tells DRF to use slug instead of pk
-    lookup_url_kwarg = 'slug'  # This is the URL parameter name
+    permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'slug'
+    lookup_url_kwarg = 'slug'
 
     def get_queryset(self):
-        """
-        Filter properties based on user role.
-        - Admins see all properties
-        - Sellers/Owners see their own properties and published ones
-        - Other users see only published properties
-        """
         user = self.request.user
-        if user.has_role('admin'):
+
+        # Admin sees all properties
+        if user.is_staff:
             return Property.objects.all()
-        if user.has_role('seller') or user.has_role('owner'):
-            own_properties = Q(owner=user)
-            published_properties = Q(is_published=True)
-            return Property.objects.filter(own_properties | published_properties)
-        return Property.objects.filter(is_published=True)
+
+        # Define access queries
+        own_properties = Q(owner=user)
+        published_properties = Q(is_published=True)
+
+        return Property.objects.filter(own_properties | published_properties)
 
     @timing_decorator
     def retrieve(self, request, *args, **kwargs):
-        """
-        Override retrieve to track property views and add custom data
-        """
         instance = self.get_object()
 
         # Increment view count
@@ -175,7 +152,7 @@ class PropertyDetailView(generics.RetrieveAPIView):
             if active_auctions.exists():
                 data['active_auction'] = {
                     'id': active_auctions[0].id,
-                    'uuid': str(active_auctions[0].uuid),
+                    'uuid': str(active_auctions[0].uuid) if hasattr(active_auctions[0], 'uuid') else None,
                     'title': active_auctions[0].title,
                     'start_date': active_auctions[0].start_date,
                     'end_date': active_auctions[0].end_date,
@@ -193,16 +170,11 @@ class PropertyDetailView(generics.RetrieveAPIView):
         """
         Helper method to log property views for analytics
         """
-        # Increment the view count on the property (already handled in retrieve method)
-
         # If the property is associated with active auctions, log a property view for the auction
         if hasattr(property_obj, 'auctions') and property_obj.auctions.filter(
                 status__in=['scheduled', 'live'],
                 is_published=True
             ).exists():
-
-            from .models import PropertyView, Auction
-
             try:
                 # Get the most relevant auction
                 auction = property_obj.auctions.filter(
@@ -210,11 +182,11 @@ class PropertyDetailView(generics.RetrieveAPIView):
                     is_published=True
                 ).order_by('start_date').first()
 
-                if auction:
-                    # Create a property view entry as a 'street' view type for basic tracking
-                    PropertyView.objects.create(
+                if auction and hasattr(property_obj, 'PropertyView'):
+                    # Create a property view entry
+                    property_obj.PropertyView.objects.create(
                         auction=auction,
-                        view_type='street',  # Using the existing view_type choices
+                        view_type='street',
                         address=property_obj.address,
                         location={
                             "source": "property_detail_view",
@@ -231,13 +203,10 @@ class PropertyDetailView(generics.RetrieveAPIView):
 class PropertyEditView(generics.UpdateAPIView):
     """
     Update a property.
-
-    PUT: Update all fields of a property
-    PATCH: Update specific fields of a property
     """
     queryset = Property.objects.all()
     serializer_class = PropertySerializer
-    permission_classes = [IsAuthenticated, IsPropertyOwner]
+    permission_classes = [permissions.IsAuthenticated, IsPropertyOwner]
     lookup_field = 'slug'
 
     @log_api_calls
@@ -253,12 +222,10 @@ class PropertyEditView(generics.UpdateAPIView):
 class PropertyDeleteView(generics.DestroyAPIView):
     """
     Delete a property.
-
-    DELETE: Remove a property (owner or admin only)
     """
     queryset = Property.objects.all()
     serializer_class = PropertySerializer
-    permission_classes = [IsAuthenticated, IsPropertyOwner]
+    permission_classes = [permissions.IsAuthenticated, IsPropertyOwner]
     lookup_field = 'slug'
 
     @log_api_calls
@@ -270,18 +237,12 @@ class PropertyDeleteView(generics.DestroyAPIView):
 # Auction Views
 # -------------------------------------------------------------------------
 
-
-
-
 class AuctionListCreateView(generics.ListCreateAPIView):
     """
     List all auctions or create a new auction.
-
-    GET: List all accessible auctions based on user role
-    POST: Create a new auction (requires verification and permission)
     """
     serializer_class = AuctionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['auction_type', 'status', 'is_published', 'is_featured', 'is_private']
@@ -291,13 +252,16 @@ class AuctionListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.has_role('admin'):
+
+        # Admin sees all auctions
+        if user.is_staff:
             return Auction.objects.all()
-        if user.has_role('seller') or user.has_role('owner'):
-            own_auctions = Q(related_property__owner=user)
-            public_auctions = Q(is_published=True, is_private=False)
-            return Auction.objects.filter(own_auctions | public_auctions)
-        return Auction.objects.filter(is_published=True, is_private=False)
+
+        # Others see own properties' auctions or public auctions
+        own_auctions = Q(related_property__owner=user)
+        public_auctions = Q(is_published=True, is_private=False)
+
+        return Auction.objects.filter(own_auctions | public_auctions)
 
     @log_api_calls
     @api_verified_user_required
@@ -306,13 +270,12 @@ class AuctionListCreateView(generics.ListCreateAPIView):
         property_id = request.data.get('related_property')
         if property_id:
             property_obj = get_object_or_404(Property, id=property_id)
-            if not (request.user.has_role('admin') or property_obj.owner == request.user):
+            if not (request.user.is_staff or property_obj.owner == request.user):
                 return Response(
                     {'detail': _('You do not have permission to create an auction for this property.')},
                     status=status.HTTP_403_FORBIDDEN
                 )
         return super().create(request, *args, **kwargs)
-
 
 class AuctionDetailView(generics.RetrieveAPIView):
     serializer_class = AuctionSerializer
@@ -347,20 +310,17 @@ class AuctionDetailView(generics.RetrieveAPIView):
 class AuctionEditView(generics.UpdateAPIView):
     """
     Update an auction.
-
-    PUT: Update all fields of an auction
-    PATCH: Update specific fields of an auction
     """
     queryset = Auction.objects.all()
     serializer_class = AuctionSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
     lookup_field = 'slug'
 
     @log_api_calls
     @api_verified_user_required
     def update(self, request, *args, **kwargs):
         auction = self.get_object()
-        if not (request.user.has_role('admin') or auction.related_property.owner == request.user):
+        if not (request.user.is_staff or auction.related_property.owner == request.user):
             return Response(
                 {'detail': _('You do not have permission to update this auction.')},
                 status=status.HTTP_403_FORBIDDEN
@@ -371,31 +331,26 @@ class AuctionEditView(generics.UpdateAPIView):
     @api_verified_user_required
     def partial_update(self, request, *args, **kwargs):
         auction = self.get_object()
-        if not (request.user.has_role('admin') or auction.related_property.owner == request.user):
+        if not (request.user.is_staff or auction.related_property.owner == request.user):
             return Response(
                 {'detail': _('You do not have permission to update this auction.')},
                 status=status.HTTP_403_FORBIDDEN
             )
         return super().partial_update(request, *args, **kwargs)
 
-
 class AuctionDeleteView(generics.DestroyAPIView):
     """
     Delete an auction.
-
-    DELETE: Remove an auction (admin only)
     """
     queryset = Auction.objects.all()
     serializer_class = AuctionSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
     lookup_field = 'slug'
 
     @log_api_calls
     @api_verified_user_required
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
-
-
 
 # -------------------------------------------------------------------------
 # Bid Views
@@ -449,56 +404,47 @@ class BidListCreateView(generics.ListCreateAPIView):
 class BidDetailView(generics.RetrieveAPIView):
     """
     Retrieve a bid.
-
-    GET: Get details of a specific bid (owner or admin only)
     """
     queryset = Bid.objects.all()
     serializer_class = BidSerializer
-    permission_classes = [IsAuthenticated, IsBidOwner]
+    permission_classes = [permissions.IsAuthenticated, IsBidOwner]
 
 class BidEditView(generics.UpdateAPIView):
     """
     Update a bid.
-
-    PUT: Update all fields of a bid (admin only)
-    PATCH: Update specific fields of a bid (admin only)
     """
     queryset = Bid.objects.all()
     serializer_class = BidSerializer
-    permission_classes = [IsAuthenticated, IsBidOwner, IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, IsBidOwner, IsAdmin]
 
     @log_api_calls
-    @api_role_required('admin')
+    @api_admin_required
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
 
     @log_api_calls
-    @api_role_required('admin')
+    @api_admin_required
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
 
 class BidDeleteView(generics.DestroyAPIView):
     """
     Delete a bid.
-
-    DELETE: Remove a bid (admin only)
     """
     queryset = Bid.objects.all()
     serializer_class = BidSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
 
     @log_api_calls
-    @api_role_required('admin')
+    @api_admin_required
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
 class BidSuggestionsView(APIView):
     """
     Get bid increment suggestions for an auction.
-
-    GET: Get bid increment suggestions for a specific auction
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, auction_id, format=None):
         auction = get_object_or_404(Auction, id=auction_id)
@@ -519,19 +465,12 @@ class BidSuggestionsView(APIView):
 # Document Views
 # -------------------------------------------------------------------------
 
-
-
-
-
 class DocumentListCreateView(generics.ListCreateAPIView):
     """
     List all documents or create a new document.
-
-    GET: List all accessible documents based on user role
-    POST: Create a new document (verified users only)
     """
     serializer_class = DocumentSerializer
-    permission_classes = [IsAuthenticated, IsVerifiedUser]
+    permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['document_type', 'verification_status', 'is_public']
@@ -541,19 +480,25 @@ class DocumentListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.has_role('admin'):
+        # Admin sees all documents
+        if user.is_staff:
             return Document.objects.all()
-        if user.has_role('legal'):
+
+        # Users with document verification permissions
+        if check_user_permission(user, 'verify_documents'):
             own_documents = Q(uploaded_by=user)
             pending_documents = Q(verification_status='pending')
             public_documents = Q(is_public=True)
             return Document.objects.filter(own_documents | pending_documents | public_documents)
+
+        # Regular users see documents they can access
         own_documents = Q(uploaded_by=user)
         property_documents = Q(related_property__owner=user)
         auction_documents = Q(related_auction__related_property__owner=user)
         contract_seller_documents = Q(related_contract__seller=user)
         contract_buyer_documents = Q(related_contract__buyer=user)
         public_documents = Q(is_public=True)
+
         return Document.objects.filter(
             own_documents | property_documents | auction_documents |
             contract_seller_documents | contract_buyer_documents | public_documents
@@ -563,8 +508,6 @@ class DocumentListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         """
         Create a document, ensuring the user has permission.
-        The document can be related to a Property or Auction.
-        # TODO: Implement associating Media object (the actual file) after creation.
         """
         related_obj = None
         related_model_type = None
@@ -580,13 +523,15 @@ class DocumentListCreateView(generics.ListCreateAPIView):
             related_model_type = 'contract'
 
         if related_model_type == 'property':
-            if not (self.request.user.has_role('admin') or related_obj.owner == self.request.user):
+            if not (self.request.user.is_staff or related_obj.owner == self.request.user):
                 raise PermissionDenied(_('You do not have permission to create documents for this property.'))
         elif related_model_type == 'auction':
-            if not (self.request.user.has_role('admin') or related_obj.related_property.owner == self.request.user):
+            if not (self.request.user.is_staff or related_obj.related_property.owner == self.request.user):
                 raise PermissionDenied(_('You do not have permission to create documents for this auction.'))
         elif related_model_type == 'contract':
-            if not (self.request.user.has_role('admin') or related_obj.seller == self.request.user or related_obj.buyer == self.request.user):
+            if not (self.request.user.is_staff or
+                    related_obj.seller == self.request.user or
+                    related_obj.buyer == self.request.user):
                 raise PermissionDenied(_('You do not have permission to create documents for this contract.'))
 
         serializer.save(uploaded_by=self.request.user)
@@ -594,23 +539,18 @@ class DocumentListCreateView(generics.ListCreateAPIView):
 class DocumentDetailView(generics.RetrieveAPIView):
     """
     Retrieve a document.
-
-    GET: Get details of a specific document (with permission checks)
     """
     queryset = Document.objects.all()
     serializer_class = DocumentSerializer
-    permission_classes = [IsAuthenticated, IsDocumentAuthorized]
+    permission_classes = [permissions.IsAuthenticated, IsDocumentAuthorized]
 
 class DocumentEditView(generics.UpdateAPIView):
     """
     Update a document.
-
-    PUT: Update all fields of a document
-    PATCH: Update specific fields of a document
     """
     queryset = Document.objects.all()
     serializer_class = DocumentSerializer
-    permission_classes = [IsAuthenticated, IsDocumentAuthorized]
+    permission_classes = [permissions.IsAuthenticated, IsDocumentAuthorized]
 
     @log_api_calls
     @api_verified_user_required
@@ -618,7 +558,7 @@ class DocumentEditView(generics.UpdateAPIView):
         instance = self.get_object()
         verification_status = serializer.validated_data.get('verification_status')
         if verification_status == 'verified' and instance.verification_status != 'verified':
-            if self.request.user.has_role('admin') or self.request.user.has_role('legal'):
+            if self.request.user.is_staff or check_user_permission(self.request.user, 'verify_documents'):
                 serializer.save(
                     verified_by=self.request.user,
                     verification_date=timezone.now()
@@ -626,7 +566,7 @@ class DocumentEditView(generics.UpdateAPIView):
             else:
                 self.permission_denied(
                     self.request,
-                    message=_('Only admin or legal users can verify documents.')
+                    message=_('Only admin or authorized users can verify documents.')
                 )
         else:
             serializer.save()
@@ -644,12 +584,10 @@ class DocumentEditView(generics.UpdateAPIView):
 class DocumentDeleteView(generics.DestroyAPIView):
     """
     Delete a document.
-
-    DELETE: Remove a document (with permission checks)
     """
     queryset = Document.objects.all()
     serializer_class = DocumentSerializer
-    permission_classes = [IsAuthenticated, IsDocumentAuthorized]
+    permission_classes = [permissions.IsAuthenticated, IsDocumentAuthorized]
 
     @log_api_calls
     @api_verified_user_required
@@ -660,18 +598,12 @@ class DocumentDeleteView(generics.DestroyAPIView):
 # Contract Views
 # -------------------------------------------------------------------------
 
-
-
-
 class ContractListCreateView(generics.ListCreateAPIView):
     """
     List all contracts or create a new contract.
-
-    GET: List all accessible contracts based on user role
-    POST: Create a new contract (verified users only)
     """
     serializer_class = ContractSerializer
-    permission_classes = [IsAuthenticated, IsVerifiedUser]
+    permission_classes = [permissions.IsAuthenticated, IsVerifiedUser]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['status', 'payment_method', 'is_verified']
@@ -681,12 +613,17 @@ class ContractListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.has_role('admin'):
+        # Admin sees all contracts
+        if user.is_staff:
             return Contract.objects.all()
-        if user.has_role('legal'):
+
+        # Users with contract verification permissions
+        if check_user_permission(user, 'approve_contracts'):
             legal_contracts = Q(is_verified=False)
             user_contracts = Q(buyer=user) | Q(seller=user)
             return Contract.objects.filter(legal_contracts | user_contracts)
+
+        # Regular users see contracts where they're a party
         return Contract.objects.filter(Q(buyer=user) | Q(seller=user))
 
     @log_api_calls
@@ -695,7 +632,7 @@ class ContractListCreateView(generics.ListCreateAPIView):
         property_id = request.data.get('related_property')
         if property_id:
             property_obj = get_object_or_404(Property, id=property_id)
-            if not (request.user.has_role('admin') or property_obj.owner == request.user):
+            if not (request.user.is_staff or property_obj.owner == request.user):
                 return Response(
                     {'detail': _('You do not have permission to create a contract for this property.')},
                     status=status.HTTP_403_FORBIDDEN
@@ -705,23 +642,18 @@ class ContractListCreateView(generics.ListCreateAPIView):
 class ContractDetailView(generics.RetrieveAPIView):
     """
     Retrieve a contract.
-
-    GET: Get details of a specific contract (parties or admin only)
     """
     queryset = Contract.objects.all()
     serializer_class = ContractSerializer
-    permission_classes = [IsAuthenticated, IsContractParty]
+    permission_classes = [permissions.IsAuthenticated, IsContractParty]
 
 class ContractEditView(generics.UpdateAPIView):
     """
     Update a contract.
-
-    PUT: Update all fields of a contract
-    PATCH: Update specific fields of a contract
     """
     queryset = Contract.objects.all()
     serializer_class = ContractSerializer
-    permission_classes = [IsAuthenticated, IsContractParty]
+    permission_classes = [permissions.IsAuthenticated, IsContractParty]
 
     @log_api_calls
     @api_verified_user_required
@@ -731,7 +663,7 @@ class ContractEditView(generics.UpdateAPIView):
         user = self.request.user
         is_verified = data.get('is_verified')
         if is_verified and not instance.is_verified:
-            if user.has_role('admin') or user.has_role('legal'):
+            if user.is_staff or check_user_permission(user, 'approve_contracts'):
                 serializer.save(
                     verified_by=user,
                     verification_date=timezone.now()
@@ -740,7 +672,7 @@ class ContractEditView(generics.UpdateAPIView):
             else:
                 self.permission_denied(
                     self.request,
-                    message=_('Only admin or legal users can verify contracts.')
+                    message=_('Only admin or authorized users can verify contracts.')
                 )
         buyer_signed = data.get('buyer_signed')
         seller_signed = data.get('seller_signed')
@@ -765,15 +697,13 @@ class ContractEditView(generics.UpdateAPIView):
 class ContractDeleteView(generics.DestroyAPIView):
     """
     Delete a contract.
-
-    DELETE: Remove a contract (admin only)
     """
     queryset = Contract.objects.all()
     serializer_class = ContractSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
 
     @log_api_calls
-    @api_role_required('admin')
+    @api_admin_required
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
@@ -781,17 +711,12 @@ class ContractDeleteView(generics.DestroyAPIView):
 # Message Thread Views
 # -------------------------------------------------------------------------
 
-
-
 class MessageThreadListCreateView(generics.ListCreateAPIView):
     """
     List all message threads or create a new thread.
-
-    GET: List all threads where the user is a participant
-    POST: Create a new message thread
     """
     serializer_class = MessageThreadSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['thread_type', 'status', 'is_private', 'is_system_thread']
@@ -801,8 +726,11 @@ class MessageThreadListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
-        if user.has_role('admin'):
+        # Admin sees all threads
+        if user.is_staff:
             return MessageThread.objects.all()
+
+        # Regular users see threads where they're a participant
         return MessageThread.objects.filter(participants__user=user, participants__is_active=True)
 
     @api_verified_user_required
@@ -818,23 +746,18 @@ class MessageThreadListCreateView(generics.ListCreateAPIView):
 class MessageThreadDetailView(generics.RetrieveAPIView):
     """
     Retrieve a message thread.
-
-    GET: Get details of a specific message thread (participants only)
     """
     queryset = MessageThread.objects.all()
     serializer_class = MessageThreadSerializer
-    permission_classes = [IsAuthenticated, IsMessageParticipant]
+    permission_classes = [permissions.IsAuthenticated, IsMessageParticipant]
 
 class MessageThreadEditView(generics.UpdateAPIView):
     """
     Update a message thread.
-
-    PUT: Update all fields of a message thread
-    PATCH: Update specific fields of a message thread
     """
     queryset = MessageThread.objects.all()
     serializer_class = MessageThreadSerializer
-    permission_classes = [IsAuthenticated, IsMessageParticipant]
+    permission_classes = [permissions.IsAuthenticated, IsMessageParticipant]
 
     @api_verified_user_required
     def update(self, request, *args, **kwargs):
@@ -847,27 +770,22 @@ class MessageThreadEditView(generics.UpdateAPIView):
 class MessageThreadDeleteView(generics.DestroyAPIView):
     """
     Delete a message thread.
-
-    DELETE: Remove a message thread (admin only)
     """
     queryset = MessageThread.objects.all()
     serializer_class = MessageThreadSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
 
     @log_api_calls
-    @api_role_required('admin')
+    @api_admin_required
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
 class ThreadParticipantListView(generics.ListCreateAPIView):
     """
     List all participants in a thread or add a new participant.
-
-    GET: List all participants in a specific thread
-    POST: Add a new participant to a thread
     """
     serializer_class = ThreadParticipantSerializer
-    permission_classes = [IsAuthenticated, IsMessageParticipant]
+    permission_classes = [permissions.IsAuthenticated, IsMessageParticipant]
     pagination_class = StandardResultsSetPagination
 
     def get_queryset(self):
@@ -877,7 +795,7 @@ class ThreadParticipantListView(generics.ListCreateAPIView):
     @api_verified_user_required
     def perform_create(self, serializer):
         thread = get_object_or_404(MessageThread, id=self.kwargs.get('thread_id'))
-        if not self.request.user.has_role('admin') and thread.creator != self.request.user:
+        if not (self.request.user.is_staff or thread.creator == self.request.user):
             self.permission_denied(
                 self.request,
                 message=_('Only the thread creator or an admin can add participants.')
@@ -887,59 +805,49 @@ class ThreadParticipantListView(generics.ListCreateAPIView):
 class ThreadParticipantDetailView(generics.RetrieveAPIView):
     """
     Retrieve a thread participant.
-
-    GET: Get details of a specific thread participant
     """
     queryset = ThreadParticipant.objects.all()
     serializer_class = ThreadParticipantSerializer
-    permission_classes = [IsAuthenticated, IsMessageParticipant]
+    permission_classes = [permissions.IsAuthenticated, IsMessageParticipant]
 
 class ThreadParticipantEditView(generics.UpdateAPIView):
     """
     Update a thread participant.
-
-    PUT: Update all fields of a thread participant (admin only)
-    PATCH: Update specific fields of a thread participant (admin only)
     """
     queryset = ThreadParticipant.objects.all()
     serializer_class = ThreadParticipantSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
 
     @api_verified_user_required
-    @api_role_required('admin')
+    @api_admin_required
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
 
     @api_verified_user_required
-    @api_role_required('admin')
+    @api_admin_required
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
 
 class ThreadParticipantDeleteView(generics.DestroyAPIView):
     """
     Delete a thread participant.
-
-    DELETE: Remove a thread participant (admin only)
     """
     queryset = ThreadParticipant.objects.all()
     serializer_class = ThreadParticipantSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
 
     @log_api_calls
     @api_verified_user_required
-    @api_role_required('admin')
+    @api_admin_required
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
 class MessageListCreateView(generics.ListCreateAPIView):
     """
     List all messages in a thread or create a new message.
-
-    GET: List all messages in a specific thread
-    POST: Create a new message in a thread
     """
     serializer_class = MessageSerializer
-    permission_classes = [IsAuthenticated, IsMessageParticipant]
+    permission_classes = [permissions.IsAuthenticated, IsMessageParticipant]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['message_type', 'status', 'is_system_message', 'is_important']
@@ -972,12 +880,10 @@ class MessageListCreateView(generics.ListCreateAPIView):
 class MessageDetailView(generics.RetrieveAPIView):
     """
     Retrieve a message.
-
-    GET: Get details of a specific message
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
-    permission_classes = [IsAuthenticated, IsMessageParticipant]
+    permission_classes = [permissions.IsAuthenticated, IsMessageParticipant]
 
     @timing_decorator
     def retrieve(self, request, *args, **kwargs):
@@ -991,37 +897,32 @@ class MessageDetailView(generics.RetrieveAPIView):
 class MessageEditView(generics.UpdateAPIView):
     """
     Update a message.
-
-    PUT: Update all fields of a message (admin only)
-    PATCH: Update specific fields of a message (admin only)
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
 
     @api_verified_user_required
-    @api_role_required('admin')
+    @api_admin_required
     def update(self, request, *args, **kwargs):
         return super().update(request, *args, **kwargs)
 
     @api_verified_user_required
-    @api_role_required('admin')
+    @api_admin_required
     def partial_update(self, request, *args, **kwargs):
         return super().partial_update(request, *args, **kwargs)
 
 class MessageDeleteView(generics.DestroyAPIView):
     """
     Delete a message.
-
-    DELETE: Remove a message (admin only)
     """
     queryset = Message.objects.all()
     serializer_class = MessageSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, IsAdmin]
 
     @log_api_calls
     @api_verified_user_required
-    @api_role_required('admin')
+    @api_admin_required
     def destroy(self, request, *args, **kwargs):
         return super().destroy(request, *args, **kwargs)
 
@@ -1029,18 +930,12 @@ class MessageDeleteView(generics.DestroyAPIView):
 # Notification Views
 # -------------------------------------------------------------------------
 
-
-
-
-
 class NotificationListView(generics.ListAPIView):
     """
     List all notifications for the current user.
-
-    GET: List all notifications for the authenticated user
     """
     serializer_class = NotificationSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsSetPagination
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['notification_type', 'is_read', 'is_sent', 'is_important']
@@ -1053,12 +948,10 @@ class NotificationListView(generics.ListAPIView):
 class NotificationDetailView(generics.RetrieveAPIView):
     """
     Retrieve a notification.
-
-    GET: Get details of a specific notification and mark it as read
     """
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return Notification.objects.filter(recipient=self.request.user)
@@ -1075,13 +968,10 @@ class NotificationDetailView(generics.RetrieveAPIView):
 class NotificationEditView(generics.UpdateAPIView):
     """
     Update a notification.
-
-    PUT: Update all fields of a notification
-    PATCH: Update specific fields of a notification
     """
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return Notification.objects.filter(recipient=self.request.user)
@@ -1097,12 +987,10 @@ class NotificationEditView(generics.UpdateAPIView):
 class NotificationDeleteView(generics.DestroyAPIView):
     """
     Delete a notification.
-
-    DELETE: Remove a notification
     """
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         return Notification.objects.filter(recipient=self.request.user)

@@ -794,10 +794,9 @@ def calculate_similar_properties(property_obj, limit: int = 5) -> List[Dict[str,
 # Permission Utilities
 # -------------------------------------------------------------------------
 
-
 def get_user_permissions(user):
     """
-    Get all permissions for a user based on roles and attributes.
+    Get all permissions for a user based on attributes and Django permissions.
 
     Args:
         user: User object
@@ -811,7 +810,7 @@ def get_user_permissions(user):
     permissions = set()
 
     # Admin users have all permissions
-    if user.is_staff or (hasattr(user, 'has_role') and user.has_role(RoleChoices.ADMIN)):
+    if user.is_staff or user.is_superuser:
         permissions.update([
             'manage_properties',
             'manage_auctions',
@@ -828,53 +827,23 @@ def get_user_permissions(user):
         ])
         return permissions
 
-    # Role-based permissions
-    if hasattr(user, 'has_role'):
-        if user.has_role(RoleChoices.SELLER) or user.has_role(RoleChoices.OWNER):
-            permissions.update([
-                'create_property',
-                'create_auction',
-                'manage_owned_properties'
-            ])
-
-        if user.has_role(RoleChoices.AGENT):
-            permissions.update([
-                'create_property',
-                'create_auction',
-                'represent_clients'
-            ])
-
-        if user.has_role(RoleChoices.LEGAL):
-            permissions.update([
-                'verify_documents',
-                'approve_contracts'
-            ])
-
-        if user.has_role(RoleChoices.INSPECTOR):
-            permissions.update([
-                'create_property_reports',
-                'verify_properties'
-            ])
-
-        if user.has_role(RoleChoices.BIDDER):
-            permissions.update([
-                'place_bids',
-                'view_auction_details'
-            ])
-
-    # Basic permissions for authenticated users
-    permissions.add('view_public_resources')
-
-    # Verified users get additional permissions
+    # Attribute-based permissions
     if hasattr(user, 'is_verified') and user.is_verified:
         permissions.update([
             'place_bids',
             'send_messages'
         ])
 
+    # Basic permissions for authenticated users
+    permissions.add('view_public_resources')
+
     # Property owner permissions
     if hasattr(user, 'owned_properties') and user.owned_properties.exists():
-        permissions.add('manage_owned_properties')
+        permissions.update([
+            'manage_owned_properties',
+            'create_property',
+            'create_auction'
+        ])
 
     # Add Django permission system permissions
     if hasattr(user, 'get_all_permissions'):
@@ -882,10 +851,6 @@ def get_user_permissions(user):
             permissions.add(perm.split('.')[-1])
 
     return permissions
-
-
-
-
 
 def check_user_permission(user, permission_name):
     """
@@ -902,11 +867,12 @@ def check_user_permission(user, permission_name):
         return False
 
     # Admin users have all permissions
-    if user.is_staff or (hasattr(user, 'has_role') and user.has_role(RoleChoices.ADMIN)):
+    if user.is_staff or user.is_superuser:
         return True
 
     # Check explicit permissions
     return permission_name in get_user_permissions(user)
+
 # -------------------------------------------------------------------------
 # Arabic Slug Utility
 # -------------------------------------------------------------------------

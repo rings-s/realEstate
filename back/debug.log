@@ -211,3 +211,150 @@ AttributeError: 'RegisterView' object has no attribute 'path_info'
 ERROR 2025-04-21 06:06:13,674 basehttp 16789 134650471122624 "POST /api/accounts/register/ HTTP/1.1" 500 105819
 INFO 2025-04-21 10:05:51,360 autoreload 16789 134650681540736 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/back/settings.py changed, reloading.
 INFO 2025-04-21 10:05:52,274 autoreload 32096 125417484939392 Watching for file changes with StatReloader
+INFO 2025-04-23 13:10:53,793 autoreload 71844 139421847679104 Watching for file changes with StatReloader
+INFO 2025-04-23 13:11:02,173 basehttp 71844 139421680662208 "GET /admin/ HTTP/1.1" 200 17290
+WARNING 2025-04-23 13:11:03,118 log 71844 139421680662208 Not Found: /favicon.ico
+WARNING 2025-04-23 13:11:03,119 basehttp 71844 139421680662208 "GET /favicon.ico HTTP/1.1" 404 3081
+INFO 2025-04-23 13:11:08,705 basehttp 71844 139421680662208 "GET /admin/accounts/customuser/ HTTP/1.1" 200 20602
+INFO 2025-04-23 13:11:09,399 basehttp 71844 139421680662208 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+ERROR 2025-04-23 13:11:19,514 log 71844 139421680662208 Internal Server Error: /admin/accounts/customuser/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: base_threadparticipant.role
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/contrib/admin/options.py", line 718, in wrapper
+    return self.admin_site.admin_view(view)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/utils/decorators.py", line 188, in _view_wrapper
+    result = _process_exception(request, e)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/utils/decorators.py", line 186, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/cache.py", line 80, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/contrib/admin/sites.py", line 241, in inner
+    return view(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/utils/decorators.py", line 48, in _wrapper
+    return bound_method(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/utils/decorators.py", line 188, in _view_wrapper
+    result = _process_exception(request, e)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/utils/decorators.py", line 186, in _view_wrapper
+    response = view_func(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/contrib/admin/options.py", line 2034, in changelist_view
+    response = self.response_action(
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/contrib/admin/options.py", line 1666, in response_action
+    response = func(self, request, queryset)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/contrib/admin/actions.py", line 39, in delete_selected
+    ) = modeladmin.get_deleted_objects(queryset, request)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/contrib/admin/options.py", line 2176, in get_deleted_objects
+    return get_deleted_objects(objs, request, self.admin_site)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/contrib/admin/utils.py", line 138, in get_deleted_objects
+    collector.collect(objs)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/contrib/admin/utils.py", line 205, in collect
+    return super().collect(objs, source_attr=source_attr, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/deletion.py", line 344, in collect
+    if getattr(on_delete, "lazy_sub_objs", False) or sub_objs:
+                                                     ^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 414, in __bool__
+    self._fetch_all()
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 1928, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 91, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1574, in execute_sql
+    cursor.execute(sql, params)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: no such column: base_threadparticipant.role
+ERROR 2025-04-23 13:11:19,520 basehttp 71844 139421680662208 "POST /admin/accounts/customuser/ HTTP/1.1" 500 234124
+INFO 2025-04-23 13:22:06,397 autoreload 72659 124664149897344 Watching for file changes with StatReloader
+INFO 2025-04-23 13:22:30,421 autoreload 72697 127198378803328 Watching for file changes with StatReloader
+WARNING 2025-04-23 13:22:34,981 log 72697 127198207932096 Not Found: /
+WARNING 2025-04-23 13:22:34,984 basehttp 72697 127198207932096 "GET / HTTP/1.1" 404 2971
+INFO 2025-04-23 13:22:38,074 basehttp 72697 127198207932096 "GET /admin/ HTTP/1.1" 302 0
+INFO 2025-04-23 13:22:38,562 basehttp 72697 127198207932096 "GET /admin/login/?next=/admin/ HTTP/1.1" 200 4164
+INFO 2025-04-23 13:22:41,639 basehttp 72697 127198207932096 "POST /admin/login/?next=/admin/ HTTP/1.1" 302 0
+INFO 2025-04-23 13:22:41,675 basehttp 72697 127198207932096 "GET /admin/ HTTP/1.1" 200 14077
+INFO 2025-04-23 13:22:44,415 basehttp 72697 127198207932096 "GET /admin/accounts/customuser/ HTTP/1.1" 200 19894
+INFO 2025-04-23 13:22:44,468 basehttp 72697 127198207932096 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:22:48,063 basehttp 72697 127198207932096 "GET /admin/accounts/customuser/add/ HTTP/1.1" 200 43877
+INFO 2025-04-23 13:22:48,109 basehttp 72697 127198207932096 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:22:48,666 basehttp 72697 127198199539392 "GET /static/admin/css/unusable_password_field.css HTTP/1.1" 200 663
+INFO 2025-04-23 13:22:48,771 basehttp 72697 127198199539392 "GET /static/admin/js/unusable_password_field.js HTTP/1.1" 200 1480
+INFO 2025-04-23 13:23:22,404 basehttp 72697 127198199539392 "POST /admin/accounts/customuser/add/ HTTP/1.1" 302 0
+INFO 2025-04-23 13:23:22,562 basehttp 72697 127198199539392 "GET /admin/accounts/customuser/2/change/ HTTP/1.1" 200 63646
+INFO 2025-04-23 13:23:22,618 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:23:27,254 basehttp 72697 127198199539392 "GET /admin/accounts/customuser/ HTTP/1.1" 200 20593
+INFO 2025-04-23 13:23:27,304 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:23:34,446 basehttp 72697 127198199539392 "POST /admin/accounts/customuser/ HTTP/1.1" 200 13457
+INFO 2025-04-23 13:23:35,976 basehttp 72697 127198199539392 "POST /admin/accounts/customuser/ HTTP/1.1" 302 0
+INFO 2025-04-23 13:23:36,004 basehttp 72697 127198199539392 "GET /admin/accounts/customuser/ HTTP/1.1" 200 20028
+INFO 2025-04-23 13:23:36,094 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:23:46,554 basehttp 72697 127198199539392 "GET /admin/base/notification/ HTTP/1.1" 200 15544
+INFO 2025-04-23 13:23:46,766 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:23:53,823 basehttp 72697 127198199539392 "GET /admin/base/message/ HTTP/1.1" 200 15569
+INFO 2025-04-23 13:23:53,871 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:23:56,480 basehttp 72697 127198199539392 "GET /admin/base/message/add/ HTTP/1.1" 200 27210
+INFO 2025-04-23 13:23:56,793 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:23:59,708 basehttp 72697 127198199539392 "GET /admin/base/messagethread/add/?_to_field=id&_popup=1 HTTP/1.1" 200 15311
+INFO 2025-04-23 13:24:00,118 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:24:21,451 basehttp 72697 127198199539392 "GET /admin/base/property/add/?_to_field=id&_popup=1 HTTP/1.1" 200 23916
+INFO 2025-04-23 13:24:21,492 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:25:32,435 basehttp 72697 127198199539392 "POST /admin/base/property/add/?_to_field=id&_popup=1 HTTP/1.1" 200 328
+INFO 2025-04-23 13:25:32,508 basehttp 72697 127198199539392 "GET /static/admin/js/popup_response.js HTTP/1.1" 200 532
+INFO 2025-04-23 13:25:49,891 basehttp 72697 127198199539392 "POST /admin/base/messagethread/add/?_to_field=id&_popup=1 HTTP/1.1" 200 325
+INFO 2025-04-23 13:26:09,782 basehttp 72697 127198199539392 "POST /admin/base/message/add/ HTTP/1.1" 302 0
+INFO 2025-04-23 13:26:09,811 basehttp 72697 127198199539392 "GET /admin/base/message/ HTTP/1.1" 200 18138
+INFO 2025-04-23 13:26:09,896 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:26:16,587 basehttp 72697 127198199539392 "GET /admin/base/document/ HTTP/1.1" 200 15139
+INFO 2025-04-23 13:26:16,635 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:26:18,425 basehttp 72697 127198199539392 "GET /admin/base/document/add/ HTTP/1.1" 200 37653
+INFO 2025-04-23 13:26:18,467 basehttp 72697 127198199539392 "GET /admin/jsi18n/ HTTP/1.1" 200 3342
+INFO 2025-04-23 13:26:22,515 basehttp 72697 127198199539392 "GET /admin/base/document/ HTTP/1.1" 200 15139
+INFO 2025-04-23 13:26:23,275 basehttp 72697 127198199539392 "GET /admin/base/message/ HTTP/1.1" 200 17916
+INFO 2025-04-23 13:26:25,929 basehttp 72697 127198199539392 "GET /admin/base/ HTTP/1.1" 200 10012
+INFO 2025-04-23 13:26:28,784 basehttp 72697 127198199539392 "GET /admin/ HTTP/1.1" 200 15846

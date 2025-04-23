@@ -1,16 +1,15 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
-from .models import (
-    MessageThread, ThreadParticipant, Message, Property, Auction, Bid, Document, Contract, Notification, Media
-)
-from accounts.models import Role
-from accounts.serializers import (
-    RoleSerializer, UserProfileSerializer
-)
-
-
+from django.utils import timezone
 import json
+
+from .models import (
+    MessageThread, ThreadParticipant, Message, Property, Auction, Bid,
+    Document, Contract, Notification, Media, RoleChoices
+)
+from .utils import sanitize_html, truncate_text
+
 
 
 
@@ -27,68 +26,182 @@ User = get_user_model()
 
 class UserBriefSerializer(serializers.ModelSerializer):
     """Brief serializer for User model used in nested relationships"""
-    full_name = serializers.SerializerMethodField(label=_('الإسم الكامل'))
-    primary_role = serializers.SerializerMethodField(label=_('الدور الأساسي'))
+    full_name = serializers.SerializerMethodField(label=_('Full Name'))
+    primary_role = serializers.SerializerMethodField(label=_('Primary Role'))
 
     class Meta:
         model = User
         fields = [
-            'id', 'uuid', 'email', 'full_name', 'primary_role', 'avatar', 'phone_number'
+            'id', 'uuid', 'email', 'full_name', 'primary_role',
+            'avatar', 'phone_number'
         ]
 
     def get_full_name(self, obj):
+        """Generate full name for user"""
         return f"{obj.first_name} {obj.last_name}".strip() or obj.email
 
     def get_primary_role(self, obj):
-        primary_role = obj.primary_role
-        if primary_role:
-            role_obj = next((r for r in obj.roles.all() if r.name == primary_role), None)
-            if role_obj:
-                return {
-                    'code': role_obj.name,
-                    'name': role_obj.get_name_display()
-                }
-        return None
+        """
+        Get primary role for the user
+        Note: This method assumes a way to determine primary role,
+        which might need to be adjusted based on your specific user model
+        """
+        # If user has a method to get primary role, use it
+        if hasattr(obj, 'get_primary_role'):
+            return obj.get_primary_role()
 
+        # Fallback to predefined role choices
+        return {
+            'code': obj.primary_role or '',
+            'name': dict(RoleChoices.CHOICES).get(obj.primary_role, '')
+        }
+
+
+
+class MediaSerializer(serializers.ModelSerializer):
+    """
+    Serializer for handling media uploads across different models.
+    Provides URL generation and basic media information.
+    """
+    file_url = serializers.SerializerMethodField(label=_('File URL'))
+
+    class Meta:
+        model = Media
+        fields = [
+            'id',
+            'name',
+            'file',
+            'file_url',
+            'media_type',
+            'uploaded_at'
+        ]
+        read_only_fields = ('file_url', 'media_type', 'uploaded_at')
+        extra_kwargs = {
+            'file': {'write_only': True},
+            'name': {'required': False}
+        }
+
+    def get_file_url(self, obj):
+        """
+        Generate absolute URL for the media file.
+
+        Args:
+            obj: Media instance
+
+        Returns:
+            str: Absolute URL or None
+        """
+        request = self.context.get('request')
+        if obj.file and hasattr(obj.file, 'url'):
+            return request.build_absolute_uri(obj.file.url) if request else obj.file.url
+        return None
 
 # -------------------------------------------------------------------------
 # Base Serializers
 # -------------------------------------------------------------------------
 
+
 class BaseModelSerializer(serializers.ModelSerializer):
     """Base serializer with common fields for most models"""
-    created_at = serializers.DateTimeField(read_only=True, format="%Y-%m-%d %H:%M:%S", label=_('تاريخ الإنشاء'))
-    updated_at = serializers.DateTimeField(read_only=True, format="%Y-%m-%d %H:%M:%S", label=_('تاريخ التحديث'))
+    created_at = serializers.DateTimeField(
+        read_only=True,
+        format="%Y-%m-%d %H:%M:%S",
+        label=_('Creation Date')
+    )
+    updated_at = serializers.DateTimeField(
+        read_only=True,
+        format="%Y-%m-%d %H:%M:%S",
+        label=_('Last Updated')
+    )
+
+    def to_internal_value(self, data):
+        """
+        Handle JSON fields and sanitize text fields
+        """
+        # Identify JSON and text fields in the model
+        json_fields = [
+            field.name for field in self.Meta.model._meta.fields
+            if isinstance(field, models.JSONField)
+        ]
+        text_fields = [
+            field.name for field in self.Meta.model._meta.fields
+            if isinstance(field, models.TextField)
+        ]
+
+        # Process JSON fields
+        for field in json_fields:
+            if field in data and isinstance(data[field], str):
+                try:
+                    data[field] = json.loads(data[field])
+                except (json.JSONDecodeError, TypeError):
+                    data[field] = {} if field in ['metadata', 'location'] else []
+
+        # Sanitize text fields
+        for field in text_fields:
+            if field in data and isinstance(data[field], str):
+                data[field] = sanitize_html(data[field])
+
+        return super().to_internal_value(data)
+
+    def to_representation(self, instance):
+        """
+        Ensure JSON fields are properly serialized
+        """
+        representation = super().to_representation(instance)
+
+        # Identify JSON fields
+        json_fields = [
+            field.name for field in self.Meta.model._meta.fields
+            if isinstance(field, models.JSONField)
+        ]
+
+        # Ensure JSON fields are properly formatted
+        for field in json_fields:
+            value = representation.get(field)
+            if value is None:
+                representation[field] = {} if field in ['metadata', 'location'] else []
+            elif isinstance(value, str):
+                try:
+                    representation[field] = json.loads(value)
+                except (json.JSONDecodeError, TypeError):
+                    representation[field] = {} if field in ['metadata', 'location'] else []
+
+        return representation
+
+    def create(self, validated_data):
+        """
+        Custom create method to handle nested data
+        """
+        # Remove nested serializer data
+        nested_fields = [
+            field for field, serializer in self.fields.items()
+            if isinstance(serializer, serializers.BaseSerializer)
+        ]
+        for field in nested_fields:
+            validated_data.pop(field, None)
+
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        """
+        Custom update method to handle nested data
+        """
+        # Remove nested serializer data
+        nested_fields = [
+            field for field, serializer in self.fields.items()
+            if isinstance(serializer, serializers.BaseSerializer)
+        ]
+        for field in nested_fields:
+            validated_data.pop(field, None)
+
+        return super().update(instance, validated_data)
 
 
 # -------------------------------------------------------------------------
 # Message & Thread Serializers
 # -------------------------------------------------------------------------
 
-class MediaSerializer(serializers.ModelSerializer):
-    """Serializer for the generic Media model."""
-    file_url = serializers.SerializerMethodField(label=_('رابط الملف'))
 
-    class Meta:
-        model = Media
-        fields = [
-            'id', 'name', 'file', 'file_url', 'media_type', 'uploaded_at',
-            # Exclude generic foreign key fields from direct serialization
-            # 'content_type', 'object_id'
-        ]
-        read_only_fields = ('file_url', 'media_type', 'uploaded_at')
-        extra_kwargs = {
-            'file': {'write_only': True}, # File itself is write-only in basic serialization
-            'name': {'label': _('اسم الملف (اختياري)')},
-        }
-
-    def get_file_url(self, obj):
-        request = self.context.get('request')
-        if obj.file and hasattr(obj.file, 'url'):
-            if request:
-                return request.build_absolute_uri(obj.file.url)
-            return obj.file.url
-        return None
 
 
 class MessageSerializer(BaseModelSerializer):
@@ -271,8 +384,8 @@ class PropertySerializer(BaseModelSerializer):
             'rooms', 'specifications', 'size_sqm', 'bedrooms', 'bathrooms',
             'floors', 'parking_spaces', 'year_built', 'market_value', 'minimum_bid',
             'pricing_details', 'owner', 'owner_details', 'is_published',
-            'is_featured', 'is_verified', 'slug', 
-            'media', 
+            'is_featured', 'is_verified', 'slug',
+            'media',
             'metadata', 'created_at', 'updated_at',
             'deed_number', 'highQualityStreets'
         ]
@@ -283,7 +396,7 @@ class PropertySerializer(BaseModelSerializer):
             'deed_number': {'label': _('رقم الصك')},
             'highQualityStreets': {'label': _('الشوارع الراقية')},
             'floors': {'label': _('عدد الطوابق')},
-            'media': {'label': _('ملفات الوسائط')}, 
+            'media': {'label': _('ملفات الوسائط')},
         }
 
     def validate_location(self, value):
@@ -447,11 +560,11 @@ class AuctionSerializer(BaseModelSerializer):
             'property_details', 'starting_bid', 'reserve_price', 'minimum_increment',
             'current_bid', 'estimated_value', 'bid_history', 'financial_terms',
             'buyer_premium_percent', 'registration_fee', 'deposit_required',
-            'is_published', 'is_featured', 'is_private', 
-            'media', 
+            'is_published', 'is_featured', 'is_private',
+            'media',
             'terms_conditions', 'special_notes', 'view_count',
             'bid_count', 'registered_bidders', 'analytics', 'highest_bid',
-            'bids_count', 'time_remaining', 
+            'bids_count', 'time_remaining',
             'created_at', 'updated_at'
         ]
         extra_kwargs = {
@@ -482,7 +595,7 @@ class AuctionSerializer(BaseModelSerializer):
             'is_published': {'label': _('منشور')},
             'is_featured': {'label': _('مميز')},
             'is_private': {'label': _('مزاد خاص')},
-            'media': {'label': _('ملفات الوسائط')}, 
+            'media': {'label': _('ملفات الوسائط')},
             'terms_conditions': {'label': _('الشروط والأحكام')},
             'special_notes': {'label': _('ملاحظات خاصة')},
             'analytics': {'label': _('بيانات تحليلية')},
@@ -587,7 +700,7 @@ class DocumentSerializer(BaseModelSerializer):
             'title': {'label': _('العنوان')},
             'document_type': {'label': _('نوع الوثيقة')},
             'description': {'label': _('الوصف')},
-            'media': {'label': _('ملفات الوسائط')}, 
+            'media': {'label': _('ملفات الوسائط')},
             'verification_status': {'label': _('حالة التحقق')},
             'verification_notes': {'label': _('ملاحظات التحقق')},
             'verification_details': {'label': _('تفاصيل التحقق')},
@@ -766,3 +879,39 @@ class NotificationSerializer(BaseModelSerializer):
         return data
 
 
+
+class JSONSerializerField(serializers.Field):
+    """
+    Custom serializer field for handling JSON data with type inference and validation.
+    """
+    def to_representation(self, value):
+        """
+        Convert JSON data to representation.
+
+        Args:
+            value: JSON data
+
+        Returns:
+            Dict or list
+        """
+        if value is None:
+            return {} if isinstance(value, dict) else []
+        return value
+
+    def to_internal_value(self, data):
+        """
+        Validate and convert input data to JSON.
+
+        Args:
+            data: Input data
+
+        Returns:
+            Dict or list
+        """
+        if isinstance(data, str):
+            try:
+                import json
+                return json.loads(data)
+            except (json.JSONDecodeError, TypeError):
+                raise serializers.ValidationError(_("Invalid JSON format"))
+        return data

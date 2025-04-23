@@ -3,7 +3,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>تحقق من بريدك الإلكتروني</title>
+        <title>تنبيه: تسجيل دخول جديد</title>
         <style>
             @import url("https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap");
 
@@ -38,29 +38,23 @@
                 padding: 30px;
             }
 
-            .verification-code {
-                font-size: 28px;
-                font-weight: 600;
-                text-align: center;
+            .alert-box {
                 margin: 25px 0;
                 padding: 15px;
-                background-color: #f2f7ff;
+                background-color: #fff0f0;
                 border-radius: 6px;
-                letter-spacing: 5px;
-                color: #1a3a5f;
+                border-right: 4px solid #ff5555;
             }
 
-            .button {
-                display: block;
-                margin: 30px auto;
-                padding: 14px 28px;
-                background-color: #1a6eb5;
-                color: #ffffff;
-                text-decoration: none;
+            .login-details {
+                margin: 25px 0;
+                padding: 15px;
+                background-color: #f5f5f5;
                 border-radius: 6px;
-                font-weight: 600;
-                text-align: center;
-                width: 200px;
+            }
+
+            .login-details div {
+                margin-bottom: 8px;
             }
 
             .email-footer {
@@ -75,32 +69,33 @@
     <body>
         <div class="email-container">
             <div class="email-header">
-                <h1>{{ company_name }} | التحقق من البريد الإلكتروني</h1>
+                <h1>{{ company_name }} | تنبيه أمني</h1>
             </div>
 
             <div class="email-body">
-                <h2>
-                    مرحباً {% if user_name %}{{ user_name }}{% else %}بكم{%
-                    endif %}!
-                </h2>
-                <p>شكراً لتسجيلك في {{ company_name }}.</p>
-                <p>لإكمال عملية التسجيل، يرجى استخدام رمز التحقق التالي:</p>
+                <h2>تنبيه أمني: تسجيل دخول جديد</h2>
 
-                <div class="verification-code">{{ verification_code }}</div>
+                <div class="alert-box">
+                    <h3 style="margin-top: 0">تم تسجيل دخول جديد إلى حسابك</h3>
+                    <p>
+                        اكتشفنا تسجيل دخول جديد إلى حسابك في {{ company_name }}.
+                        إذا كنت أنت من قام بذلك، يمكنك تجاهل هذا البريد
+                        الإلكتروني.
+                    </p>
+                </div>
 
-                <p>أدخل هذا الرمز في صفحة التحقق لتفعيل حسابك.</p>
+                <p>تفاصيل تسجيل الدخول:</p>
 
-                {% if verification_url %}
-                <a href="{{ verification_url }}" class="button"
-                    >تحقق من الحساب</a
-                >
-                {% endif %}
-
-                <p>سينتهي هذا الرمز خلال {{ expiry_hours }} ساعة.</p>
+                <div class="login-details">
+                    <div><strong>التاريخ والوقت:</strong> {{ login_time }}</div>
+                    <div><strong>عنوان IP:</strong> {{ ip_address }}</div>
+                    <div><strong>الموقع:</strong> {{ location }}</div>
+                    <div><strong>الجهاز:</strong> {{ device_info }}</div>
+                </div>
 
                 <p>
-                    إذا لم تقم بإنشاء هذا الحساب، يرجى تجاهل هذا البريد
-                    الإلكتروني.
+                    إذا لم تكن أنت من قام بتسجيل الدخول هذا، يرجى تغيير كلمة
+                    المرور الخاصة بك فوراً.
                 </p>
             </div>
 

@@ -11,7 +11,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'back.settings')
 django.setup()
 
 # Import the WebSocket application from routing.py
-from .routing import application
+from .routings import application
 
 # Get the ASGI application
 django_asgi_app = get_asgi_application()

@@ -1,14 +1,23 @@
 // src/routes/+layout.js
 import { redirect } from '@sveltejs/kit';
 import { get } from 'svelte/store';
-import { isAuthenticated, isVerified, token, user, fetchUserProfile } from '$lib/stores/auth';
+import {
+	isAuthenticated,
+	isVerified,
+	token,
+	user,
+	fetchUserProfile,
+	logout
+} from '$lib/stores/auth';
 
 // Define protected routes
-const authRequiredRoutes = ['/profile', '/properties/add'];
+const authRequiredRoutes = ['/profile', '/properties/add', '/auctions/add', '/messages'];
+const verificationRequiredRoutes = ['/properties/add', '/auctions/add'];
 
-const verificationRequiredRoutes = ['/properties/add'];
+export const load = async ({ url, fetch, depends }) => {
+	// Dependency for authentication state
+	depends('auth:status');
 
-export const load = async ({ url, fetch }) => {
 	// Get current authentication state
 	const authenticated = get(isAuthenticated);
 	const verified = get(isVerified);
@@ -26,14 +35,26 @@ export const load = async ({ url, fetch }) => {
 
 	// For routes requiring verification
 	if (verificationRequiredRoutes.some((route) => path.startsWith(route))) {
-		if (!verified) {
+		if (authenticated && !verified) {
 			throw redirect(302, '/verify-email');
 		}
 	}
 
-	// Load user data if authenticated but user data is missing
+	// Load user profile if authenticated but no user data
 	if (authenticated && currentToken && (!currentUser || Object.keys(currentUser).length === 0)) {
-		await fetchUserProfile();
+		try {
+			await fetchUserProfile();
+		} catch (error) {
+			console.error('Failed to fetch user profile:', error);
+			// If profile fetch failed due to authentication issues, reset token
+			if (
+				error.message &&
+				(error.message.includes('401') || error.message.includes('انتهت صلاحية'))
+			) {
+				logout();
+				throw redirect(302, `/login?redirect=${encodeURIComponent(path)}`);
+			}
+		}
 	}
 
 	return {

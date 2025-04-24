@@ -79,16 +79,26 @@ export async function logout() {
 		const currentRefreshToken = get(refreshToken);
 
 		if (currentRefreshToken) {
-			// Try to blacklist the token on server
-			await api
-				.post('/accounts/logout/', { refresh: currentRefreshToken })
-				.catch((err) => console.error('Logout error:', err));
+			try {
+				// Try to blacklist the token on server
+				await api.post('/accounts/logout/', { refresh: currentRefreshToken });
+			} catch (err) {
+				console.error('Server logout error:', err);
+				// Continue with client-side logout even if server logout fails
+			}
 		}
+	} catch (error) {
+		console.error('Error during logout:', error);
 	} finally {
-		// Clear stores regardless of server response
+		// Always clear stores regardless of server response
 		token.set(null);
 		refreshToken.set(null);
 		user.set(null);
+
+		// Navigate to login page
+		if (browser) {
+			window.location.href = '/login';
+		}
 	}
 }
 

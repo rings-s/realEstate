@@ -1,7 +1,7 @@
-<!-- src/routes/reset-password/reset/+page.svelte -->
+<!-- src/routes/reset-password/+page.svelte -->
 <script>
-	import { resetPassword, verifyResetCode } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
+	import { resetPassword, verifyResetCode } from '$lib/stores/auth';
 	import { addToast } from '$lib/stores/ui';
 
 	let email = '';
@@ -13,18 +13,27 @@
 	let error = '';
 
 	async function verifyCode() {
+		if (!email || !resetCode) {
+			error = 'يرجى إدخال البريد الإلكتروني ورمز إعادة التعيين';
+			return;
+		}
+
 		loading = true;
 		error = '';
 
-		const result = await verifyResetCode(email, resetCode);
+		try {
+			const result = await verifyResetCode(email, resetCode);
 
-		loading = false;
-
-		if (result.success) {
-			verifiedCode = true;
-			addToast('تم التحقق من الرمز بنجاح', 'success');
-		} else {
-			error = result.error || 'رمز غير صالح أو منتهي الصلاحية';
+			if (result.success) {
+				verifiedCode = true;
+				addToast('تم التحقق من الرمز بنجاح', 'success');
+			} else {
+				error = result.error || 'رمز غير صالح أو منتهي الصلاحية';
+			}
+		} catch (err) {
+			error = err.message || 'حدث خطأ غير متوقع';
+		} finally {
+			loading = false;
 		}
 	}
 
@@ -34,18 +43,27 @@
 			return;
 		}
 
+		if (password.length < 8) {
+			error = 'كلمة المرور يجب أن تكون على الأقل 8 أحرف';
+			return;
+		}
+
 		loading = true;
 		error = '';
 
-		const result = await resetPassword(email, resetCode, password, confirmPassword);
+		try {
+			const result = await resetPassword(email, resetCode, password, confirmPassword);
 
-		loading = false;
-
-		if (result.success) {
-			addToast('تم إعادة تعيين كلمة المرور بنجاح', 'success');
-			setTimeout(() => goto('/'), 1500);
-		} else {
-			error = result.error || 'فشل في إعادة تعيين كلمة المرور';
+			if (result.success) {
+				addToast('تم إعادة تعيين كلمة المرور بنجاح', 'success');
+				setTimeout(() => goto('/login'), 1500);
+			} else {
+				error = result.error || 'فشل في إعادة تعيين كلمة المرور';
+			}
+		} catch (err) {
+			error = err.message || 'حدث خطأ غير متوقع';
+		} finally {
+			loading = false;
 		}
 	}
 </script>
@@ -110,6 +128,12 @@
 						placeholder="أدخل رمز إعادة التعيين"
 						dir="ltr"
 					/>
+					<p class="mt-1 text-xs text-slate-500">
+						لم تحصل على الرمز؟ <a
+							href="/reset-password/request"
+							class="text-blue-600 hover:underline">طلب رمز جديد</a
+						>
+					</p>
 				</div>
 
 				<div>

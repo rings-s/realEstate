@@ -1,7 +1,8 @@
 <!-- src/routes/register/+page.svelte -->
 <script>
-	import { register } from '$lib/services/auth';
+	import { register } from '$lib/stores/auth';
 	import { goto } from '$app/navigation';
+	import { addToast } from '$lib/stores/ui';
 
 	let formData = {
 		email: '',
@@ -9,31 +10,48 @@
 		confirm_password: '',
 		first_name: '',
 		last_name: '',
-		phone_number: ''
+		phone_number: '',
+		role: 'bidder' // Default role
 	};
 
 	let loading = false;
 	let error = '';
 	let step = 1;
 
-	async function handleSubmit() {
-		loading = true;
-		error = '';
+	// Available roles
+	const roles = [
+		{ value: 'bidder', label: 'مزايد' },
+		{ value: 'seller', label: 'بائع' },
+		{ value: 'agent', label: 'وكيل عقاري' }
+	];
 
+	async function handleSubmit() {
 		if (formData.password !== formData.confirm_password) {
 			error = 'كلمات المرور غير متطابقة';
-			loading = false;
 			return;
 		}
 
-		const result = await register(formData);
+		if (formData.password.length < 8) {
+			error = 'كلمة المرور يجب أن تكون على الأقل 8 أحرف';
+			return;
+		}
 
-		loading = false;
+		loading = true;
+		error = '';
 
-		if (result.success) {
-			step = 2;
-		} else {
-			error = result.error || 'حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.';
+		try {
+			const result = await register(formData);
+
+			if (result.success) {
+				step = 2;
+				addToast('تم التسجيل بنجاح', 'success');
+			} else {
+				error = result.error || 'حدث خطأ أثناء التسجيل. يرجى المحاولة مرة أخرى.';
+			}
+		} catch (err) {
+			error = err.message || 'حدث خطأ غير متوقع';
+		} finally {
+			loading = false;
 		}
 	}
 </script>
@@ -125,6 +143,16 @@
 					/>
 				</div>
 
+				<!-- User Role -->
+				<div>
+					<label for="role" class="mb-1 block text-sm font-medium text-slate-700">نوع الحساب</label>
+					<select id="role" bind:value={formData.role} class="input">
+						{#each roles as role}
+							<option value={role.value}>{role.label}</option>
+						{/each}
+					</select>
+				</div>
+
 				<!-- Password Fields -->
 				<div>
 					<label for="password" class="mb-1 block text-sm font-medium text-slate-700"
@@ -139,6 +167,7 @@
 						placeholder="أدخل كلمة المرور"
 						minlength="8"
 					/>
+					<p class="mt-1 text-xs text-slate-500">يجب أن تكون كلمة المرور 8 أحرف على الأقل</p>
 				</div>
 
 				<div>
@@ -199,7 +228,9 @@
 				</p>
 
 				<div class="mt-6">
-					<a href="/verify-email" class="btn-primary w-full">التحقق من البريد الإلكتروني</a>
+					<a href="/verify-email" class="btn-primary inline-block w-full"
+						>التحقق من البريد الإلكتروني</a
+					>
 					<button class="mt-4 text-sm text-blue-600 hover:underline" on:click={() => (step = 1)}>
 						العودة إلى التسجيل
 					</button>

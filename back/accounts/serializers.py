@@ -201,3 +201,57 @@ class UserProfileUpdateSerializer(serializers.ModelSerializer):
             profile.save(update_fields=profile_data.keys())
 
         return instance
+
+class UserBriefSerializer(serializers.ModelSerializer):
+    """Brief serializer for User model used in nested relationships"""
+    full_name = serializers.SerializerMethodField(label=_('Full Name'))
+    primary_role = serializers.SerializerMethodField(label=_('Primary Role'))
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'uuid', 'email', 'full_name', 'primary_role',
+            'avatar', 'phone_number'
+        ]
+
+    def get_full_name(self, obj):
+        """Generate full name for user"""
+        return f"{obj.first_name} {obj.last_name}".strip() or obj.email
+
+    def get_primary_role(self, obj):
+        """
+        Get primary role for the user with proper error handling
+        """
+        try:
+            # First check if the attribute exists
+            if hasattr(obj, 'primary_role'):
+                role_code = obj.primary_role or ''
+                return {
+                    'code': role_code,
+                    'name': dict(RoleChoices.CHOICES).get(role_code, '')
+                }
+
+            # If not, try to get a role from related data
+            elif hasattr(obj, 'has_role'):
+                # Loop through known roles to find one the user has
+                for role_code, role_name in RoleChoices.CHOICES:
+                    if obj.has_role(role_code):
+                        return {
+                            'code': role_code,
+                            'name': role_name
+                        }
+
+            # Default fallback
+            return {
+                'code': '',
+                'name': ''
+            }
+        except Exception as e:
+            # Log the error and return empty values
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error getting primary role: {str(e)}")
+            return {
+                'code': '',
+                'name': ''
+            }

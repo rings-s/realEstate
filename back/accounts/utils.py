@@ -9,6 +9,12 @@ import logging
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
+from django.template.exceptions import TemplateDoesNotExist, TemplateSyntaxError
+from django.contrib.auth import get_user_model
+
+
+
+User = get_user_model()
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +73,8 @@ def check_rate_limit(identifier: str, action_type: str) -> None:
     # Check current attempts
     attempts = cache.get(cache_key, 0)
     if attempts >= max_attempts:
-        ttl = cache.ttl(cache_key)
-        wait_minutes = (ttl // 60) + 1 if ttl else (lockout_time // 60)
+        # Fixed for Django 4.1.5's LocMemCache that doesn't have ttl method
+        wait_minutes = lockout_time // 60
         logger.warning(f"Rate limit exceeded: {action_type} by {identifier}. Attempts: {attempts}/{max_attempts}")
         raise EmailRateLimitExceeded(wait_minutes=wait_minutes)
 
@@ -87,18 +93,6 @@ def send_email(
 ) -> bool:
     """
     Send an email using Django templates with rate limiting.
-
-    Args:
-        to_email: Recipient email address
-        subject: Email subject
-        template_name: Template name without extension (e.g., 'verification_email')
-        context: Template context data
-        action_type: Type of email for rate limiting (verification, reset, etc.)
-        check_limits: Whether to enforce rate limits
-        fail_silently: Whether to suppress exceptions
-
-    Returns:
-        bool: Success status
     """
     if not to_email:
         logger.error(f"Attempted to send email with empty recipient: {subject}")
@@ -127,14 +121,21 @@ def send_email(
     full_subject = f"[{company_name}] {subject}"
 
     try:
-        # Render email templates
+        # Render email templates with better error handling
         html_template = f'emails/{template_name}.html'
-        html_message = render_to_string(html_template, context)
+        try:
+            html_message = render_to_string(html_template, context)
+        except TemplateSyntaxError as e:
+            logger.error(f"Template syntax error in {html_template}: {str(e)}")
+            if not fail_silently:
+                raise
+            return False
 
         try:
             txt_template = f'emails/{template_name}.txt'
             plain_message = render_to_string(txt_template, context)
-        except:
+        except (TemplateDoesNotExist, TemplateSyntaxError):
+            # Fallback to HTML stripped of tags
             plain_message = strip_tags(html_message)
 
         # Debug mode console output
@@ -165,7 +166,6 @@ def send_email(
             raise
         return False
 
-
 # Specific email functions with preset templates and contexts
 def send_verification_email(email: str, verification_code: str, context: Optional[Dict[str, Any]] = None) -> None:
     """Send verification code email."""
@@ -177,12 +177,16 @@ def send_verification_email(email: str, verification_code: str, context: Optiona
         verify_path = getattr(settings, 'EMAIL_VERIFY_PATH', '/verify-email')
         ctx['verification_url'] = f"{settings.FRONTEND_URL.rstrip('/')}{verify_path}/{verification_code}"
 
+    # Skip rate limiting in development
+    check_limits = not settings.DEBUG
+
     send_email(
         to_email=email,
         subject="Verify Your Email Address",
         template_name='verification_email',
         context=ctx,
-        action_type='verification'
+        action_type='verification',
+        check_limits=check_limits
     )
 
 

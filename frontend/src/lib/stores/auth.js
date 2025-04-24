@@ -1,7 +1,9 @@
 // src/lib/stores/auth.js
-import { writable, derived } from 'svelte/store';
+import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
+import { goto } from '$app/navigation';
 import api from '$lib/services/api';
+import { addToast } from '$lib/stores/ui';
 
 // Initialize stores with localStorage values if in browser
 export const token = writable((browser && localStorage.getItem('token')) || null);
@@ -31,6 +33,9 @@ if (browser) {
 	});
 }
 
+/**
+ * Register a new user
+ */
 export async function register(userData) {
 	try {
 		const response = await api.post('/accounts/register/', userData);
@@ -40,6 +45,9 @@ export async function register(userData) {
 	}
 }
 
+/**
+ * Verify email with verification code
+ */
 export async function verifyEmail(email, verification_code) {
 	try {
 		const response = await api.post('/accounts/verify-email/', { email, verification_code });
@@ -57,6 +65,9 @@ export async function verifyEmail(email, verification_code) {
 	}
 }
 
+/**
+ * Login user with email and password
+ */
 export async function login(email, password) {
 	try {
 		const response = await api.post('/accounts/login/', { email, password });
@@ -74,6 +85,9 @@ export async function login(email, password) {
 	}
 }
 
+/**
+ * Logout user and clear credentials
+ */
 export async function logout() {
 	try {
 		const currentRefreshToken = get(refreshToken);
@@ -97,32 +111,50 @@ export async function logout() {
 
 		// Navigate to login page
 		if (browser) {
-			window.location.href = '/login';
+			goto('/login');
 		}
 	}
 }
 
+/**
+ * Request a password reset code
+ */
 export async function resetPasswordRequest(email) {
 	try {
-		const response = await api.post('/accounts/request-reset/', { email });
-		return { success: true, message: response.message };
+		// Use the correct API endpoint from your backend urls.py
+		const response = await api.post('/accounts/password/reset/request/', { email });
+		return {
+			success: true,
+			message: response.message || 'تم إرسال رمز إعادة التعيين إلى بريدك الإلكتروني'
+		};
 	} catch (error) {
-		return { success: false, error: error.message };
+		// Show a user-friendly error but log the actual error
+		console.error('Password reset request error:', error);
+		return {
+			success: false,
+			error: error.message || 'حدث خطأ أثناء إرسال طلب إعادة تعيين كلمة المرور'
+		};
 	}
 }
 
+/**
+ * Verify a password reset code
+ */
 export async function verifyResetCode(email, reset_code) {
 	try {
-		const response = await api.post('/accounts/verify-reset-code/', { email, reset_code });
-		return { success: true, message: response.message };
+		const response = await api.post('/accounts/password/reset/verify/', { email, reset_code });
+		return { success: true, message: response.message || 'تم التحقق من الرمز بنجاح' };
 	} catch (error) {
-		return { success: false, error: error.message };
+		return { success: false, error: error.message || 'رمز غير صالح أو منتهي الصلاحية' };
 	}
 }
 
+/**
+ * Reset password with code
+ */
 export async function resetPassword(email, reset_code, new_password, confirm_password) {
 	try {
-		const response = await api.post('/accounts/reset-password/', {
+		const response = await api.post('/accounts/password/reset/confirm/', {
 			email,
 			reset_code,
 			new_password,
@@ -135,15 +167,18 @@ export async function resetPassword(email, reset_code, new_password, confirm_pas
 			user.set(response.data.user);
 		}
 
-		return { success: true, message: response.message };
+		return { success: true, message: response.message || 'تم إعادة تعيين كلمة المرور بنجاح' };
 	} catch (error) {
-		return { success: false, error: error.message };
+		return { success: false, error: error.message || 'فشل في إعادة تعيين كلمة المرور' };
 	}
 }
 
+/**
+ * Change password for authenticated user
+ */
 export async function changePassword(current_password, new_password, confirm_password) {
 	try {
-		const response = await api.post('/accounts/change-password/', {
+		const response = await api.post('/accounts/password/change/', {
 			current_password,
 			new_password,
 			confirm_password
@@ -154,12 +189,15 @@ export async function changePassword(current_password, new_password, confirm_pas
 			refreshToken.set(response.data.tokens.refresh);
 		}
 
-		return { success: true, message: response.message };
+		return { success: true, message: response.message || 'تم تغيير كلمة المرور بنجاح' };
 	} catch (error) {
-		return { success: false, error: error.message };
+		return { success: false, error: error.message || 'فشل في تغيير كلمة المرور' };
 	}
 }
 
+/**
+ * Fetch current user profile
+ */
 export async function fetchUserProfile() {
 	try {
 		const response = await api.get('/accounts/profile/');
@@ -172,10 +210,26 @@ export async function fetchUserProfile() {
 		return null;
 	} catch (error) {
 		console.error('Error fetching user profile:', error);
+
+		// If unauthorized, clear token and user
+		if (error.message && error.message.includes('401')) {
+			token.set(null);
+			user.set(null);
+			refreshToken.set(null);
+
+			if (browser) {
+				addToast('انتهت جلستك. يرجى تسجيل الدخول مرة أخرى', 'warning');
+				goto('/login');
+			}
+		}
+
 		return null;
 	}
 }
 
+/**
+ * Update user profile
+ */
 export async function updateUserProfile(profileData) {
 	try {
 		const response = await api.patch('/accounts/profile/', profileData);
@@ -187,13 +241,16 @@ export async function updateUserProfile(profileData) {
 
 		return { success: false, error: 'بيانات غير كاملة' };
 	} catch (error) {
-		return { success: false, error: error.message };
+		return { success: false, error: error.message || 'فشل في تحديث الملف الشخصي' };
 	}
 }
 
+/**
+ * Update user avatar
+ */
 export async function updateAvatar(formData) {
 	try {
-		const response = await api.uploadFile('/accounts/update-avatar/', formData);
+		const response = await api.uploadFile('/accounts/profile/avatar/', formData);
 
 		if (response.data?.user) {
 			user.set(response.data.user);
@@ -202,15 +259,39 @@ export async function updateAvatar(formData) {
 
 		return { success: false, error: 'فشل في تحديث الصورة' };
 	} catch (error) {
-		return { success: false, error: error.message };
+		return { success: false, error: error.message || 'فشل في تحديث الصورة الشخصية' };
 	}
 }
 
+/**
+ * Resend verification email
+ */
 export async function resendVerification(email) {
 	try {
 		const response = await api.post('/accounts/resend-verification/', { email });
-		return { success: true, message: response.message };
+		return { success: true, message: response.message || 'تم إعادة إرسال رمز التحقق بنجاح' };
 	} catch (error) {
-		return { success: false, error: error.message };
+		return { success: false, error: error.message || 'فشل في إعادة إرسال رمز التحقق' };
 	}
 }
+
+export default {
+	token,
+	refreshToken,
+	user,
+	isAuthenticated,
+	isVerified,
+	isAdmin,
+	register,
+	verifyEmail,
+	login,
+	logout,
+	resetPasswordRequest,
+	verifyResetCode,
+	resetPassword,
+	changePassword,
+	fetchUserProfile,
+	updateUserProfile,
+	updateAvatar,
+	resendVerification
+};

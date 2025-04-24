@@ -11,6 +11,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
+from django.template.exceptions import TemplateSyntaxError
 
 from .models import UserProfile
 from .serializers import (

@@ -24,25 +24,30 @@ class ApiService {
 
 			const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
 
+			console.log('API Request:', {
+				url,
+				method: options.method || 'GET',
+				headers,
+				body: options.body
+			});
+
 			const response = await fetch(url, {
 				...options,
 				headers
 			});
 
-			// Check for authentication errors
-			if (response.status === 401) {
-				// Token expired or invalid
-				logout();
-				throw new Error('انتهت صلاحية الجلسة. يرجى إعادة تسجيل الدخول.');
-			}
-
-			const data = await response.json();
+			// Log the full response for debugging
+			const responseData = await response.json();
+			console.log('API Response:', {
+				status: response.status,
+				data: responseData
+			});
 
 			if (!response.ok) {
-				throw new Error(data.error?.message || data.error || 'حدث خطأ أثناء جلب البيانات');
+				throw new Error(responseData.error?.message || responseData.error || 'فشل في جلب البيانات');
 			}
 
-			return data;
+			return responseData;
 		} catch (error) {
 			console.error(`API Error (${endpoint}):`, error);
 			throw error;

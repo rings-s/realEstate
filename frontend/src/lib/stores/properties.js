@@ -14,26 +14,64 @@ export const hasProperties = derived(
 	([$properties, $propertiesCount]) => $properties.length > 0 || $propertiesCount > 0
 );
 
+// In your properties store or page
+async function loadProperties() {
+	try {
+		const queryParams = {
+			page: currentPage,
+			page_size: pageSize
+			// other filters...
+		};
+
+		console.group('Property Fetch');
+		console.log('Query Params:', queryParams);
+
+		const result = await api.get('/properties/', queryParams);
+
+		console.log('API Result:', result);
+		console.groupEnd();
+
+		if (result.status === 'success') {
+			properties.set(result.results || []);
+			propertiesCount.set(result.count || 0);
+		} else {
+			throw new Error(result.message || 'Unknown error');
+		}
+	} catch (error) {
+		console.error('Properties Fetch Error:', error);
+		addToast(error.message || 'Failed to load properties', 'error');
+	}
+}
+
 export async function fetchProperties(params = {}) {
 	loadingProperties.set(true);
 	propertyError.set(null);
 
 	try {
+		console.log('Fetching properties with params:', params);
+
 		const response = await api.get('/properties/', params);
 
-		if (response.data) {
-			properties.set(response.data.results || []);
-			propertiesCount.set(response.data.count || 0);
-			return response.data;
-		}
+		console.log('API Response:', response);
 
-		throw new Error('Failed to fetch properties data');
+		if (response.data && response.data.results) {
+			properties.set(response.data.results);
+			propertiesCount.set(response.data.count || 0);
+			return {
+				results: response.data.results,
+				count: response.data.count || 0
+			};
+		} else {
+			console.warn('Unexpected response structure:', response);
+			properties.set([]);
+			propertiesCount.set(0);
+			return { results: [], count: 0 };
+		}
 	} catch (error) {
 		console.error('Error fetching properties:', error);
 		propertyError.set(error.message);
 		properties.set([]);
 		propertiesCount.set(0);
-		addToast(error.message || 'Failed to load properties', 'error');
 		return { results: [], count: 0 };
 	} finally {
 		loadingProperties.set(false);

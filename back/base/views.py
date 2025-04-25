@@ -82,8 +82,11 @@ class PropertyListCreateView(generics.ListCreateAPIView):
         user = self.request.user
         base_queryset = Property.objects.all()
 
+        # Add logging to understand the queryset
+        print(f"Total properties: {base_queryset.count()}")
+        print(f"User: {user}, Is Staff: {user.is_staff}")
+
         try:
-            # Admin sees all properties
             if user.is_staff:
                 return base_queryset
 
@@ -97,7 +100,7 @@ class PropertyListCreateView(generics.ListCreateAPIView):
             # Others see only published properties
             return base_queryset.filter(published_properties)
         except Exception as e:
-            logger.error(f"PropertyListCreateView.get_queryset error: {str(e)}")
+            print(f"Error in get_queryset: {e}")
             return Property.objects.none()
 
     @log_api_calls

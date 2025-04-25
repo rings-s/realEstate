@@ -3753,3 +3753,15 @@ Traceback (most recent call last):
 AttributeError: 'CustomUser' object has no attribute 'primary_role'
 ERROR 2025-04-24 22:46:38,560 basehttp 10300 133546035377856 "GET /api/properties/?page=1&page_size=9 HTTP/1.1" 500 190014
 INFO 2025-04-25 17:11:37,754 autoreload 6775 130371248877696 Watching for file changes with StatReloader
+INFO 2025-04-25 17:26:10,945 autoreload 6775 130371248877696 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-25 17:26:30,407 autoreload 12918 133094708416640 Watching for file changes with StatReloader
+INFO 2025-04-25 17:27:14,733 basehttp 12918 133094612924096 "GET /media/users/73d10b69-2f8e-4b5f-be8e-07a14a48f9b2/avatars/20250424124603_profile.png HTTP/1.1" 304 0
+INFO 2025-04-25 17:37:07,773 basehttp 12918 133094612924096 "OPTIONS /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 0
+WARNING 2025-04-25 17:37:08,394 log 12918 133094612924096 Unauthorized: /api/properties/
+WARNING 2025-04-25 17:37:08,395 basehttp 12918 133094612924096 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 401 183
+WARNING 2025-04-25 17:38:14,767 log 12918 133094612924096 Unauthorized: /api/properties/
+WARNING 2025-04-25 17:38:14,771 basehttp 12918 133094612924096 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 401 183
+WARNING 2025-04-25 17:38:15,172 log 12918 133094612924096 Unauthorized: /api/properties/
+WARNING 2025-04-25 17:38:15,184 basehttp 12918 133094612924096 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 401 183
+WARNING 2025-04-25 17:38:20,385 log 12918 133094612924096 Unauthorized: /api/properties/
+WARNING 2025-04-25 17:38:20,388 basehttp 12918 133094612924096 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 401 183

@@ -4474,3 +4474,133 @@ Traceback (most recent call last):
                          ^^^^^^
 NameError: name 'models' is not defined
 ERROR 2025-04-25 18:10:12,436 basehttp 16377 126695325562560 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+INFO 2025-04-25 18:12:54,784 autoreload 17504 125679858950272 Watching for file changes with StatReloader
+ERROR 2025-04-25 18:13:32,686 log 17504 125679693723328 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:13:32,690 basehttp 17504 125679693723328 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167184
+INFO 2025-04-25 18:17:02,621 autoreload 17504 125679858950272 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-25 18:17:03,247 autoreload 18124 138316694167680 Watching for file changes with StatReloader
+INFO 2025-04-25 18:17:20,167 autoreload 18124 138316694167680 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-25 18:17:20,906 autoreload 18183 138011385536640 Watching for file changes with StatReloader
+INFO 2025-04-25 18:17:56,066 basehttp 18183 138011220113088 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:17:56,261 basehttp 18183 138011220113088 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:18:15,348 basehttp 18183 138011220113088 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:18:18,670 basehttp 18183 138011220113088 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:19:04,830 basehttp 18183 138011220113088 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:20:14,137 basehttp 18183 138011220113088 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:20:31,273 basehttp 18183 138011220113088 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:20:31,809 basehttp 18183 138011220113088 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:21:43,697 autoreload 18183 138011385536640 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-25 18:21:44,499 autoreload 18542 138689868898432 Watching for file changes with StatReloader
+INFO 2025-04-25 18:22:12,774 autoreload 18542 138689868898432 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-25 18:22:13,845 autoreload 18604 124709813084288 Watching for file changes with StatReloader
+INFO 2025-04-25 18:23:14,702 basehttp 18604 124709647677120 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:23:14,921 basehttp 18604 124709647677120 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:23:15,195 basehttp 18604 124709647677120 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:23:19,054 basehttp 18604 124709647677120 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:23:27,616 basehttp 18604 124709647677120 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:27:09,150 basehttp 18604 124709647677120 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 200 1389
+INFO 2025-04-25 18:27:09,282 basehttp 18604 124709628802752 "GET /media/generic_media/2025/04/24/d.jpeg HTTP/1.1" 200 1058
+INFO 2025-04-25 18:33:36,740 basehttp 18604 124709628802752 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 200 0
+INFO 2025-04-25 18:33:36,801 basehttp 18604 124709628802752 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 200 1389
+INFO 2025-04-25 18:34:06,172 basehttp 18604 124709628802752 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=market_value HTTP/1.1" 200 0
+INFO 2025-04-25 18:34:06,195 basehttp 18604 124709628802752 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=market_value HTTP/1.1" 200 1389
+INFO 2025-04-25 18:34:08,874 basehttp 18604 124709628802752 "OPTIONS /api/properties/?page=1&page_size=12&property_type=residential&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=market_value HTTP/1.1" 200 0
+INFO 2025-04-25 18:34:08,899 basehttp 18604 124709628802752 "GET /api/properties/?page=1&page_size=12&property_type=residential&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=market_value HTTP/1.1" 200 1389
+INFO 2025-04-25 18:34:15,626 basehttp 18604 124709628802752 "OPTIONS /api/properties/?page=1&page_size=12&property_type=land&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=market_value HTTP/1.1" 200 0
+INFO 2025-04-25 18:34:15,640 basehttp 18604 124709628802752 "GET /api/properties/?page=1&page_size=12&property_type=land&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=market_value HTTP/1.1" 200 52
+INFO 2025-04-25 18:34:19,757 basehttp 18604 124709628802752 "GET /api/properties/?page=1&page_size=12&property_type=residential&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=market_value HTTP/1.1" 200 1389
+INFO 2025-04-25 18:34:52,996 basehttp 18604 124709628802752 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 200 1389
+INFO 2025-04-25 18:34:55,573 basehttp 18604 124709628802752 "OPTIONS /api/properties/property/ HTTP/1.1" 200 0
+ERROR 2025-04-25 18:34:56,012 log 18604 124709628802752 Internal Server Error: /api/properties/property/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 212, in get
+    return self.retrieve(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/decorators.py", line 230, in _wrapped_view
+    result = view_func(request, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 166, in retrieve
+    instance.save(update_fields=['view_count'])
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py", line 623, in save
+    super().save(*args, **kwargs)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 871, in save
+    raise ValueError(
+ValueError: The following fields do not exist in this model, are m2m fields, or are non-concrete fields: view_count
+ERROR 2025-04-25 18:34:56,016 basehttp 18604 124709628802752 "GET /api/properties/property/ HTTP/1.1" 500 123461
+INFO 2025-04-25 18:35:18,166 basehttp 18604 124709628802752 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 200 1389
+INFO 2025-04-25 18:35:31,881 views 18604 124709628802752 User rings9619@gmail.com logged out successfully
+INFO 2025-04-25 18:35:31,882 basehttp 18604 124709628802752 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-25 18:35:43,237 middleware 18604 124709628802752 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-25 18:35:43,331 views 18604 124709628802752 Successful login for user: rings9619@gmail.com
+INFO 2025-04-25 18:35:43,338 basehttp 18604 124709628802752 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-25 18:35:47,793 basehttp 18604 124709628802752 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 200 1389
+INFO 2025-04-25 18:48:33,084 autoreload 11381 129994107723904 Watching for file changes with StatReloader
+INFO 2025-04-25 18:50:55,510 basehttp 11381 129993942234816 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 200 0
+INFO 2025-04-25 18:50:59,908 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 200 1389

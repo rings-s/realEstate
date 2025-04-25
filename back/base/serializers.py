@@ -3,6 +3,8 @@ from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 import json
+from django.db import models
+
 
 from .models import (
     MessageThread, ThreadParticipant, Message, Property, Auction, Bid,
@@ -138,13 +140,16 @@ class BaseModelSerializer(serializers.ModelSerializer):
         """
         Handle JSON fields and sanitize text fields
         """
+        # Get model class
+        model_class = self.Meta.model
+
         # Identify JSON and text fields in the model
         json_fields = [
-            field.name for field in self.Meta.model._meta.fields
+            field.name for field in model_class._meta.fields
             if isinstance(field, models.JSONField)
         ]
         text_fields = [
-            field.name for field in self.Meta.model._meta.fields
+            field.name for field in model_class._meta.fields
             if isinstance(field, models.TextField)
         ]
 
@@ -169,9 +174,12 @@ class BaseModelSerializer(serializers.ModelSerializer):
         """
         representation = super().to_representation(instance)
 
+        # Get model class
+        model_class = self.Meta.model
+
         # Identify JSON fields
         json_fields = [
-            field.name for field in self.Meta.model._meta.fields
+            field.name for field in model_class._meta.fields
             if isinstance(field, models.JSONField)
         ]
 
@@ -187,36 +195,6 @@ class BaseModelSerializer(serializers.ModelSerializer):
                     representation[field] = {} if field in ['metadata', 'location'] else []
 
         return representation
-
-    def create(self, validated_data):
-        """
-        Custom create method to handle nested data
-        """
-        # Remove nested serializer data
-        nested_fields = [
-            field for field, serializer in self.fields.items()
-            if isinstance(serializer, serializers.BaseSerializer)
-        ]
-        for field in nested_fields:
-            validated_data.pop(field, None)
-
-        return super().create(validated_data)
-
-    def update(self, instance, validated_data):
-        """
-        Custom update method to handle nested data
-        """
-        # Remove nested serializer data
-        nested_fields = [
-            field for field, serializer in self.fields.items()
-            if isinstance(serializer, serializers.BaseSerializer)
-        ]
-        for field in nested_fields:
-            validated_data.pop(field, None)
-
-        return super().update(instance, validated_data)
-
-
 # -------------------------------------------------------------------------
 # Message & Thread Serializers
 # -------------------------------------------------------------------------

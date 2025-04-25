@@ -73,10 +73,35 @@ class PropertyListCreateView(generics.ListCreateAPIView):
     ordering_fields = ['created_at', 'market_value', 'size_sqm', 'bedrooms', 'year_built']
     ordering = ['-is_featured', '-created_at']
 
+
     def get_permissions(self):
         if self.request.method == 'GET':
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), IsVerifiedUser()]
+
+    def list(self, request, *args, **kwargs):
+            queryset = self.filter_queryset(self.get_queryset())
+            page = self.paginate_queryset(queryset)
+
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                response = self.get_paginated_response(serializer.data)
+                return Response({
+                    'status': 'success',
+                    'data': {
+                        'results': serializer.data,
+                        'count': self.paginator.page.paginator.count
+                    }
+                })
+
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({
+                'status': 'success',
+                'data': {
+                    'results': serializer.data,
+                    'count': len(serializer.data)
+                }
+            })
 
     def get_queryset(self):
         user = self.request.user

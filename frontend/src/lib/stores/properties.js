@@ -48,30 +48,22 @@ export async function fetchProperties(params = {}) {
 	propertyError.set(null);
 
 	try {
-		console.log('Fetching properties with params:', params);
-
+		console.log('Loading properties with params:', params);
 		const response = await api.get('/properties/', params);
+		console.log('API response:', response);
 
-		if (response.data && response.data.results) {
-			properties.set(response.data.results);
-			propertiesCount.set(response.data.count || 0);
-			return {
-				results: response.data.results,
-				count: response.data.count || 0
-			};
-		} else if (response.data) {
-			// Handle case where API returns data in a different format
-			properties.set(response.data);
-			propertiesCount.set(response.data.length || 0);
-			return {
-				results: response.data,
-				count: response.data.length || 0
-			};
+		// Check if response has the expected structure
+		if (response?.status === 'success' && response?.data) {
+			const results = response.data.results || [];
+			const count = response.data.count || 0;
+
+			properties.set(results);
+			propertiesCount.set(count);
+
+			return { results, count };
 		} else {
-			console.warn('Unexpected response structure:', response);
-			properties.set([]);
-			propertiesCount.set(0);
-			return { results: [], count: 0 };
+			console.error('Unexpected API response format:', response);
+			throw new Error('Invalid response format from server');
 		}
 	} catch (error) {
 		console.error('Error fetching properties:', error);

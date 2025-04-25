@@ -36,15 +36,12 @@ class ApiService {
 				headers
 			});
 
-			// Try to parse response data regardless of status code
 			let responseData;
 			try {
 				responseData = await response.json();
 			} catch (error) {
-				responseData = {
-					status: 'error',
-					error: response.statusText || 'Failed to parse server response'
-				};
+				console.error('Error parsing JSON response:', error);
+				responseData = null;
 			}
 
 			console.log('API Response:', {
@@ -52,26 +49,9 @@ class ApiService {
 				data: responseData
 			});
 
-			// Handle error responses
 			if (!response.ok) {
-				if (response.status === 401) {
-					// Handle 401 Unauthorized
-					if (accessToken) {
-						// Only log out if we had a token (prevents redirect loops)
-						logout();
-					}
-					throw new Error('Authentication required. Please log in again.');
-				} else if (response.status === 500) {
-					// Handle 500 Internal Server Error
-					throw new Error('Server error occurred. Please try again later.');
-				}
-
-				// Handle other errors using the response body if available
 				throw new Error(
-					responseData.error?.message ||
-						responseData.error ||
-						responseData.detail ||
-						'Error fetching data'
+					responseData?.error?.message || responseData?.error || 'API request failed'
 				);
 			}
 

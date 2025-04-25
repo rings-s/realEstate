@@ -52,14 +52,20 @@ export async function fetchProperties(params = {}) {
 
 		const response = await api.get('/properties/', params);
 
-		console.log('API Response:', response);
-
 		if (response.data && response.data.results) {
 			properties.set(response.data.results);
 			propertiesCount.set(response.data.count || 0);
 			return {
 				results: response.data.results,
 				count: response.data.count || 0
+			};
+		} else if (response.data) {
+			// Handle case where API returns data in a different format
+			properties.set(response.data);
+			propertiesCount.set(response.data.length || 0);
+			return {
+				results: response.data,
+				count: response.data.length || 0
 			};
 		} else {
 			console.warn('Unexpected response structure:', response);

@@ -97,19 +97,18 @@
 							aria-haspopup="true"
 						>
 							<img
-								src={$user.avatar_url || '/images/default-avatar.jpg'}
+								src={$user?.avatar_url || '/images/default-avatar.jpg'}
 								alt="صورة الملف الشخصي"
 								class="h-10 w-10 rounded-full border-2 border-blue-100 object-cover"
 							/>
 							<span class="hidden font-medium text-slate-700 md:inline">
-								{$user.first_name || $user.email}
+								{$user?.first_name || $user?.email || 'المستخدم'}
 							</span>
 							<i
 								class="fas fa-chevron-down text-xs text-slate-500 transition-transform duration-200"
 								class:rotate-180={profileMenuOpen}
 							></i>
 						</button>
-
 						{#if profileMenuOpen}
 							<div
 								class="ring-opacity-5 absolute left-0 z-50 mt-2 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black transition-all duration-200 ease-out"

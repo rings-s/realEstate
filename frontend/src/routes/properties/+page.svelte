@@ -51,28 +51,41 @@
 		keyword: ''
 	};
 
+	// Inside the loadProperties function
 	async function loadProperties() {
-		const queryParams = {
-			page: currentPage,
-			page_size: pageSize,
-			property_type: filters.property_type,
-			city: filters.city,
-			min_market_value: filters.min_price,
-			max_market_value: filters.max_price,
-			bedrooms: filters.bedrooms,
-			bathrooms: filters.bathrooms,
-			search: filters.keyword
-		};
-
 		try {
+			const queryParams = {
+				page: currentPage,
+				page_size: pageSize,
+				property_type: filters.property_type,
+				city: filters.city,
+				min_market_value: filters.min_price,
+				max_market_value: filters.max_price,
+				bedrooms: filters.bedrooms,
+				bathrooms: filters.bathrooms,
+				search: filters.keyword
+			};
+
+			console.log('Loading properties with params:', queryParams);
+
 			await fetchProperties(queryParams);
 
-			if ($properties.length === 0) {
+			if ($properties && $properties.length === 0) {
 				addToast('لم يتم العثور على عقارات', 'warning');
 			}
 		} catch (error) {
 			console.error('Error loading properties:', error);
-			addToast(error.message || 'حدث خطأ أثناء تحميل العقارات', 'error');
+
+			let errorMessage = 'حدث خطأ أثناء تحميل العقارات';
+
+			if (error.message.includes('Authentication required')) {
+				errorMessage = 'يرجى تسجيل الدخول لعرض العقارات';
+			} else if (error.message.includes('Server error')) {
+				errorMessage = 'حدث خطأ في الخادم. يرجى المحاولة مرة أخرى لاحقاً';
+			}
+
+			addToast(errorMessage, 'error');
+			properties.set([]);
 		}
 	}
 

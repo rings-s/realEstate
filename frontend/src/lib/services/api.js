@@ -36,15 +36,43 @@ class ApiService {
 				headers
 			});
 
-			// Log the full response for debugging
-			const responseData = await response.json();
+			// Try to parse response data regardless of status code
+			let responseData;
+			try {
+				responseData = await response.json();
+			} catch (error) {
+				responseData = {
+					status: 'error',
+					error: response.statusText || 'Failed to parse server response'
+				};
+			}
+
 			console.log('API Response:', {
 				status: response.status,
 				data: responseData
 			});
 
+			// Handle error responses
 			if (!response.ok) {
-				throw new Error(responseData.error?.message || responseData.error || 'فشل في جلب البيانات');
+				if (response.status === 401) {
+					// Handle 401 Unauthorized
+					if (accessToken) {
+						// Only log out if we had a token (prevents redirect loops)
+						logout();
+					}
+					throw new Error('Authentication required. Please log in again.');
+				} else if (response.status === 500) {
+					// Handle 500 Internal Server Error
+					throw new Error('Server error occurred. Please try again later.');
+				}
+
+				// Handle other errors using the response body if available
+				throw new Error(
+					responseData.error?.message ||
+						responseData.error ||
+						responseData.detail ||
+						'Error fetching data'
+				);
 			}
 
 			return responseData;

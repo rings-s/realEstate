@@ -42,21 +42,41 @@ class UserBriefSerializer(serializers.ModelSerializer):
 
     def get_primary_role(self, obj):
         """
-        Get primary role for the user
-        Note: This method assumes a way to determine primary role,
-        which might need to be adjusted based on your specific user model
+        Get primary role for the user with proper error handling
         """
-        # If user has a method to get primary role, use it
-        if hasattr(obj, 'get_primary_role'):
-            return obj.get_primary_role()
+        try:
+            # First check if the attribute exists
+            if hasattr(obj, 'primary_role'):
+                role_code = obj.primary_role or ''
+                return {
+                    'code': role_code,
+                    'name': dict(RoleChoices.CHOICES).get(role_code, '')
+                }
 
-        # Fallback to predefined role choices
-        return {
-            'code': obj.primary_role or '',
-            'name': dict(RoleChoices.CHOICES).get(obj.primary_role, '')
-        }
+            # If not, try to get a role from related data
+            elif hasattr(obj, 'has_role'):
+                # Loop through known roles to find one the user has
+                for role_code, role_name in RoleChoices.CHOICES:
+                    if obj.has_role(role_code):
+                        return {
+                            'code': role_code,
+                            'name': role_name
+                        }
 
-
+            # Default fallback
+            return {
+                'code': '',
+                'name': ''
+            }
+        except Exception as e:
+            # Log the error and return empty values
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Error getting primary role: {str(e)}")
+            return {
+                'code': '',
+                'name': ''
+            }
 
 class MediaSerializer(serializers.ModelSerializer):
     """

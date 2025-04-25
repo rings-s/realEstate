@@ -3765,3 +3765,712 @@ WARNING 2025-04-25 17:38:15,172 log 12918 133094612924096 Unauthorized: /api/pro
 WARNING 2025-04-25 17:38:15,184 basehttp 12918 133094612924096 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 401 183
 WARNING 2025-04-25 17:38:20,385 log 12918 133094612924096 Unauthorized: /api/properties/
 WARNING 2025-04-25 17:38:20,388 basehttp 12918 133094612924096 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 401 183
+WARNING 2025-04-25 17:54:09,934 log 12918 133094612924096 Unauthorized: /api/properties/
+WARNING 2025-04-25 17:54:09,941 basehttp 12918 133094612924096 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 401 183
+INFO 2025-04-25 17:54:09,968 basehttp 12918 133094612924096 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-25 17:54:10,018 log 12918 133094612924096 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-25 17:54:10,019 basehttp 12918 133094612924096 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+WARNING 2025-04-25 17:54:10,084 log 12918 133094612924096 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-25 17:54:10,085 basehttp 12918 133094612924096 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-25 17:54:16,347 basehttp 12918 133094612924096 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-25 17:54:17,539 middleware 12918 133094612924096 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-25 17:54:17,645 views 12918 133094612924096 Successful login for user: rings9619@gmail.com
+INFO 2025-04-25 17:54:17,762 basehttp 12918 133094612924096 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+ERROR 2025-04-25 17:54:20,343 log 12918 133094612924096 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 436, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 150, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 538, in to_representation
+    ret[field.field_name] = field.to_representation(attribute)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 538, in to_representation
+    ret[field.field_name] = field.to_representation(attribute)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/fields.py", line 1870, in to_representation
+    return method(value)
+           ^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 55, in get_primary_role
+    'code': obj.primary_role or '',
+            ^^^^^^^^^^^^^^^^
+AttributeError: 'CustomUser' object has no attribute 'primary_role'
+ERROR 2025-04-25 17:54:20,352 basehttp 12918 133094612924096 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 192566
+ERROR 2025-04-25 17:55:10,669 log 12918 133094612924096 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 436, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 150, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 538, in to_representation
+    ret[field.field_name] = field.to_representation(attribute)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 538, in to_representation
+    ret[field.field_name] = field.to_representation(attribute)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/fields.py", line 1870, in to_representation
+    return method(value)
+           ^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 55, in get_primary_role
+    'code': obj.primary_role or '',
+            ^^^^^^^^^^^^^^^^
+AttributeError: 'CustomUser' object has no attribute 'primary_role'
+ERROR 2025-04-25 17:55:10,710 basehttp 12918 133094612924096 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 192566
+ERROR 2025-04-25 17:55:15,089 log 12918 133094612924096 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 436, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 150, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 538, in to_representation
+    ret[field.field_name] = field.to_representation(attribute)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 538, in to_representation
+    ret[field.field_name] = field.to_representation(attribute)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/fields.py", line 1870, in to_representation
+    return method(value)
+           ^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 55, in get_primary_role
+    'code': obj.primary_role or '',
+            ^^^^^^^^^^^^^^^^
+AttributeError: 'CustomUser' object has no attribute 'primary_role'
+ERROR 2025-04-25 17:55:15,095 basehttp 12918 133094612924096 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 192566
+INFO 2025-04-25 17:59:06,615 autoreload 12918 133094708416640 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-25 17:59:09,698 autoreload 15951 138493655470208 Watching for file changes with StatReloader
+INFO 2025-04-25 18:03:22,541 autoreload 15951 138493655470208 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-25 18:03:23,504 autoreload 16377 126695511769216 Watching for file changes with StatReloader
+ERROR 2025-04-25 18:03:37,826 log 16377 126695344436928 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:03:37,833 basehttp 16377 126695344436928 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+ERROR 2025-04-25 18:06:11,841 log 16377 126695344436928 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:06:11,858 basehttp 16377 126695344436928 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+ERROR 2025-04-25 18:07:00,066 log 16377 126695344436928 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:07:00,069 basehttp 16377 126695344436928 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+ERROR 2025-04-25 18:08:13,264 log 16377 126695344436928 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:08:13,278 basehttp 16377 126695344436928 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+ERROR 2025-04-25 18:08:13,577 log 16377 126695325562560 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:08:13,590 basehttp 16377 126695325562560 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+ERROR 2025-04-25 18:08:13,720 log 16377 126695344436928 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:08:13,730 basehttp 16377 126695344436928 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+ERROR 2025-04-25 18:08:13,874 log 16377 126695325562560 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:08:13,879 basehttp 16377 126695325562560 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+ERROR 2025-04-25 18:10:09,910 log 16377 126695325562560 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:10:09,929 basehttp 16377 126695325562560 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+ERROR 2025-04-25 18:10:10,060 log 16377 126695344436928 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:10:10,066 basehttp 16377 126695344436928 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+ERROR 2025-04-25 18:10:10,380 log 16377 126695325562560 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:10:10,391 basehttp 16377 126695325562560 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216
+ERROR 2025-04-25 18:10:12,433 log 16377 126695325562560 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/mixins.py", line 43, in list
+    return self.get_paginated_response(serializer.data)
+                                       ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 795, in data
+    ret = super().data
+          ^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 249, in data
+    self._data = self.to_representation(self.instance)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/serializers.py", line 714, in to_representation
+    self.child.to_representation(item) for item in iterable
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 456, in to_representation
+    representation = super().to_representation(instance)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py", line 175, in to_representation
+    if isinstance(field, models.JSONField)
+                         ^^^^^^
+NameError: name 'models' is not defined
+ERROR 2025-04-25 18:10:12,436 basehttp 16377 126695325562560 "GET /api/properties/?page=1&page_size=9&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search= HTTP/1.1" 500 167216

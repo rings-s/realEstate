@@ -60,15 +60,15 @@
         </style>
     </head>
     <body>
-        <div class="container">
-            <div class="header">
+        <div class="email-container">
+            <div class="email-header">
                 <h1>{{ company_name }} | تنبيه أمني</h1>
             </div>
 
-            <div class="content">
+            <div class="email-body">
                 <h2>تنبيه أمني: تسجيل دخول جديد</h2>
 
-                <div class="alert">
+                <div class="alert-box">
                     <h3 style="margin-top: 0">تم تسجيل دخول جديد إلى حسابك</h3>
                     <p>
                         اكتشفنا تسجيل دخول جديد إلى حسابك في {{ company_name }}.
@@ -79,7 +79,7 @@
 
                 <p>تفاصيل تسجيل الدخول:</p>
 
-                <div class="details">
+                <div class="login-details">
                     <div><strong>التاريخ والوقت:</strong> {{ login_time }}</div>
                     <div><strong>عنوان IP:</strong> {{ ip_address }}</div>
                     <div><strong>الموقع:</strong> {{ location }}</div>
@@ -92,7 +92,7 @@
                 </p>
             </div>
 
-            <div class="footer">
+            <div class="email-footer">
                 <p>
                     جميع الحقوق محفوظة &copy; {{ current_year }} {{ company_name
                     }}

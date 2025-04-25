@@ -1,6 +1,7 @@
 // src/lib/stores/properties.js
 import { writable, derived } from 'svelte/store';
 import api from '$lib/services/api';
+import { addToast } from '$lib/stores/ui';
 
 export const properties = writable([]);
 export const currentProperty = writable(null);
@@ -20,33 +21,49 @@ export async function fetchProperties(params = {}) {
 	try {
 		const response = await api.get('/properties/', params);
 
-		properties.set(response.data.results || []);
-		propertiesCount.set(response.data.count || 0);
+		if (response.data) {
+			properties.set(response.data.results || []);
+			propertiesCount.set(response.data.count || 0);
+			return response.data;
+		}
 
-		return response.data;
+		throw new Error('Failed to fetch properties data');
 	} catch (error) {
+		console.error('Error fetching properties:', error);
 		propertyError.set(error.message);
 		properties.set([]);
 		propertiesCount.set(0);
-		throw error;
+		addToast(error.message || 'Failed to load properties', 'error');
+		return { results: [], count: 0 };
 	} finally {
 		loadingProperties.set(false);
 	}
 }
 
 export async function fetchPropertyBySlug(slug) {
+	if (!slug) {
+		propertyError.set('Invalid property ID');
+		return null;
+	}
+
 	loadingProperties.set(true);
 	propertyError.set(null);
 
 	try {
 		const response = await api.get(`/properties/${slug}/`);
 
-		currentProperty.set(response.data);
-		return response.data;
+		if (response.data) {
+			currentProperty.set(response.data);
+			return response.data;
+		}
+
+		throw new Error('Failed to fetch property details');
 	} catch (error) {
+		console.error('Error fetching property:', error);
 		propertyError.set(error.message);
 		currentProperty.set(null);
-		throw error;
+		addToast(error.message || 'Failed to load property details', 'error');
+		return null;
 	} finally {
 		loadingProperties.set(false);
 	}
@@ -57,14 +74,33 @@ export async function createProperty(propertyData) {
 	propertyError.set(null);
 
 	try {
-		const response = await api.post('/properties/', propertyData);
+		// Make a deep copy to avoid modifying the original
+		const dataToSend = JSON.parse(JSON.stringify(propertyData));
 
-		// Refresh properties list
-		fetchProperties();
+		// Format data if needed
+		if (dataToSend.rooms && Array.isArray(dataToSend.rooms)) {
+			// Ensure rooms are properly formatted
+			dataToSend.rooms = dataToSend.rooms.map((room) => ({
+				name: room.name,
+				type: room.type,
+				floor: room.floor,
+				size: room.size ? parseFloat(room.size) : null,
+				features: room.features || []
+			}));
+		}
 
-		return { success: true, data: response.data };
+		const response = await api.post('/properties/', dataToSend);
+
+		if (response.data) {
+			addToast('Property created successfully', 'success');
+			return { success: true, data: response.data };
+		}
+
+		throw new Error('Failed to create property');
 	} catch (error) {
+		console.error('Error creating property:', error);
 		propertyError.set(error.message);
+		addToast(error.message || 'Failed to create property', 'error');
 		return { success: false, error: error.message };
 	} finally {
 		loadingProperties.set(false);
@@ -72,50 +108,49 @@ export async function createProperty(propertyData) {
 }
 
 export async function updateProperty(slug, propertyData) {
-	loadingProperties.set(true);
-	propertyError.set(null);
-
-	try {
-		const response = await api.patch(`/properties/${slug}/`, propertyData);
-
-		// Update current property if it matches
-		currentProperty.update((prop) => {
-			if (prop && prop.slug === slug) {
-				return response.data;
-			}
-			return prop;
-		});
-
-		return { success: true, data: response.data };
-	} catch (error) {
-		propertyError.set(error.message);
-		return { success: false, error: error.message };
-	} finally {
-		loadingProperties.set(false);
+	if (!slug) {
+		return { success: false, error: 'Invalid property ID' };
 	}
-}
 
-export async function deleteProperty(slug) {
 	loadingProperties.set(true);
 	propertyError.set(null);
 
 	try {
-		await api.delete(`/properties/${slug}/`);
+		// Make a deep copy to avoid modifying the original
+		const dataToSend = JSON.parse(JSON.stringify(propertyData));
 
-		// Remove from store
-		properties.update((props) => props.filter((p) => p.slug !== slug));
+		// Format data if needed
+		if (dataToSend.rooms && Array.isArray(dataToSend.rooms)) {
+			// Ensure rooms are properly formatted
+			dataToSend.rooms = dataToSend.rooms.map((room) => ({
+				name: room.name,
+				type: room.type,
+				floor: room.floor,
+				size: room.size ? parseFloat(room.size) : null,
+				features: room.features || []
+			}));
+		}
 
-		// If current property is deleted, reset
-		currentProperty.update((prop) => {
-			if (prop && prop.slug === slug) {
-				return null;
-			}
-			return prop;
-		});
+		const response = await api.patch(`/properties/${slug}/`, dataToSend);
 
-		return { success: true };
+		if (response.data) {
+			// Update current property if it matches
+			currentProperty.update((prop) => {
+				if (prop && prop.slug === slug) {
+					return response.data;
+				}
+				return prop;
+			});
+
+			addToast('Property updated successfully', 'success');
+			return { success: true, data: response.data };
+		}
+
+		throw new Error('Failed to update property');
 	} catch (error) {
+		console.error('Error updating property:', error);
 		propertyError.set(error.message);
+		addToast(error.message || 'Failed to update property', 'error');
 		return { success: false, error: error.message };
 	} finally {
 		loadingProperties.set(false);

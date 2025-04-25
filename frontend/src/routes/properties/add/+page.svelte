@@ -4,6 +4,7 @@
 	import { createProperty } from '$lib/stores/properties';
 	import { goto } from '$app/navigation';
 	import { addToast } from '$lib/stores/ui';
+	import RoomEditor from '$lib/components/property/RoomEditor.svelte';
 
 	let property = {
 		title: '',
@@ -20,6 +21,7 @@
 		country: 'المملكة العربية السعودية',
 		market_value: '',
 		features: [],
+		rooms: [], // Add rooms array
 		location: {
 			latitude: null,
 			longitude: null
@@ -31,7 +33,7 @@
 	let loading = false;
 	let error = '';
 	let currentStep = 1;
-	let totalSteps = 3;
+	let totalSteps = 4; // Add one more step for rooms
 
 	let map = null;
 	let marker = null;
@@ -211,6 +213,11 @@
 		uploadedImages = uploadedImages.filter((_, i) => i !== index);
 	}
 
+	// Handle room updates from RoomEditor
+	function handleRoomUpdate(event) {
+		property.rooms = event.detail.rooms;
+	}
+
 	async function handleSubmit() {
 		loading = true;
 		error = '';
@@ -220,6 +227,7 @@
 			const propertyData = {
 				...property,
 				features: property.features.length ? property.features : undefined,
+				rooms: property.rooms.length ? property.rooms : undefined, // Include rooms data
 				market_value: property.market_value ? Number(property.market_value) : undefined,
 				size_sqm: property.size_sqm ? Number(property.size_sqm) : undefined,
 				bedrooms: property.bedrooms ? Number(property.bedrooms) : undefined,
@@ -310,11 +318,28 @@
 					<div
 						class={`flex h-10 w-10 items-center justify-center rounded-full ${currentStep >= 3 ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-600'}`}
 					>
+						<i class="fas fa-door-open"></i>
+					</div>
+					<div class="absolute -bottom-6 w-max" style="right: -40px">
+						<span
+							class={`text-sm ${currentStep === 3 ? 'font-medium text-blue-600' : 'text-slate-500'}`}
+						>
+							الغرف والمرافق
+						</span>
+					</div>
+				</div>
+
+				<div class={`mx-2 h-1 flex-1 ${currentStep >= 4 ? 'bg-blue-600' : 'bg-slate-300'}`}></div>
+
+				<div class="relative flex items-center">
+					<div
+						class={`flex h-10 w-10 items-center justify-center rounded-full ${currentStep >= 4 ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-600'}`}
+					>
 						<i class="fas fa-images"></i>
 					</div>
 					<div class="absolute -bottom-6 w-max" style="right: -30px">
 						<span
-							class={`text-sm ${currentStep === 3 ? 'font-medium text-blue-600' : 'text-slate-500'}`}
+							class={`text-sm ${currentStep === 4 ? 'font-medium text-blue-600' : 'text-slate-500'}`}
 						>
 							الصور والمميزات
 						</span>
@@ -554,6 +579,17 @@
 						</div>
 					</div>
 				{:else if currentStep === 3}
+					<!-- Room Editor Step -->
+					<div class="space-y-4">
+						<h3 class="text-lg font-semibold text-slate-900">إدارة الغرف والمرافق</h3>
+						<p class="text-sm text-slate-600">
+							أضف الغرف والمرافق الموجودة في العقار مع تفاصيلها المختلفة
+						</p>
+
+						<!-- Room Editor Component -->
+						<RoomEditor rooms={property.rooms} on:update={handleRoomUpdate} />
+					</div>
+				{:else if currentStep === 4}
 					<div class="space-y-6">
 						<div>
 							<label class="mb-1 block text-sm font-medium text-slate-700">صور العقار</label>

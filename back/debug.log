@@ -4604,3 +4604,72 @@ INFO 2025-04-25 18:35:47,793 basehttp 18604 124709628802752 "GET /api/properties
 INFO 2025-04-25 18:48:33,084 autoreload 11381 129994107723904 Watching for file changes with StatReloader
 INFO 2025-04-25 18:50:55,510 basehttp 11381 129993942234816 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 200 0
 INFO 2025-04-25 18:50:59,908 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 200 1389
+INFO 2025-04-25 18:56:18,223 basehttp 11381 129993942234816 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+WARNING 2025-04-25 18:56:18,231 log 11381 129993942234816 Unauthorized: /api/accounts/login/
+WARNING 2025-04-25 18:56:18,232 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-25 18:56:21,293 log 11381 129993942234816 Unauthorized: /api/accounts/login/
+WARNING 2025-04-25 18:56:21,294 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-25 18:56:35,972 log 11381 129993942234816 Unauthorized: /api/accounts/login/
+WARNING 2025-04-25 18:56:35,972 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-25 18:56:43,059 log 11381 129993942234816 Unauthorized: /api/properties/
+WARNING 2025-04-25 18:56:43,060 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 401 183
+WARNING 2025-04-25 18:56:44,739 log 11381 129993942234816 Unauthorized: /api/properties/
+WARNING 2025-04-25 18:56:44,740 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 401 183
+INFO 2025-04-25 18:56:48,089 basehttp 11381 129993942234816 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-25 18:56:48,093 log 11381 129993942234816 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-25 18:56:48,093 basehttp 11381 129993942234816 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-25 18:56:50,337 middleware 11381 129993942234816 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-25 18:56:50,457 views 11381 129993942234816 Successful login for user: rings9619@gmail.com
+INFO 2025-04-25 18:56:50,460 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-25 18:56:51,825 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=-created_at HTTP/1.1" 200 1389
+INFO 2025-04-25 18:56:58,496 middleware 11381 129993942234816 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-25 18:56:58,591 views 11381 129993942234816 Successful login for user: rings9619@gmail.com
+INFO 2025-04-25 18:56:58,598 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-25 19:12:04,714 middleware 11381 129993942234816 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-25 19:12:04,784 views 11381 129993942234816 Successful login for user: rings9619@gmail.com
+INFO 2025-04-25 19:12:04,787 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-26 00:53:42,809 log 11381 129993942234816 Unauthorized: /api/accounts/login/
+WARNING 2025-04-26 00:53:42,810 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-26 00:53:46,859 log 11381 129993942234816 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-26 00:53:46,879 basehttp 11381 129993942234816 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-26 00:53:51,944 middleware 11381 129993942234816 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 00:53:52,035 views 11381 129993942234816 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 00:53:52,037 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 00:54:15,180 basehttp 11381 129993923360448 "GET /media/users/73d10b69-2f8e-4b5f-be8e-07a14a48f9b2/avatars/20250424124603_profile.png HTTP/1.1" 304 0
+INFO 2025-04-26 00:55:12,140 views 11381 129993942234816 User rings9619@gmail.com logged out successfully
+INFO 2025-04-26 00:55:12,141 basehttp 11381 129993942234816 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-26 00:55:16,787 middleware 11381 129993942234816 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 00:55:16,863 views 11381 129993942234816 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 00:55:16,865 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 00:55:43,420 views 11381 129993942234816 User rings9619@gmail.com logged out successfully
+INFO 2025-04-26 00:55:43,421 basehttp 11381 129993942234816 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-26 00:55:46,026 middleware 11381 129993942234816 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 00:55:46,121 views 11381 129993942234816 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 00:55:46,124 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 00:59:10,418 basehttp 11381 129993942234816 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 0
+INFO 2025-04-26 00:59:10,526 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 00:59:10,666 basehttp 11381 129993923360448 "GET /media/generic_media/2025/04/24/d.jpeg HTTP/1.1" 304 0
+INFO 2025-04-26 00:59:51,303 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:00:17,953 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:01:20,195 views 11381 129993942234816 User rings9619@gmail.com logged out successfully
+INFO 2025-04-26 01:01:20,196 basehttp 11381 129993942234816 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-26 01:01:24,261 middleware 11381 129993942234816 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 01:01:24,338 views 11381 129993942234816 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 01:01:24,342 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 01:01:26,311 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:01:51,510 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:02:04,986 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:02:21,637 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:03:10,009 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:05:33,250 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:06:58,580 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:07:22,936 basehttp 11381 129993942234816 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_low HTTP/1.1" 200 0
+INFO 2025-04-26 01:07:22,959 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_low HTTP/1.1" 200 1389
+INFO 2025-04-26 01:07:25,332 basehttp 11381 129993942234816 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_high HTTP/1.1" 200 0
+INFO 2025-04-26 01:07:25,355 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_high HTTP/1.1" 200 1389
+INFO 2025-04-26 01:07:32,288 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:09:30,328 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:12:32,058 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:13:26,597 middleware 11381 129993942234816 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 01:13:26,682 views 11381 129993942234816 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 01:13:26,684 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 200 1186

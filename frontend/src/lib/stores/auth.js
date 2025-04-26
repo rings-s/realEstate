@@ -5,17 +5,18 @@ import { goto } from '$app/navigation';
 import api from '$lib/services/api';
 import { addToast } from '$lib/stores/ui';
 
-// Initialize stores with localStorage values if in browser
+// Base stores
 export const token = writable((browser && localStorage.getItem('token')) || null);
 export const refreshToken = writable((browser && localStorage.getItem('refreshToken')) || null);
 export const user = writable(browser && JSON.parse(localStorage.getItem('user') || 'null'));
 
-// Derived store for verification status
+// Derived stores
 export const isAuthenticated = derived(token, ($token) => !!$token);
 export const isVerified = derived(user, ($user) => !!$user?.is_verified);
 export const isAdmin = derived(user, ($user) => !!$user?.is_staff);
+export const userRoles = derived(user, ($user) => $user?.roles || []);
 
-// Persist store changes to localStorage
+// Local storage persistence
 if (browser) {
 	token.subscribe((value) => {
 		if (value) localStorage.setItem('token', value);
@@ -34,7 +35,76 @@ if (browser) {
 }
 
 /**
- * Register a new user
+ * Permission checking
+ */
+export function hasPermission(permission) {
+	const currentUser = get(user);
+	if (!currentUser) return false;
+
+	// Admin has all permissions
+	if (currentUser.is_staff) return true;
+
+	// Check specific permissions
+	switch (permission) {
+		case 'create_property':
+			return (
+				currentUser.is_verified &&
+				(currentUser.roles?.includes('seller') || currentUser.roles?.includes('agent'))
+			);
+
+		case 'edit_property':
+			return (
+				currentUser.is_verified &&
+				(currentUser.roles?.includes('seller') || currentUser.roles?.includes('agent'))
+			);
+
+		case 'delete_property':
+			return currentUser.is_staff || currentUser.roles?.includes('admin');
+
+		case 'manage_properties':
+			return (
+				currentUser.is_staff ||
+				currentUser.roles?.includes('admin') ||
+				currentUser.roles?.includes('agent')
+			);
+
+		case 'create_auction':
+			return (
+				currentUser.is_verified &&
+				(currentUser.roles?.includes('seller') || currentUser.roles?.includes('agent'))
+			);
+
+		case 'place_bid':
+			return currentUser.is_verified && currentUser.roles?.includes('bidder');
+
+		case 'manage_users':
+			return currentUser.is_staff || currentUser.roles?.includes('admin');
+
+		case 'verify_documents':
+			return (
+				currentUser.is_staff ||
+				currentUser.roles?.includes('admin') ||
+				currentUser.roles?.includes('legal')
+			);
+
+		default:
+			return false;
+	}
+}
+
+/**
+ * Role checking
+ */
+export function hasRole(role) {
+	const currentUser = get(user);
+	if (!currentUser) return false;
+
+	if (currentUser.is_staff) return true;
+	return currentUser.roles?.includes(role) || false;
+}
+
+/**
+ * Authentication functions
  */
 export async function register(userData) {
 	try {
@@ -45,9 +115,6 @@ export async function register(userData) {
 	}
 }
 
-/**
- * Verify email with verification code
- */
 export async function verifyEmail(email, verification_code) {
 	try {
 		const response = await api.post('/accounts/verify-email/', { email, verification_code });
@@ -65,9 +132,6 @@ export async function verifyEmail(email, verification_code) {
 	}
 }
 
-/**
- * Login user with email and password
- */
 export async function login(email, password) {
 	try {
 		const response = await api.post('/accounts/login/', { email, password });
@@ -85,50 +149,37 @@ export async function login(email, password) {
 	}
 }
 
-/**
- * Logout user and clear credentials
- */
 export async function logout() {
 	try {
 		const currentRefreshToken = get(refreshToken);
-
 		if (currentRefreshToken) {
 			try {
-				// Try to blacklist the token on server
 				await api.post('/accounts/logout/', { refresh: currentRefreshToken });
 			} catch (err) {
 				console.error('Server logout error:', err);
-				// Continue with client-side logout even if server logout fails
 			}
 		}
 	} catch (error) {
 		console.error('Error during logout:', error);
 	} finally {
-		// Always clear stores regardless of server response
 		token.set(null);
 		refreshToken.set(null);
 		user.set(null);
-
-		// Navigate to login page
-		if (browser) {
-			goto('/login');
-		}
+		if (browser) goto('/login');
 	}
 }
 
 /**
- * Request a password reset code
+ * Password management
  */
 export async function resetPasswordRequest(email) {
 	try {
-		// Use the correct API endpoint from your backend urls.py
 		const response = await api.post('/accounts/password/reset/request/', { email });
 		return {
 			success: true,
 			message: response.message || 'تم إرسال رمز إعادة التعيين إلى بريدك الإلكتروني'
 		};
 	} catch (error) {
-		// Show a user-friendly error but log the actual error
 		console.error('Password reset request error:', error);
 		return {
 			success: false,
@@ -137,9 +188,6 @@ export async function resetPasswordRequest(email) {
 	}
 }
 
-/**
- * Verify a password reset code
- */
 export async function verifyResetCode(email, reset_code) {
 	try {
 		const response = await api.post('/accounts/password/reset/verify/', { email, reset_code });
@@ -149,9 +197,6 @@ export async function verifyResetCode(email, reset_code) {
 	}
 }
 
-/**
- * Reset password with code
- */
 export async function resetPassword(email, reset_code, new_password, confirm_password) {
 	try {
 		const response = await api.post('/accounts/password/reset/confirm/', {
@@ -173,9 +218,6 @@ export async function resetPassword(email, reset_code, new_password, confirm_pas
 	}
 }
 
-/**
- * Change password for authenticated user
- */
 export async function changePassword(current_password, new_password, confirm_password) {
 	try {
 		const response = await api.post('/accounts/password/change/', {
@@ -196,7 +238,7 @@ export async function changePassword(current_password, new_password, confirm_pas
 }
 
 /**
- * Fetch current user profile
+ * Profile management
  */
 export async function fetchUserProfile() {
 	try {
@@ -211,8 +253,7 @@ export async function fetchUserProfile() {
 	} catch (error) {
 		console.error('Error fetching user profile:', error);
 
-		// If unauthorized, clear token and user
-		if (error.message && error.message.includes('401')) {
+		if (error.message?.includes('401')) {
 			token.set(null);
 			user.set(null);
 			refreshToken.set(null);
@@ -227,9 +268,6 @@ export async function fetchUserProfile() {
 	}
 }
 
-/**
- * Update user profile
- */
 export async function updateUserProfile(profileData) {
 	try {
 		const response = await api.patch('/accounts/profile/', profileData);
@@ -245,9 +283,6 @@ export async function updateUserProfile(profileData) {
 	}
 }
 
-/**
- * Update user avatar
- */
 export async function updateAvatar(formData) {
 	try {
 		const response = await api.uploadFile('/accounts/profile/avatar/', formData);
@@ -263,9 +298,6 @@ export async function updateAvatar(formData) {
 	}
 }
 
-/**
- * Resend verification email
- */
 export async function resendVerification(email) {
 	try {
 		const response = await api.post('/accounts/resend-verification/', { email });
@@ -275,6 +307,7 @@ export async function resendVerification(email) {
 	}
 }
 
+// Export all functions and stores
 export default {
 	token,
 	refreshToken,
@@ -282,6 +315,9 @@ export default {
 	isAuthenticated,
 	isVerified,
 	isAdmin,
+	userRoles,
+	hasPermission,
+	hasRole,
 	register,
 	verifyEmail,
 	login,

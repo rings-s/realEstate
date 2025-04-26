@@ -72,7 +72,7 @@
 	/>
 </svelte:head>
 
-<div class="flex min-h-screen flex-col bg-slate-50" dir="rtl">
+<div class="flex min-h-screen flex-col" dir="rtl">
 	<!-- Header -->
 	<header class="relative z-30 bg-white shadow-sm">
 		<div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">

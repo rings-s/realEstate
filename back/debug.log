@@ -4673,3 +4673,248 @@ INFO 2025-04-26 01:12:32,058 basehttp 11381 129993942234816 "GET /api/properties
 INFO 2025-04-26 01:13:26,597 middleware 11381 129993942234816 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
 INFO 2025-04-26 01:13:26,682 views 11381 129993942234816 Successful login for user: rings9619@gmail.com
 INFO 2025-04-26 01:13:26,684 basehttp 11381 129993942234816 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 01:15:17,221 basehttp 11381 129993942234816 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 01:15:19,410 basehttp 11381 129993942234816 "OPTIONS /api/properties/property/ HTTP/1.1" 200 0
+ERROR 2025-04-26 01:15:19,668 log 11381 129993942234816 Internal Server Error: /api/properties/property/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 212, in get
+    return self.retrieve(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/decorators.py", line 230, in _wrapped_view
+    result = view_func(request, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 166, in retrieve
+    instance.save(update_fields=['view_count'])
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py", line 623, in save
+    super().save(*args, **kwargs)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 871, in save
+    raise ValueError(
+ValueError: The following fields do not exist in this model, are m2m fields, or are non-concrete fields: view_count
+ERROR 2025-04-26 01:15:19,675 basehttp 11381 129993942234816 "GET /api/properties/property/ HTTP/1.1" 500 123460
+ERROR 2025-04-26 01:20:18,170 log 11381 129993942234816 Internal Server Error: /api/properties/property/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 212, in get
+    return self.retrieve(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/decorators.py", line 230, in _wrapped_view
+    result = view_func(request, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 166, in retrieve
+    instance.save(update_fields=['view_count'])
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py", line 623, in save
+    super().save(*args, **kwargs)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 871, in save
+    raise ValueError(
+ValueError: The following fields do not exist in this model, are m2m fields, or are non-concrete fields: view_count
+ERROR 2025-04-26 01:20:18,172 basehttp 11381 129993942234816 "GET /api/properties/property/ HTTP/1.1" 500 123461
+ERROR 2025-04-26 01:20:20,233 log 11381 129993942234816 Internal Server Error: /api/properties/property/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 212, in get
+    return self.retrieve(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/decorators.py", line 230, in _wrapped_view
+    result = view_func(request, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 166, in retrieve
+    instance.save(update_fields=['view_count'])
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py", line 623, in save
+    super().save(*args, **kwargs)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 871, in save
+    raise ValueError(
+ValueError: The following fields do not exist in this model, are m2m fields, or are non-concrete fields: view_count
+ERROR 2025-04-26 01:20:20,234 basehttp 11381 129993942234816 "GET /api/properties/property/ HTTP/1.1" 500 123461
+ERROR 2025-04-26 01:20:20,908 log 11381 129993942234816 Internal Server Error: /api/properties/property/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 212, in get
+    return self.retrieve(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/decorators.py", line 230, in _wrapped_view
+    result = view_func(request, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 166, in retrieve
+    instance.save(update_fields=['view_count'])
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py", line 623, in save
+    super().save(*args, **kwargs)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 871, in save
+    raise ValueError(
+ValueError: The following fields do not exist in this model, are m2m fields, or are non-concrete fields: view_count
+ERROR 2025-04-26 01:20:20,911 basehttp 11381 129993942234816 "GET /api/properties/property/ HTTP/1.1" 500 123461
+ERROR 2025-04-26 01:20:21,983 log 11381 129993942234816 Internal Server Error: /api/properties/property/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 212, in get
+    return self.retrieve(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/decorators.py", line 230, in _wrapped_view
+    result = view_func(request, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 166, in retrieve
+    instance.save(update_fields=['view_count'])
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py", line 623, in save
+    super().save(*args, **kwargs)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 871, in save
+    raise ValueError(
+ValueError: The following fields do not exist in this model, are m2m fields, or are non-concrete fields: view_count
+ERROR 2025-04-26 01:20:21,985 basehttp 11381 129993942234816 "GET /api/properties/property/ HTTP/1.1" 500 123461
+ERROR 2025-04-26 01:20:25,173 log 11381 129993942234816 Internal Server Error: /api/properties/property/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 212, in get
+    return self.retrieve(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/decorators.py", line 230, in _wrapped_view
+    result = view_func(request, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 166, in retrieve
+    instance.save(update_fields=['view_count'])
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py", line 623, in save
+    super().save(*args, **kwargs)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 871, in save
+    raise ValueError(
+ValueError: The following fields do not exist in this model, are m2m fields, or are non-concrete fields: view_count
+ERROR 2025-04-26 01:20:25,175 basehttp 11381 129993942234816 "GET /api/properties/property/ HTTP/1.1" 500 123461
+INFO 2025-04-26 07:30:14,720 basehttp 11381 129993942234816 "GET /media/users/73d10b69-2f8e-4b5f-be8e-07a14a48f9b2/avatars/20250424124603_profile.png HTTP/1.1" 304 0
+WARNING 2025-04-26 07:30:14,727 log 11381 129993923360448 Unauthorized: /api/properties/
+WARNING 2025-04-26 07:30:14,727 basehttp 11381 129993923360448 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 07:30:28,948 log 11381 129993923360448 Unauthorized: /api/properties/property/
+WARNING 2025-04-26 07:30:28,949 basehttp 11381 129993923360448 "GET /api/properties/property/ HTTP/1.1" 401 183
+WARNING 2025-04-26 07:30:29,751 log 11381 129993923360448 Unauthorized: /api/properties/
+WARNING 2025-04-26 07:30:29,751 basehttp 11381 129993923360448 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 07:30:32,377 log 11381 129993923360448 Unauthorized: /api/properties/
+WARNING 2025-04-26 07:30:32,377 basehttp 11381 129993923360448 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 07:30:33,888 log 11381 129993923360448 Unauthorized: /api/properties/
+WARNING 2025-04-26 07:30:33,888 basehttp 11381 129993923360448 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 07:30:34,382 log 11381 129993923360448 Unauthorized: /api/properties/
+WARNING 2025-04-26 07:30:34,382 basehttp 11381 129993923360448 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 07:30:34,631 log 11381 129993923360448 Unauthorized: /api/properties/
+WARNING 2025-04-26 07:30:34,632 basehttp 11381 129993923360448 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183

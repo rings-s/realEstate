@@ -394,6 +394,7 @@ class Property(models.Model):
     title = models.CharField(_('العنوان'), max_length=255)
     property_type = models.CharField(_('نوع العقار'), max_length=20, choices=PROPERTY_TYPES)
     status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='available')
+    view_count = models.PositiveIntegerField(_('عدد المشاهدات'), default=0)
 
     deed_number = models.CharField(
         _('رقم الصك'),

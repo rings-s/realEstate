@@ -5029,3 +5029,336 @@ INFO 2025-04-26 10:17:17,714 basehttp 13332 131457349580480 "POST /api/accounts/
 INFO 2025-04-26 10:17:52,426 middleware 13332 131457349580480 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
 INFO 2025-04-26 10:17:52,495 views 13332 131457349580480 Successful login for user: rings9619@gmail.com
 INFO 2025-04-26 10:17:52,500 basehttp 13332 131457349580480 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 12:50:27,491 autoreload 7598 127902415876224 Watching for file changes with StatReloader
+INFO 2025-04-26 12:52:28,560 basehttp 7598 127902247024320 "GET /media/users/73d10b69-2f8e-4b5f-be8e-07a14a48f9b2/avatars/20250424124603_profile.png HTTP/1.1" 304 0
+INFO 2025-04-26 12:58:31,539 basehttp 7598 127902247024320 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-26 12:58:32,392 log 7598 127902247024320 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-26 12:58:32,393 basehttp 7598 127902247024320 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-26 12:59:38,096 basehttp 7598 127902247024320 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-26 12:59:39,036 middleware 7598 127902247024320 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 12:59:39,146 views 7598 127902247024320 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 12:59:39,206 basehttp 7598 127902247024320 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 12:59:40,945 basehttp 7598 127902247024320 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 0
+INFO 2025-04-26 12:59:40,975 basehttp 7598 127902247024320 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 12:59:41,138 basehttp 7598 127902228149952 "GET /media/generic_media/2025/04/24/d.jpeg HTTP/1.1" 304 0
+INFO 2025-04-26 12:59:42,874 basehttp 7598 127902247024320 "OPTIONS /api/properties/property/ HTTP/1.1" 200 0
+ERROR 2025-04-26 12:59:43,361 log 7598 127902247024320 Internal Server Error: /api/properties/property/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 212, in get
+    return self.retrieve(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/decorators.py", line 230, in _wrapped_view
+    result = view_func(request, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 166, in retrieve
+    instance.save(update_fields=['view_count'])
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py", line 623, in save
+    super().save(*args, **kwargs)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 871, in save
+    raise ValueError(
+ValueError: The following fields do not exist in this model, are m2m fields, or are non-concrete fields: view_count
+ERROR 2025-04-26 12:59:43,364 basehttp 7598 127902247024320 "GET /api/properties/property/ HTTP/1.1" 500 123450
+INFO 2025-04-26 13:02:00,253 autoreload 7598 127902415876224 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py changed, reloading.
+INFO 2025-04-26 13:02:11,625 autoreload 9550 124720152875136 Watching for file changes with StatReloader
+ERROR 2025-04-26 13:02:48,898 log 9550 124719986636480 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: base_property.view_count
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 84, in list
+    page = self.paginate_queryset(queryset)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 175, in paginate_queryset
+    return self.paginator.paginate_queryset(queryset, self.request, view=self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/pagination.py", line 222, in paginate_queryset
+    return list(self.page)
+           ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/paginator.py", line 191, in __len__
+    return len(self.object_list)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 382, in __len__
+    self._fetch_all()
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 1928, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 91, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1574, in execute_sql
+    cursor.execute(sql, params)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: no such column: base_property.view_count
+ERROR 2025-04-26 13:02:48,903 basehttp 9550 124719986636480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 500 204945
+ERROR 2025-04-26 13:02:51,670 log 9550 124719986636480 Internal Server Error: /api/properties/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: no such column: base_property.view_count
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 243, in get
+    return self.list(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 84, in list
+    page = self.paginate_queryset(queryset)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 175, in paginate_queryset
+    return self.paginator.paginate_queryset(queryset, self.request, view=self)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/pagination.py", line 222, in paginate_queryset
+    return list(self.page)
+           ^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/paginator.py", line 191, in __len__
+    return len(self.object_list)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 382, in __len__
+    self._fetch_all()
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 1928, in _fetch_all
+    self._result_cache = list(self._iterable_class(self))
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 91, in __iter__
+    results = compiler.execute_sql(
+              ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1574, in execute_sql
+    cursor.execute(sql, params)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: no such column: base_property.view_count
+ERROR 2025-04-26 13:02:51,673 basehttp 9550 124719986636480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 500 204945
+INFO 2025-04-26 13:03:32,033 autoreload 9662 130592707178624 Watching for file changes with StatReloader
+INFO 2025-04-26 13:13:21,255 autoreload 10898 132508187058304 Watching for file changes with StatReloader
+INFO 2025-04-26 13:13:27,301 middleware 10898 132508020635328 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 13:13:27,422 views 10898 132508020635328 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 13:13:27,426 basehttp 10898 132508020635328 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 13:13:30,793 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:13:32,929 basehttp 10898 132508020635328 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 13:13:50,510 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:13:52,733 basehttp 10898 132508020635328 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 13:13:59,614 basehttp 10898 132508020635328 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 13:14:51,919 basehttp 10898 132508020635328 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 13:15:11,699 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:19:11,323 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:21:28,310 basehttp 10898 132508020635328 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_low HTTP/1.1" 200 0
+INFO 2025-04-26 13:21:28,408 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_low HTTP/1.1" 200 1389
+INFO 2025-04-26 13:21:30,067 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:21:32,198 basehttp 10898 132508020635328 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 13:21:34,727 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:21:37,683 basehttp 10898 132508020635328 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 13:21:39,808 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:23:14,529 views 10898 132508020635328 User rings9619@gmail.com logged out successfully
+INFO 2025-04-26 13:23:14,530 basehttp 10898 132508020635328 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-26 13:23:22,777 middleware 10898 132508020635328 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 13:23:22,880 views 10898 132508020635328 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 13:23:22,883 basehttp 10898 132508020635328 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 13:23:29,994 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:23:32,434 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:23:41,698 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:26:21,266 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:31:42,286 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 13:31:47,030 basehttp 10898 132508020635328 "GET /api/properties/property/ HTTP/1.1" 200 1337
+WARNING 2025-04-26 17:32:03,452 log 10898 132508020635328 Unauthorized: /api/properties/property/
+WARNING 2025-04-26 17:32:03,453 basehttp 10898 132508020635328 "GET /api/properties/property/ HTTP/1.1" 401 183
+WARNING 2025-04-26 17:32:43,607 log 10898 132508020635328 Unauthorized: /api/properties/property/
+WARNING 2025-04-26 17:32:43,610 basehttp 10898 132508020635328 "GET /api/properties/property/ HTTP/1.1" 401 183
+WARNING 2025-04-26 17:32:46,190 log 10898 132508020635328 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:32:46,190 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 17:32:49,560 log 10898 132508020635328 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:32:49,561 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 17:34:43,121 log 10898 132508020635328 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:34:43,122 basehttp 10898 132508020635328 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-26 17:49:57,251 basehttp 10898 132508020635328 "GET /media/users/73d10b69-2f8e-4b5f-be8e-07a14a48f9b2/avatars/20250424124603_profile.png HTTP/1.1" 304 0
+WARNING 2025-04-26 17:49:59,678 log 10898 132507928360640 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:49:59,679 basehttp 10898 132507928360640 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 17:50:14,800 log 10898 132507928360640 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:50:14,802 basehttp 10898 132507928360640 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 17:53:06,180 log 10898 132507928360640 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:53:06,181 basehttp 10898 132507928360640 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-26 17:54:18,850 autoreload 17412 123233592516736 Watching for file changes with StatReloader
+INFO 2025-04-26 17:54:50,162 autoreload 17469 128994748641408 Watching for file changes with StatReloader
+WARNING 2025-04-26 17:54:59,771 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:54:59,772 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 17:55:01,071 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:55:01,071 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 17:55:02,749 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:55:02,750 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 17:55:04,042 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:55:04,043 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 17:56:59,940 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:56:59,942 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 17:57:40,116 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:57:40,120 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 17:59:33,372 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 17:59:33,373 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 18:04:07,114 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 18:04:07,175 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 18:04:08,272 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 18:04:08,274 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 18:04:11,483 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 18:04:11,483 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_low HTTP/1.1" 401 183
+WARNING 2025-04-26 18:04:12,667 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 18:04:12,668 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 18:09:17,251 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 18:09:17,254 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 18:09:17,517 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 18:09:17,520 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 18:09:54,013 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 18:09:54,013 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-26 19:25:57,788 basehttp 17469 128994578003648 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 0
+WARNING 2025-04-26 19:25:57,797 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 19:25:57,798 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-26 19:26:05,936 basehttp 17469 128994578003648 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+WARNING 2025-04-26 19:26:05,948 log 17469 128994578003648 Unauthorized: /api/accounts/login/
+WARNING 2025-04-26 19:26:05,949 basehttp 17469 128994578003648 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-26 19:26:26,334 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 19:26:26,335 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-26 19:26:42,411 basehttp 17469 128994578003648 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_low HTTP/1.1" 200 0
+WARNING 2025-04-26 19:26:42,417 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 19:26:42,419 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_low HTTP/1.1" 401 183
+INFO 2025-04-26 19:26:43,635 basehttp 17469 128994578003648 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_high HTTP/1.1" 200 0
+WARNING 2025-04-26 19:26:43,641 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 19:26:43,642 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_high HTTP/1.1" 401 183
+WARNING 2025-04-26 19:26:45,004 log 17469 128994578003648 Unauthorized: /api/properties/
+WARNING 2025-04-26 19:26:45,005 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-26 19:33:21,857 basehttp 17469 128994578003648 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-26 19:33:21,862 log 17469 128994578003648 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-26 19:33:21,862 basehttp 17469 128994578003648 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-26 19:34:56,668 middleware 17469 128994578003648 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 19:34:56,771 views 17469 128994578003648 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 19:34:56,787 basehttp 17469 128994578003648 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 19:35:12,303 views 17469 128994578003648 User rings9619@gmail.com logged out successfully
+INFO 2025-04-26 19:35:12,304 basehttp 17469 128994578003648 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-26 19:36:00,531 middleware 17469 128994578003648 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 19:36:00,620 views 17469 128994578003648 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 19:36:00,623 basehttp 17469 128994578003648 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 19:36:05,914 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 19:36:05,937 basehttp 17469 128994559129280 "GET /media/generic_media/2025/04/24/d.jpeg HTTP/1.1" 304 0
+INFO 2025-04-26 19:36:11,671 basehttp 17469 128994578003648 "OPTIONS /api/properties/property/ HTTP/1.1" 200 0
+INFO 2025-04-26 19:36:11,805 basehttp 17469 128994578003648 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 19:36:14,915 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 19:38:44,185 middleware 17469 128994578003648 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 19:38:44,270 views 17469 128994578003648 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 19:38:44,273 basehttp 17469 128994578003648 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 19:39:56,119 views 17469 128994578003648 User rings9619@gmail.com logged out successfully
+INFO 2025-04-26 19:39:56,120 basehttp 17469 128994578003648 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-26 19:40:18,433 middleware 17469 128994578003648 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 19:40:18,535 views 17469 128994578003648 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 19:40:18,538 basehttp 17469 128994578003648 "POST /api/accounts/login/ HTTP/1.1" 200 1186

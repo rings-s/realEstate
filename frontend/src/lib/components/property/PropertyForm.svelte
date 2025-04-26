@@ -125,26 +125,57 @@
 
 	// Form Submission
 	async function handleSubmit() {
-		// Validate all steps before submission
-		let allValid = true;
-		for (let step = 1; step <= totalSteps; step++) {
-			if (!validateStep(step)) {
-				allValid = false;
-				break;
-			}
+		if (!validateForm()) return;
+
+		loading = true;
+		try {
+			const formData = new FormData();
+
+			// Append basic property data
+			Object.keys(propertyData).forEach((key) => {
+				if (key !== 'images') {
+					formData.append(key, propertyData[key]);
+				}
+			});
+
+			// Append images
+			uploadedImages.forEach((image, index) => {
+				formData.append(`images[${index}]`, image.file);
+			});
+
+			const response = await fetch('/api/properties/', {
+				method: 'POST',
+				body: formData,
+				headers: {
+					Authorization: `Bearer ${token}`
+				}
+			});
+
+			if (!response.ok) throw new Error('Failed to create property');
+
+			addToast('Property created successfully', 'success');
+			goto('/properties');
+		} catch (error) {
+			addToast(error.message, 'error');
+		} finally {
+			loading = false;
+		}
+	}
+	function validateForm() {
+		const errors = [];
+
+		if (!propertyData.title) errors.push('Title is required');
+		if (!propertyData.property_type) errors.push('Property type is required');
+		if (!propertyData.address) errors.push('Address is required');
+		if (!propertyData.city) errors.push('City is required');
+		if (uploadedImages.length === 0) errors.push('At least one image is required');
+
+		if (errors.length > 0) {
+			errors.forEach((error) => addToast(error, 'error'));
+			return false;
 		}
 
-		if (!allValid) {
-			addToast('يرجى إكمال جميع البيانات المطلوبة', 'error');
-			return;
-		}
-
-		const finalData = {
-			...formData,
-			media: uploadedImages.map((img) => img.file)
-		};
-
-		dispatch('submit', finalData);
+		return true;
 	}
 
 	// Features Management
@@ -160,35 +191,49 @@
 	}
 
 	// Image Management
-	function handleImageUpload(event) {
+	async function handleImageUpload(event) {
 		const files = Array.from(event.target.files);
 
-		files.forEach((file) => {
+		for (const file of files) {
 			// Validate file size (5MB max)
 			if (file.size > 5 * 1024 * 1024) {
-				addToast(`الملف ${file.name} أكبر من 5 ميجابايت`, 'error');
-				return;
+				addToast(`File ${file.name} is larger than 5MB`, 'error');
+				continue;
 			}
 
 			// Validate file type
 			if (!file.type.startsWith('image/')) {
-				addToast(`الملف ${file.name} ليس صورة`, 'error');
-				return;
+				addToast(`File ${file.name} is not an image`, 'error');
+				continue;
 			}
 
-			const reader = new FileReader();
-			reader.onload = (e) => {
+			const formData = new FormData();
+			formData.append('image', file);
+
+			try {
+				const response = await fetch('/api/upload-image/', {
+					method: 'POST',
+					body: formData,
+					headers: {
+						Authorization: `Bearer ${token}` // Get from auth store
+					}
+				});
+
+				if (!response.ok) throw new Error('Upload failed');
+
+				const data = await response.json();
 				uploadedImages = [
 					...uploadedImages,
 					{
-						file,
-						preview: e.target.result,
+						file: data.url,
+						preview: data.url,
 						name: file.name
 					}
 				];
-			};
-			reader.readAsDataURL(file);
-		});
+			} catch (error) {
+				addToast(`Failed to upload ${file.name}`, 'error');
+			}
+		}
 	}
 
 	function removeImage(index) {

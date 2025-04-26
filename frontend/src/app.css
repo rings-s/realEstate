@@ -2,6 +2,11 @@
 @plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
 
+:root {
+	--color-slate-200: rgba(226, 232, 240, 1);
+	--color-white: #ffffff;
+}
+
 /* Custom utility class as a fallback */
 .rounded-md {
 	border-radius: 0.375rem;
@@ -17,4 +22,12 @@
 
 .input {
 	@apply block w-full border border-gray-300 px-3 py-2 text-gray-700 shadow-sm focus:border-blue-500 focus:ring-blue-500 focus:outline-none;
+}
+
+.content-container {
+	@apply max-w-9xl mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+.layout-container {
+	@apply transition-all duration-300;
 }

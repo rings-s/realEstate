@@ -4918,3 +4918,114 @@ WARNING 2025-04-26 07:30:34,382 log 11381 129993923360448 Unauthorized: /api/pro
 WARNING 2025-04-26 07:30:34,382 basehttp 11381 129993923360448 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
 WARNING 2025-04-26 07:30:34,631 log 11381 129993923360448 Unauthorized: /api/properties/
 WARNING 2025-04-26 07:30:34,632 basehttp 11381 129993923360448 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-26 08:13:52,795 autoreload 13332 131457444958336 Watching for file changes with StatReloader
+INFO 2025-04-26 08:17:20,300 basehttp 13332 131457349580480 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 0
+WARNING 2025-04-26 08:17:21,352 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 08:17:21,353 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 08:17:22,607 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 08:17:22,608 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 08:17:27,152 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 08:17:27,152 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 08:18:19,994 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 08:18:19,995 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-26 08:20:11,929 basehttp 13332 131457349580480 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-26 08:20:11,938 log 13332 131457349580480 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-26 08:20:11,938 basehttp 13332 131457349580480 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+WARNING 2025-04-26 08:20:23,382 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 08:20:23,383 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 58
+INFO 2025-04-26 08:21:40,197 basehttp 13332 131457349580480 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-26 08:21:40,915 middleware 13332 131457349580480 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 08:21:41,088 views 13332 131457349580480 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 08:21:41,093 basehttp 13332 131457349580480 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 08:26:36,835 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:26:36,928 basehttp 13332 131457261500096 "GET /media/generic_media/2025/04/24/d.jpeg HTTP/1.1" 304 0
+INFO 2025-04-26 08:27:00,133 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:27:03,109 basehttp 13332 131457349580480 "OPTIONS /api/properties/property/ HTTP/1.1" 200 0
+ERROR 2025-04-26 08:27:03,241 log 13332 131457349580480 Internal Server Error: /api/properties/property/
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/exception.py", line 55, in inner
+    response = get_response(request)
+               ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/core/handlers/base.py", line 197, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/decorators/csrf.py", line 65, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/views/generic/base.py", line 104, in view
+    return self.dispatch(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 509, in dispatch
+    response = self.handle_exception(exc)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 469, in handle_exception
+    self.raise_uncaught_exception(exc)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 480, in raise_uncaught_exception
+    raise exc
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/views.py", line 506, in dispatch
+    response = handler(request, *args, **kwargs)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework/generics.py", line 212, in get
+    return self.retrieve(request, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/decorators.py", line 230, in _wrapped_view
+    result = view_func(request, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py", line 166, in retrieve
+    instance.save(update_fields=['view_count'])
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py", line 623, in save
+    super().save(*args, **kwargs)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 871, in save
+    raise ValueError(
+ValueError: The following fields do not exist in this model, are m2m fields, or are non-concrete fields: view_count
+ERROR 2025-04-26 08:27:03,245 basehttp 13332 131457349580480 "GET /api/properties/property/ HTTP/1.1" 500 123461
+INFO 2025-04-26 08:27:05,573 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:27:09,553 basehttp 13332 131457349580480 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_low HTTP/1.1" 200 0
+INFO 2025-04-26 08:27:09,579 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=price_low HTTP/1.1" 200 1389
+INFO 2025-04-26 08:27:14,907 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:27:53,275 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:29:06,600 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:30:26,955 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:30:33,737 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:33:48,113 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:35:43,517 middleware 13332 131457349580480 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 08:35:43,597 views 13332 131457349580480 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 08:35:43,601 basehttp 13332 131457349580480 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 08:35:54,240 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:36:43,290 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:37:43,254 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:37:43,563 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:38:20,732 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:38:21,035 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:38:32,324 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:38:32,554 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:39:23,484 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:42:50,091 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 08:47:59,689 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+WARNING 2025-04-26 10:15:51,935 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 10:15:51,936 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 10:15:54,725 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 10:15:54,726 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 10:15:55,237 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 10:15:55,238 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 10:15:55,429 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 10:15:55,430 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 10:15:57,431 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 10:15:57,432 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 10:15:58,386 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 10:15:58,387 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 10:15:59,020 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 10:15:59,020 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 10:16:08,493 log 13332 131457349580480 Unauthorized: /api/properties/
+WARNING 2025-04-26 10:16:08,500 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 10:16:29,761 log 13332 131457349580480 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-26 10:16:29,762 basehttp 13332 131457349580480 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-26 10:16:32,415 middleware 13332 131457349580480 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 10:16:32,502 views 13332 131457349580480 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 10:16:32,507 basehttp 13332 131457349580480 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 10:16:35,640 basehttp 13332 131457349580480 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 10:17:17,713 views 13332 131457349580480 User rings9619@gmail.com logged out successfully
+INFO 2025-04-26 10:17:17,714 basehttp 13332 131457349580480 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-26 10:17:52,426 middleware 13332 131457349580480 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 10:17:52,495 views 13332 131457349580480 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 10:17:52,500 basehttp 13332 131457349580480 "POST /api/accounts/login/ HTTP/1.1" 200 1186

@@ -14,52 +14,32 @@
 	let error = '';
 
 	onMount(async () => {
-		try {
-			// Wait for Leaflet script to load
-			if (typeof L === 'undefined') {
+		// Wait for Leaflet script to load if not already loaded
+		if (typeof L === 'undefined') {
+			await new Promise((resolve) => {
 				const script = document.createElement('script');
 				script.src = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.js';
-				script.integrity =
-					'sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==';
-				script.crossorigin = '';
+				script.onload = resolve;
 				document.head.appendChild(script);
+			});
+		}
 
-				await new Promise((resolve) => (script.onload = resolve));
-			}
+		map = L.map(mapContainer).setView([latitude, longitude], 13);
 
-			// Initialize map
-			map = L.map(mapContainer).setView([latitude, longitude], 13);
+		L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+			attribution: '© OpenStreetMap contributors'
+		}).addTo(map);
 
-			L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-				attribution: '© OpenStreetMap contributors'
-			}).addTo(map);
+		// Add marker
+		marker = L.marker([latitude, longitude], {
+			draggable: editable
+		}).addTo(map);
 
-			// Add marker
-			marker = L.marker([latitude, longitude], {
-				draggable: editable
-			}).addTo(map);
-
-			if (editable) {
-				// Update coordinates when marker is dragged
-				marker.on('dragend', (e) => {
-					const { lat, lng } = e.target.getLatLng();
-					latitude = lat;
-					longitude = lng;
-					onLocationChange({ latitude: lat, longitude: lng });
-				});
-
-				// Update coordinates when map is clicked
-				map.on('click', (e) => {
-					const { lat, lng } = e.latlng;
-					marker.setLatLng([lat, lng]);
-					latitude = lat;
-					longitude = lng;
-					onLocationChange({ latitude: lat, longitude: lng });
-				});
-			}
-		} catch (err) {
-			error = 'Failed to load map';
-			console.error(err);
+		if (editable) {
+			marker.on('dragend', (e) => {
+				const { lat, lng } = e.target.getLatLng();
+				onLocationChange({ latitude: lat, longitude: lng });
+			});
 		}
 	});
 
@@ -91,6 +71,10 @@
 		}
 	}
 </script>
+
+<svelte:head>
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+</svelte:head>
 
 <div class="space-y-4">
 	{#if editable}

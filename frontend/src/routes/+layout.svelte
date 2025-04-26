@@ -8,39 +8,67 @@
 	import '../app.css';
 
 	// State variables
-	let showSidebar = false;
-	let loading = true;
+	let sidebarExpanded = true;
+	let sidebarMobileOpen = false;
 	let profileMenuOpen = false;
+	let loading = true;
 
-	// Navigation items
+	// Navigation items with more structured data
 	const navItems = [
-		{ title: 'الرئيسية', href: '/', icon: 'home' },
-		{ title: 'العقارات', href: '/properties', icon: 'building' },
-		{ title: 'المزادات', href: '/auctions', icon: 'gavel' },
-		{ title: 'الرسائل', href: '/messages', icon: 'message' },
-		{ title: 'الإشعارات', href: '/notifications', icon: 'bell' },
-		{ title: 'العقود', href: '/contracts', icon: 'file-contract' },
-		{ title: 'المستندات', href: '/documents', icon: 'file' }
+		{
+			title: 'الرئيسية',
+			href: '/',
+			icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                   </svg>`,
+			badge: null
+		},
+		{
+			title: 'العقارات',
+			href: '/properties',
+			icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 21v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                   </svg>`,
+			badge: null
+		},
+		{
+			title: 'المزادات',
+			href: '/auctions',
+			icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0013.5 3v7.5z" />
+                   </svg>`,
+			badge: '12'
+		},
+		{
+			title: 'الرسائل',
+			href: '/messages',
+			icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+                   </svg>`,
+			badge: '3'
+		}
 	];
 
 	// Initialize component
 	onMount(() => {
-		// Set loading state
 		loading = false;
+		// Check screen size and set initial sidebar state
+		handleResize();
+		// Add resize listener
+		window.addEventListener('resize', handleResize);
+		return () => window.removeEventListener('resize', handleResize);
 	});
 
-	// UI control functions
+	function handleResize() {
+		sidebarExpanded = window.innerWidth >= 1024;
+	}
+
 	function toggleSidebar() {
-		showSidebar = !showSidebar;
-	}
-
-	function toggleProfileMenu() {
-		profileMenuOpen = !profileMenuOpen;
-	}
-
-	function handleClickOutside(event) {
-		if (profileMenuOpen && !event.target.closest('.profile-menu')) {
-			profileMenuOpen = false;
+		if (window.innerWidth >= 1024) {
+			sidebarExpanded = !sidebarExpanded;
+		} else {
+			sidebarMobileOpen = !sidebarMobileOpen;
 		}
 	}
 
@@ -55,245 +83,339 @@
 		}
 	}
 
-	// Close sidebar when route changes
+	// Close sidebar when route changes on mobile
 	$: if ($page.url.pathname) {
-		showSidebar = false;
+		sidebarMobileOpen = false;
 	}
 </script>
 
-<svelte:window on:click={handleClickOutside} />
-
-<svelte:head>
-	<title>منصة المزادات العقارية</title>
-	<meta name="description" content="منصة المزادات العقارية الرائدة في المملكة العربية السعودية" />
-	<link
-		rel="stylesheet"
-		href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-	/>
-</svelte:head>
-
-<div class="flex min-h-screen flex-col" dir="rtl">
-	<!-- Header -->
-	<header class="relative z-30 bg-white shadow-sm">
-		<div class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-			<div class="flex items-center">
-				<button
-					class="mr-2 rounded p-1 text-slate-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:outline-none lg:hidden"
-					on:click={toggleSidebar}
-					aria-label="Toggle menu"
-				>
-					<i class="fas fa-bars text-xl"></i>
-				</button>
-				<a href="/" class="text-2xl font-bold text-blue-600">منصة المزادات</a>
+<div class="flex min-h-screen bg-slate-50" dir="rtl">
+	<!-- Sidebar -->
+	<aside
+		class="fixed inset-y-0 right-0 z-50 flex w-64 flex-col transition-all duration-300 ease-in-out lg:static lg:translate-x-0
+               {sidebarExpanded ? 'translate-x-0' : 'translate-x-64'}
+               {sidebarMobileOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}"
+	>
+		<!-- Sidebar Header -->
+		<div class="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4">
+			<div class="flex items-center space-x-3 space-x-reverse">
+				<img src="/logo.svg" alt="Logo" class="h-8 w-8" />
+				<span class="text-lg font-bold text-slate-900 {!sidebarExpanded ? 'lg:hidden' : ''}">
+					منصة المزادات
+				</span>
 			</div>
-
-			<div class="flex items-center space-x-4 space-x-reverse">
-				{#if $isAuthenticated && $user}
-					<div class="profile-menu relative">
-						<button
-							class="flex items-center space-x-1 space-x-reverse rounded-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
-							on:click={toggleProfileMenu}
-							aria-expanded={profileMenuOpen}
-							aria-haspopup="true"
-						>
-							<img
-								src={$user?.avatar_url || '/images/default-avatar.jpg'}
-								alt="صورة الملف الشخصي"
-								class="h-10 w-10 rounded-full border-2 border-blue-100 object-cover"
-							/>
-							<span class="hidden font-medium text-slate-700 md:inline">
-								{$user?.first_name || $user?.email || 'المستخدم'}
-							</span>
-							<i
-								class="fas fa-chevron-down text-xs text-slate-500 transition-transform duration-200"
-								class:rotate-180={profileMenuOpen}
-							></i>
-						</button>
-						{#if profileMenuOpen}
-							<div
-								class="ring-opacity-5 absolute left-0 z-50 mt-2 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black transition-all duration-200 ease-out"
-							>
-								<a href="/profile" class="block px-4 py-2 text-slate-700 hover:bg-slate-100">
-									<i class="fas fa-user-circle mr-2"></i>
-									الملف الشخصي
-								</a>
-								<button
-									on:click={handleLogout}
-									class="w-full px-4 py-2 text-right text-red-600 hover:bg-slate-100"
-								>
-									<i class="fas fa-sign-out-alt mr-2"></i>
-									تسجيل الخروج
-								</button>
-							</div>
-						{/if}
-					</div>
-				{:else if !loading}
-					<a href="/login" class="btn-secondary">تسجيل الدخول</a>
-					<a href="/register" class="btn-primary">تسجيل حساب جديد</a>
-				{/if}
-			</div>
-		</div>
-	</header>
-
-	<div class="flex flex-1">
-		<!-- Sidebar Navigation -->
-		<aside
-			class="fixed inset-y-0 right-0 z-40 w-64 transform bg-white shadow-lg transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:shadow-none {showSidebar
-				? 'translate-x-0'
-				: 'translate-x-full'}"
-		>
-			<div class="flex items-center justify-between border-b p-4 lg:hidden">
-				<h2 class="text-lg font-bold">القائمة</h2>
-				<button
-					on:click={toggleSidebar}
-					class="rounded p-1 text-slate-500 hover:text-slate-700 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-					aria-label="إغلاق القائمة"
-				>
-					<i class="fas fa-times"></i>
-				</button>
-			</div>
-
-			<nav class="p-4">
-				<ul class="space-y-1">
-					{#each navItems as item}
-						<li>
-							<a
-								href={item.href}
-								class="flex items-center rounded-md px-4 py-3 transition-colors duration-200 {$page
-									.url.pathname === item.href
-									? 'bg-blue-50 text-blue-600'
-									: 'text-slate-700 hover:bg-slate-50'}"
-								aria-current={$page.url.pathname === item.href ? 'page' : undefined}
-							>
-								<i class="fas fa-{item.icon} w-5 text-center"></i>
-								<span class="mr-3">{item.title}</span>
-							</a>
-						</li>
-					{/each}
-				</ul>
-
-				{#if !$isAuthenticated && !loading}
-					<div class="mt-8 rounded-lg bg-blue-50 p-4">
-						<h3 class="font-medium text-blue-800">مرحباً بك في منصتنا</h3>
-						<p class="mt-1 text-sm text-blue-600">
-							سجل الدخول للمشاركة في المزادات واكتشاف العقارات الجديدة
-						</p>
-						<div class="mt-3 space-y-2">
-							<a href="/login" class="btn-secondary w-full">تسجيل الدخول</a>
-							<a href="/register" class="btn-primary w-full">تسجيل جديد</a>
-						</div>
-					</div>
-				{/if}
-			</nav>
-		</aside>
-
-		<!-- Overlay for mobile sidebar -->
-		{#if showSidebar}
-			<div
-				class="bg-opacity-50 fixed inset-0 z-30 bg-black lg:hidden"
+			<button
+				class="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
 				on:click={toggleSidebar}
-				aria-hidden="true"
-			></div>
-		{/if}
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="1.5"
+					stroke="currentColor"
+					class="h-6 w-6 transition-transform duration-300 {sidebarExpanded ? 'rotate-180' : ''}"
+				>
+					<path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+				</svg>
+			</button>
+		</div>
 
-		<Toast />
-
-		<!-- Main Content -->
-		<main class="flex-1 p-4 sm:p-6 lg:p-8">
-			{#if $isAuthenticated && $user && !$isVerified}
-				<div class="mb-6 rounded border-l-4 border-amber-400 bg-amber-50 p-4">
-					<div class="flex">
-						<div class="flex-shrink-0">
-							<i class="fas fa-exclamation-triangle text-amber-400"></i>
+		<!-- Sidebar Content -->
+		<div class="flex-1 overflow-y-auto bg-white pb-4">
+			<nav class="mt-4 space-y-1 px-2">
+				{#each navItems as item}
+					<a
+						href={item.href}
+						class="group flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200
+                               {$page.url.pathname === item.href
+							? 'bg-blue-50 text-blue-600'
+							: 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'}"
+						aria-current={$page.url.pathname === item.href ? 'page' : undefined}
+					>
+						<div class="mr-1 flex h-6 w-6 flex-shrink-0 items-center justify-center">
+							{@html item.icon}
 						</div>
-						<div class="mr-3">
-							<p class="text-sm text-amber-700">
-								لم يتم التحقق من بريدك الإلكتروني بعد. يرجى التحقق من بريدك للحصول على رمز التفعيل.
-								<a href="/verify-email" class="font-medium underline">إعادة إرسال رمز التفعيل</a>
+						<span class="mr-3 {!sidebarExpanded ? 'lg:hidden' : ''}">
+							{item.title}
+						</span>
+						{#if item.badge}
+							<span
+								class="mr-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-blue-100 px-1.5 text-xs font-medium text-blue-600 {!sidebarExpanded
+									? 'lg:hidden'
+									: ''}"
+							>
+								{item.badge}
+							</span>
+						{/if}
+					</a>
+				{/each}
+			</nav>
+
+			<!-- User Section -->
+			{#if $isAuthenticated && $user}
+				<div class="mt-6 border-t border-slate-200 px-4 pt-4">
+					<div class="flex items-center">
+						<img
+							src={$user?.avatar_url || '/images/default-avatar.jpg'}
+							alt="Profile"
+							class="h-10 w-10 rounded-full object-cover"
+						/>
+						<div class="mr-3 {!sidebarExpanded ? 'lg:hidden' : ''}">
+							<p class="text-sm font-medium text-slate-900">
+								{$user?.first_name || $user?.email}
+							</p>
+							<p class="text-xs text-slate-500">
+								{$user?.email}
 							</p>
 						</div>
 					</div>
+
+					<div class="mt-4 space-y-1 {!sidebarExpanded ? 'lg:hidden' : ''}">
+						<a
+							href="/profile"
+							class="flex items-center rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="ml-2 h-5 w-5"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+								/>
+							</svg>
+							الملف الشخصي
+						</a>
+						<button
+							on:click={handleLogout}
+							class="flex w-full items-center rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								class="ml-2 h-5 w-5"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+								/>
+							</svg>
+							تسجيل الخروج
+						</button>
+					</div>
+				</div>
+			{:else if !loading}
+				<div class="mt-6 px-4 {!sidebarExpanded ? 'lg:hidden' : ''}">
+					<a
+						href="/login"
+						class="block rounded-lg bg-blue-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-blue-700"
+					>
+						تسجيل الدخول
+					</a>
+					<a
+						href="/register"
+						class="mt-2 block rounded-lg border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 hover:bg-slate-50"
+					>
+						إنشاء حساب
+					</a>
 				</div>
 			{/if}
+		</div>
+	</aside>
 
+	<!-- Main Content -->
+	<div class="flex flex-1 flex-col">
+		<!-- Verification Banner -->
+		{#if $isAuthenticated && $user && !$isVerified}
+			<div class="bg-gradient-to-r from-amber-50 to-amber-100 px-4 py-3 shadow-sm">
+				<div class="flex items-center justify-between">
+					<div class="flex items-center">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="ml-2 h-5 w-5 text-amber-500"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+						>
+							<path
+								fill-rule="evenodd"
+								d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+								clip-rule="evenodd"
+							/>
+						</svg>
+						<p class="text-sm text-amber-800">
+							لم يتم التحقق من بريدك الإلكتروني بعد. يرجى التحقق من بريدك للحصول على رمز التفعيل.
+						</p>
+					</div>
+					<a
+						href="/verify-email"
+						class="text-sm font-medium text-amber-800 underline hover:text-amber-900"
+					>
+						إعادة إرسال رمز التفعيل
+					</a>
+				</div>
+			</div>
+		{/if}
+
+		<!-- Mobile Header -->
+		<header class="bg-white shadow-sm lg:hidden">
+			<div class="flex h-16 items-center justify-between px-4">
+				<button
+					class="rounded-lg p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+					on:click={toggleSidebar}
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="h-6 w-6"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke="currentColor"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M4 6h16M4 12h16M4 18h16"
+						/>
+					</svg>
+				</button>
+
+				<div class="flex items-center space-x-4 space-x-reverse">
+					<!-- Notifications -->
+					<button
+						class="relative rounded-full p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-6 w-6"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+							/>
+						</svg>
+						<span
+							class="absolute -top-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-medium text-white"
+						>
+							3
+						</span>
+					</button>
+
+					<!-- Messages -->
+					<button
+						class="relative rounded-full p-2 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-6 w-6"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+							/>
+						</svg>
+						<span
+							class="absolute -top-1 -right-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-blue-500 px-1.5 text-xs font-medium text-white"
+						>
+							2
+						</span>
+					</button>
+				</div>
+			</div>
+		</header>
+
+		<!-- Page Content -->
+		<main class="flex-1">
 			<slot />
 		</main>
-	</div>
 
-	<footer class="border-t bg-white py-6">
-		<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-			<p class="text-center text-sm text-slate-500">
-				&copy; {new Date().getFullYear()} منصة المزادات العقارية. جميع الحقوق محفوظة.
-			</p>
-		</div>
-	</footer>
+		<!-- Footer -->
+		<footer class="border-t bg-white py-6">
+			<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+				<div class="flex flex-col items-center justify-between space-y-4 sm:flex-row sm:space-y-0">
+					<p class="text-sm text-slate-500">
+						© {new Date().getFullYear()} منصة المزادات العقارية. جميع الحقوق محفوظة.
+					</p>
+					<div class="flex space-x-4 space-x-reverse">
+						<a href="/privacy" class="text-sm text-slate-500 hover:text-slate-900">
+							سياسة الخصوصية
+						</a>
+						<a href="/terms" class="text-sm text-slate-500 hover:text-slate-900">
+							الشروط والأحكام
+						</a>
+						<a href="/contact" class="text-sm text-slate-500 hover:text-slate-900"> اتصل بنا </a>
+					</div>
+				</div>
+			</div>
+		</footer>
+	</div>
 </div>
 
+<Toast />
+
 <style>
-	/* Global Styles */
-	:global(body) {
-		font-family: 'Tajawal', sans-serif;
+	/* Smooth scrollbar for sidebar */
+	.overflow-y-auto {
+		scrollbar-width: thin;
+		scrollbar-color: rgba(226, 232, 240, 1) white; /* Using direct color values instead of theme function */
 	}
 
-	/* TailwindCSS v4 compatible utility classes */
-	:global(.btn-primary) {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border: 1px solid transparent;
-		background-color: rgb(37, 99, 235); /* blue-600 */
-		padding: 0.5rem 1rem;
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: white;
-		box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-		border-radius: 0.375rem;
-		transition-property: background-color, border-color, color, fill, stroke;
-		transition-duration: 150ms;
-		transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	.overflow-y-auto::-webkit-scrollbar {
+		width: 6px;
 	}
 
-	:global(.btn-primary:hover) {
-		background-color: rgb(29, 78, 216); /* blue-700 */
+	.overflow-y-auto::-webkit-scrollbar-track {
+		background: white;
 	}
 
-	:global(.btn-secondary) {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		border: 1px solid rgb(226, 232, 240); /* slate-300 */
-		background-color: white;
-		padding: 0.5rem 1rem;
-		font-size: 0.875rem;
-		font-weight: 500;
-		color: rgb(51, 65, 85); /* slate-700 */
-		box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-		border-radius: 0.375rem;
-		transition-property: background-color, border-color, color, fill, stroke;
-		transition-duration: 150ms;
-		transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	.overflow-y-auto::-webkit-scrollbar-thumb {
+		background-color: rgba(226, 232, 240, 1); /* slate-200 equivalent */
+		border-radius: 3px;
 	}
 
-	:global(.btn-secondary:hover) {
-		background-color: rgb(248, 250, 252); /* slate-50 */
+	/* Animation classes */
+	.slide-in {
+		animation: slideIn 0.3s ease-out forwards;
 	}
 
-	:global(.input) {
-		display: block;
-		width: 100%;
-		border: 1px solid rgb(226, 232, 240); /* slate-300 */
-		padding: 0.5rem 0.75rem;
-		color: rgb(51, 65, 85); /* slate-700 */
-		box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-		border-radius: 0.375rem;
-		transition-property: border-color, box-shadow;
-		transition-duration: 150ms;
-		transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+	.slide-out {
+		animation: slideOut 0.3s ease-out forwards;
 	}
 
-	:global(.input:focus) {
-		outline: none;
-		border-color: rgb(59, 130, 246); /* blue-500 */
-		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3); /* blue-500 with opacity */
+	@keyframes slideIn {
+		from {
+			transform: translateX(100%);
+		}
+		to {
+			transform: translateX(0);
+		}
+	}
+
+	@keyframes slideOut {
+		from {
+			transform: translateX(0);
+		}
+		to {
+			transform: translateX(100%);
+		}
 	}
 </style>

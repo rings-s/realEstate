@@ -3,7 +3,12 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { fetchPropertyBySlug } from '$lib/stores/properties';
+	import {
+		currentProperty,
+		loadingProperties,
+		propertyError,
+		fetchPropertyBySlug
+	} from '$lib/stores/properties';
 	import { isAuthenticated, hasPermission, user } from '$lib/stores/auth';
 	import { addToast } from '$lib/stores/ui';
 	import PropertyImages from '$lib/components/property/PropertyImages.svelte';
@@ -21,16 +26,28 @@
 	onMount(async () => {
 		try {
 			const { slug } = $page.params;
+			loading = true;
+
+			if (!slug) {
+				error = 'معرف العقار غير صالح';
+				return;
+			}
+
 			const data = await fetchPropertyBySlug(slug);
 
 			if (!data) {
-				error = 'العقار غير موجود';
+				error = 'العقار غير موجود أو غير متاح';
 				return;
 			}
 
 			property = data;
+
+			// Make sure property has the expected structure
+			if (!property.media) property.media = [];
+			if (!property.location) property.location = { latitude: null, longitude: null };
 		} catch (err) {
-			error = err.message;
+			console.error('Error loading property:', err);
+			error = err.message || 'حدث خطأ أثناء تحميل بيانات العقار';
 			addToast('حدث خطأ أثناء تحميل بيانات العقار', 'error');
 		} finally {
 			loading = false;
@@ -39,6 +56,8 @@
 
 	// Format price with currency
 	function formatPrice(price) {
+		if (!price) return 'السعر عند الطلب';
+
 		return new Intl.NumberFormat('ar-SA', {
 			style: 'decimal',
 			minimumFractionDigits: 0,
@@ -147,7 +166,7 @@
 				<div class="mt-2 flex flex-wrap items-center gap-4">
 					<div class="flex items-center text-slate-600">
 						<i class="fas fa-map-marker-alt ml-2"></i>
-						{property.address}
+						{property.address || 'عنوان غير متوفر'}
 					</div>
 					<div class="flex items-center text-slate-600">
 						<i class="fas fa-calendar ml-2"></i>
@@ -157,7 +176,7 @@
 			</div>
 
 			<!-- Property Images -->
-			<PropertyImages images={property.media} mainTitle={property.title} />
+			<PropertyImages images={property.media || []} mainTitle={property.title} />
 
 			<!-- Content Grid -->
 			<div class="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -177,7 +196,7 @@
 										? formatPrice(property.market_value) + ' ريال'
 										: 'السعر عند الطلب'}
 								</div>
-								{#if property.size_sqm}
+								{#if property.size_sqm && property.market_value}
 									<div class="mt-1 text-sm text-slate-600">
 										{formatPrice(property.market_value / property.size_sqm)} ريال/م²
 									</div>
@@ -196,7 +215,7 @@
 							<span
 								class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-800"
 							>
-								{property.property_type_display}
+								{property.property_type_display || property.property_type || 'نوع العقار غير محدد'}
 							</span>
 							<span
 								class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium {property.status ===
@@ -206,7 +225,7 @@
 										? 'bg-amber-100 text-amber-800'
 										: 'bg-slate-100 text-slate-800'}"
 							>
-								{property.status_display}
+								{property.status_display || property.status || 'الحالة غير محددة'}
 							</span>
 						</div>
 					</div>
@@ -215,18 +234,18 @@
 					<div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
 						<h2 class="mb-4 text-xl font-bold text-slate-900">الموقع</h2>
 						<PropertyMap
-							latitude={property.location?.latitude}
-							longitude={property.location?.longitude}
+							latitude={property.location?.latitude || 24.774265}
+							longitude={property.location?.longitude || 46.738586}
 							editable={false}
 						/>
 						<div class="mt-4 space-y-2 text-sm text-slate-600">
 							<div>
 								<i class="fas fa-map-marker-alt ml-2"></i>
-								{property.address}
+								{property.address || 'العنوان غير متوفر'}
 							</div>
 							<div>
 								<i class="fas fa-city ml-2"></i>
-								{property.city}
+								{property.city || 'المدينة غير متوفرة'}
 							</div>
 						</div>
 					</div>
@@ -243,8 +262,8 @@
 								/>
 								<div class="mr-3">
 									<div class="font-medium">
-										{property.owner_details.first_name}
-										{property.owner_details.last_name}
+										{property.owner_details.first_name || ''}
+										{property.owner_details.last_name || ''}
 									</div>
 									<div class="text-sm text-slate-500">
 										{property.owner_details.primary_role?.name || 'مالك العقار'}

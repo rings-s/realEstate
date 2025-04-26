@@ -27,8 +27,8 @@ class ApiService {
 			console.log('API Request:', {
 				url,
 				method: options.method || 'GET',
-				headers,
-				body: options.body
+				headers: { ...headers, Authorization: headers.Authorization ? '****' : undefined }, // Mask token
+				body: options.body ? JSON.parse(options.body) : undefined
 			});
 
 			const response = await fetch(url, {
@@ -37,11 +37,14 @@ class ApiService {
 			});
 
 			let responseData;
+			let responseText = '';
+
 			try {
-				responseData = await response.json();
+				responseText = await response.text();
+				responseData = responseText ? JSON.parse(responseText) : null;
 			} catch (error) {
-				console.error('Error parsing JSON response:', error);
-				responseData = null;
+				console.error('Error parsing JSON response:', error, 'Response text:', responseText);
+				responseData = { status: 'error', error: 'Invalid JSON response' };
 			}
 
 			console.log('API Response:', {
@@ -50,9 +53,12 @@ class ApiService {
 			});
 
 			if (!response.ok) {
-				throw new Error(
-					responseData?.error?.message || responseData?.error || 'API request failed'
-				);
+				const errorMessage =
+					responseData?.error?.message ||
+					responseData?.error ||
+					responseData?.detail ||
+					'API request failed';
+				throw new Error(errorMessage);
 			}
 
 			return responseData;
@@ -109,11 +115,44 @@ class ApiService {
 			headers['Authorization'] = `Bearer ${accessToken}`;
 		}
 
-		return this.fetch(endpoint, {
-			method: 'POST',
-			headers,
-			body: formData
-		});
+		try {
+			const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
+
+			console.log('Uploading to:', url);
+			console.log('Headers:', headers);
+			// Log form data keys for debugging
+			console.log('FormData contains keys:', [...formData.keys()]);
+
+			const response = await fetch(url, {
+				method: 'POST',
+				headers,
+				body: formData
+			});
+
+			let responseData;
+			try {
+				responseData = await response.json();
+			} catch (error) {
+				console.error('Error parsing JSON response:', error);
+				responseData = null;
+			}
+
+			console.log('API Response:', {
+				status: response.status,
+				data: responseData
+			});
+
+			if (!response.ok) {
+				const errorMessage =
+					responseData?.error?.message || responseData?.error || 'API request failed';
+				throw new Error(errorMessage);
+			}
+
+			return responseData;
+		} catch (error) {
+			console.error(`API Error (${endpoint}):`, error);
+			throw error;
+		}
 	}
 }
 

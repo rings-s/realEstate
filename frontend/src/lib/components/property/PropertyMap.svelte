@@ -1,6 +1,7 @@
+<!-- src/lib/components/property/PropertyMap.svelte -->
 <script>
 	import { onMount, onDestroy, tick } from 'svelte';
-	import { browser } from '$app/environment'; // Import browser check
+	import { browser } from '$app/environment';
 
 	export let latitude = 24.774265; // Default Riyadh
 	export let longitude = 46.738586;
@@ -8,100 +9,99 @@
 	export let onLocationChange = (coords) => {}; // Provide default empty function
 
 	let mapContainer;
-	let map = null; // Initialize map variable to null
-	let marker = null; // Initialize marker variable to null
-	let L = null; // To store the Leaflet instance
+	let map = null;
+	let marker = null;
+	let L = null;
 	let loading = false;
 	let error = '';
-	let isMounted = false; // Track mount state
+	let isMounted = false;
 
 	async function initializeMap() {
-		if (!browser || !mapContainer || map) return; // Guard: Run only in browser, if container exists, and map not already initialized
+		if (!browser || !mapContainer || map) return;
 
 		try {
 			// Dynamically import Leaflet only on the client-side
-			// This replaces the manual script loading
 			if (!L) {
-				L = (await import('leaflet')).default; // Use dynamic import
+				L = (await import('leaflet')).default;
 			}
 
 			// Ensure the container is fully rendered
 			await tick();
 
 			if (!map) {
-				// Double-check map isn't initialized by a rapid re-render
+				// Make sure we have valid coordinates
+				const validLat = typeof latitude === 'number' ? latitude : 24.774265;
+				const validLng = typeof longitude === 'number' ? longitude : 46.738586;
+
 				map = L.map(mapContainer, {
-					center: [latitude, longitude],
+					center: [validLat, validLng],
 					zoom: 13
 				});
 
 				L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 					attribution: '© OpenStreetMap contributors',
-					maxZoom: 19 // Good default maxZoom
+					maxZoom: 19
 				}).addTo(map);
 
 				// Add marker
-				marker = L.marker([latitude, longitude], {
+				marker = L.marker([validLat, validLng], {
 					draggable: editable
 				}).addTo(map);
 
 				if (editable) {
 					marker.on('dragend', (e) => {
 						const { lat, lng } = e.target.getLatLng();
-						// Update props directly (if needed) or rely on parent handling via onLocationChange
 						latitude = lat;
 						longitude = lng;
 						onLocationChange({ latitude: lat, longitude: lng });
 					});
 				}
 
-				// Invalidate size after a short delay to ensure CSS is applied
-				await tick(); // Wait another tick just in case
+				await tick();
 				map.invalidateSize();
-				map.setView([latitude, longitude], 13); // Explicitly set view again after invalidation
+				map.setView([validLat, validLng], 13);
 
-				console.log('Leaflet map initialized successfully.'); // Add log for debugging
+				console.log('Leaflet map initialized successfully.');
 			}
 		} catch (err) {
 			console.error('Failed to initialize Leaflet map:', err);
-			error = 'حدث خطأ أثناء تحميل الخريطة.'; // Map loading error message
+			error = 'حدث خطأ أثناء تحميل الخريطة.';
 		}
 	}
 
 	onMount(() => {
 		isMounted = true;
-		initializeMap(); // Attempt initialization on mount
-
-		// Optional: Re-initialize if coordinates change significantly after mount
-		// Be cautious with this to avoid excessive re-renders/initializations
-		const unsubscribe = () => {}; // Placeholder if needed later
+		initializeMap();
 
 		return () => {
-			unsubscribe();
 			isMounted = false;
 			if (map) {
 				map.remove();
-				map = null; // Clean up map instance
-				marker = null; // Clean up marker instance
-				console.log('Leaflet map destroyed.'); // Add log for debugging
+				map = null;
+				marker = null;
 			}
 		};
 	});
 
 	// Reactive statement to update marker position if props change externally
 	$: if (browser && map && marker && isMounted) {
-		// Check if the map/marker internal state differs from props
-		const currentLatLng = marker.getLatLng();
-		if (currentLatLng.lat !== latitude || currentLatLng.lng !== longitude) {
-			const newLatLng = L.latLng(latitude, longitude);
-			marker.setLatLng(newLatLng);
-			// Optionally center map on new coordinates if they change significantly
-			// map.setView(newLatLng);
+		// Check if latitude and longitude are valid numbers
+		if (
+			typeof latitude === 'number' &&
+			!isNaN(latitude) &&
+			typeof longitude === 'number' &&
+			!isNaN(longitude)
+		) {
+			const currentLatLng = marker.getLatLng();
+			if (currentLatLng.lat !== latitude || currentLatLng.lng !== longitude) {
+				const newLatLng = L.latLng(latitude, longitude);
+				marker.setLatLng(newLatLng);
+			}
 		}
 	}
 
 	async function getCurrentLocation() {
-		if (!browser) return; // Guard for browser env
+		if (!browser) return;
 
 		loading = true;
 		error = '';
@@ -115,19 +115,19 @@
 		try {
 			const position = await new Promise((resolve, reject) => {
 				navigator.geolocation.getCurrentPosition(resolve, reject, {
-					enableHighAccuracy: true, // Request higher accuracy
-					timeout: 10000, // Set timeout (10 seconds)
-					maximumAge: 0 // Don't use cached position
+					enableHighAccuracy: true,
+					timeout: 10000,
+					maximumAge: 0
 				});
 			});
 
 			const { latitude: lat, longitude: lng } = position.coords;
 
 			if (map && marker) {
-				map.setView([lat, lng], 15); // Zoom in closer for current location
+				map.setView([lat, lng], 15);
 				marker.setLatLng([lat, lng]);
 			}
-			// Update props reactively
+
 			latitude = lat;
 			longitude = lng;
 			onLocationChange({ latitude: lat, longitude: lng });
@@ -180,7 +180,13 @@
 					step="any"
 					bind:value={latitude}
 					on:change={() => {
-						if (browser && map && marker) {
+						if (
+							browser &&
+							map &&
+							marker &&
+							typeof latitude === 'number' &&
+							typeof longitude === 'number'
+						) {
 							map.setView([latitude, longitude]);
 							marker.setLatLng([latitude, longitude]);
 							onLocationChange({ latitude, longitude });
@@ -195,7 +201,13 @@
 					step="any"
 					bind:value={longitude}
 					on:change={() => {
-						if (browser && map && marker) {
+						if (
+							browser &&
+							map &&
+							marker &&
+							typeof latitude === 'number' &&
+							typeof longitude === 'number'
+						) {
 							map.setView([latitude, longitude]);
 							marker.setLatLng([latitude, longitude]);
 							onLocationChange({ latitude, longitude });
@@ -234,12 +246,9 @@
 </div>
 
 <style>
-	/* Ensure the map container has dimensions - already handled by Tailwind classes */
-
-	/* Override Leaflet styles if needed */
 	:global(.leaflet-container) {
-		font-family: inherit; /* Use the font from the rest of your app */
-		background-color: #f8fafc; /* bg-slate-50 - Prevents white flash before tiles load */
+		font-family: inherit;
+		background-color: #f8fafc;
 	}
 
 	:global(.leaflet-popup-content) {
@@ -247,7 +256,6 @@
 		text-align: right;
 	}
 
-	/* Improve marker visibility */
 	:global(.leaflet-marker-icon) {
 		filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
 	}

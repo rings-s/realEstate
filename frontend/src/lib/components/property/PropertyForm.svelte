@@ -5,6 +5,7 @@
 	import PropertyMap from './PropertyMap.svelte';
 	import RoomEditor from './RoomEditor.svelte';
 	import { addToast } from '$lib/stores/ui';
+	import { createProperty } from '$lib/stores/properties';
 
 	const dispatch = createEventDispatcher();
 
@@ -129,46 +130,30 @@
 
 		loading = true;
 		try {
-			const formData = new FormData();
+			// Process uploaded images to ensure we're sending actual File objects
+			const mediaFiles = uploadedImages.map((image) => image.file);
 
-			// Append basic property data
-			Object.keys(propertyData).forEach((key) => {
-				if (key !== 'images') {
-					formData.append(key, propertyData[key]);
-				}
-			});
+			// Prepare the data to send to the API
+			const dataToSend = {
+				...formData,
+				mediaFiles // Add media files array
+			};
 
-			// Append images
-			uploadedImages.forEach((image, index) => {
-				formData.append(`images[${index}]`, image.file);
-			});
-
-			const response = await fetch('/api/properties/', {
-				method: 'POST',
-				body: formData,
-				headers: {
-					Authorization: `Bearer ${token}`
-				}
-			});
-
-			if (!response.ok) throw new Error('Failed to create property');
-
-			addToast('Property created successfully', 'success');
-			goto('/properties');
+			dispatch('submit', dataToSend);
 		} catch (error) {
-			addToast(error.message, 'error');
+			addToast(error.message || 'حدث خطأ أثناء إنشاء العقار', 'error');
 		} finally {
 			loading = false;
 		}
 	}
+
 	function validateForm() {
 		const errors = [];
 
-		if (!propertyData.title) errors.push('Title is required');
-		if (!propertyData.property_type) errors.push('Property type is required');
-		if (!propertyData.address) errors.push('Address is required');
-		if (!propertyData.city) errors.push('City is required');
-		if (uploadedImages.length === 0) errors.push('At least one image is required');
+		if (!formData.title) errors.push('عنوان العقار مطلوب');
+		if (!formData.property_type) errors.push('نوع العقار مطلوب');
+		if (!formData.address) errors.push('العنوان مطلوب');
+		if (!formData.city) errors.push('المدينة مطلوبة');
 
 		if (errors.length > 0) {
 			errors.forEach((error) => addToast(error, 'error'));
@@ -197,45 +182,35 @@
 		for (const file of files) {
 			// Validate file size (5MB max)
 			if (file.size > 5 * 1024 * 1024) {
-				addToast(`File ${file.name} is larger than 5MB`, 'error');
+				addToast(`الملف ${file.name} أكبر من 5 ميجابايت`, 'error');
 				continue;
 			}
 
 			// Validate file type
 			if (!file.type.startsWith('image/')) {
-				addToast(`File ${file.name} is not an image`, 'error');
+				addToast(`الملف ${file.name} ليس صورة`, 'error');
 				continue;
 			}
 
-			const formData = new FormData();
-			formData.append('image', file);
-
 			try {
-				const response = await fetch('/api/upload-image/', {
-					method: 'POST',
-					body: formData,
-					headers: {
-						Authorization: `Bearer ${token}` // Get from auth store
-					}
-				});
-
-				if (!response.ok) throw new Error('Upload failed');
-
-				const data = await response.json();
-				uploadedImages = [
-					...uploadedImages,
-					{
-						file: data.url,
-						preview: data.url,
-						name: file.name
-					}
-				];
+				// Store both the file object and create a preview
+				const reader = new FileReader();
+				reader.onload = () => {
+					uploadedImages = [
+						...uploadedImages,
+						{
+							file: file, // Store the actual file object, not just the URL
+							preview: reader.result,
+							name: file.name
+						}
+					];
+				};
+				reader.readAsDataURL(file);
 			} catch (error) {
-				addToast(`Failed to upload ${file.name}`, 'error');
+				addToast(`فشل في تحميل الملف ${file.name}`, 'error');
 			}
 		}
 	}
-
 	function removeImage(index) {
 		uploadedImages = uploadedImages.filter((_, i) => i !== index);
 	}
@@ -390,8 +365,8 @@
 				</div>
 
 				<PropertyMap
-					latitude={formData.location.latitude}
-					longitude={formData.location.longitude}
+					latitude={formData.location.latitude || 24.774265}
+					longitude={formData.location.longitude || 46.738586}
 					editable={true}
 					onLocationChange={handleLocationUpdate}
 				/>

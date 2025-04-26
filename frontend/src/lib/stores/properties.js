@@ -88,55 +88,77 @@ export async function fetchPropertyBySlug(slug) {
 	try {
 		const response = await api.get(`/properties/${slug}/`);
 
-		if (response.data) {
+		// Check if response has the expected structure
+		if (response && response.data) {
 			currentProperty.set(response.data);
 			return response.data;
+		} else {
+			throw new Error('Invalid response format from server');
 		}
-
-		throw new Error('Failed to fetch property details');
 	} catch (error) {
 		console.error('Error fetching property:', error);
 		propertyError.set(error.message);
 		currentProperty.set(null);
-		addToast(error.message || 'Failed to load property details', 'error');
 		return null;
 	} finally {
 		loadingProperties.set(false);
 	}
 }
 
+// src/lib/stores/properties.js
+
+// Alternative implementation for createProperty in properties.js
 export async function createProperty(propertyData) {
 	loadingProperties.set(true);
 	propertyError.set(null);
 
 	try {
-		// Make a deep copy to avoid modifying the original
-		const dataToSend = JSON.parse(JSON.stringify(propertyData));
+		// Create direct request
+		const requestData = {
+			title: propertyData.title || '',
+			property_type: propertyData.property_type || 'residential',
+			description: propertyData.description || '',
+			address: propertyData.address || '',
+			city: propertyData.city || '',
+			state: propertyData.state || '',
+			postal_code: propertyData.postal_code || '',
+			country: propertyData.country || 'المملكة العربية السعودية',
+			is_published: true
+		};
 
-		// Format data if needed
-		if (dataToSend.rooms && Array.isArray(dataToSend.rooms)) {
-			// Ensure rooms are properly formatted
-			dataToSend.rooms = dataToSend.rooms.map((room) => ({
-				name: room.name,
-				type: room.type,
-				floor: room.floor,
-				size: room.size ? parseFloat(room.size) : null,
-				features: room.features || []
-			}));
+		// Add optional fields if they exist
+		if (propertyData.size_sqm) requestData.size_sqm = Number(propertyData.size_sqm);
+		if (propertyData.bedrooms) requestData.bedrooms = Number(propertyData.bedrooms);
+		if (propertyData.bathrooms) requestData.bathrooms = Number(propertyData.bathrooms);
+		if (propertyData.floors) requestData.floors = Number(propertyData.floors);
+		if (propertyData.market_value) requestData.market_value = Number(propertyData.market_value);
+		if (propertyData.minimum_bid) requestData.minimum_bid = Number(propertyData.minimum_bid);
+
+		// Make the POST request
+		const accessToken = get(token);
+
+		const response = await fetch(`${API_URL}/properties/`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${accessToken}`
+			},
+			body: JSON.stringify(requestData)
+		});
+
+		// Get the response
+		const text = await response.text();
+		const result = text ? JSON.parse(text) : {};
+
+		if (!response.ok) {
+			throw new Error(result.error || result.detail || 'Failed to create property');
 		}
 
-		const response = await api.post('/properties/', dataToSend);
-
-		if (response.data) {
-			addToast('Property created successfully', 'success');
-			return { success: true, data: response.data };
-		}
-
-		throw new Error('Failed to create property');
+		addToast('تم إنشاء العقار بنجاح', 'success');
+		return { success: true, data: result };
 	} catch (error) {
 		console.error('Error creating property:', error);
 		propertyError.set(error.message);
-		addToast(error.message || 'Failed to create property', 'error');
 		return { success: false, error: error.message };
 	} finally {
 		loadingProperties.set(false);

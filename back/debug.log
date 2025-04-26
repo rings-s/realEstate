@@ -5377,3 +5377,59 @@ INFO 2025-04-26 20:27:38,912 basehttp 17469 128994578003648 "POST /api/accounts/
 INFO 2025-04-26 20:27:43,446 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
 INFO 2025-04-26 20:27:57,280 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
 INFO 2025-04-26 20:28:15,334 basehttp 17469 128994578003648 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 22:37:22,648 autoreload 38261 127548014329984 Watching for file changes with StatReloader
+INFO 2025-04-26 22:40:40,145 basehttp 38261 127547845113536 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 0
+WARNING 2025-04-26 22:40:40,529 log 38261 127547845113536 Unauthorized: /api/properties/
+WARNING 2025-04-26 22:40:40,529 basehttp 38261 127547845113536 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 22:40:40,582 log 38261 127547826239168 Unauthorized: /api/properties/
+WARNING 2025-04-26 22:40:40,586 basehttp 38261 127547826239168 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 22:40:43,338 log 38261 127547826239168 Unauthorized: /api/properties/
+WARNING 2025-04-26 22:40:43,338 basehttp 38261 127547826239168 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 22:40:47,016 log 38261 127547826239168 Unauthorized: /api/properties/
+WARNING 2025-04-26 22:40:47,017 basehttp 38261 127547826239168 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-26 22:40:49,297 log 38261 127547826239168 Unauthorized: /api/properties/
+WARNING 2025-04-26 22:40:49,299 basehttp 38261 127547826239168 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-26 22:40:52,539 basehttp 38261 127547826239168 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-26 22:40:52,553 log 38261 127547826239168 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-26 22:40:52,553 basehttp 38261 127547826239168 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-26 22:40:54,175 basehttp 38261 127547826239168 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-26 22:40:55,081 middleware 38261 127547826239168 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-26 22:40:55,196 views 38261 127547826239168 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 22:40:55,203 basehttp 38261 127547826239168 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 22:40:59,028 basehttp 38261 127547826239168 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 22:42:10,998 basehttp 38261 127547826239168 "OPTIONS /api/properties/property/ HTTP/1.1" 200 0
+INFO 2025-04-26 22:42:11,149 basehttp 38261 127547826239168 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 22:42:37,912 basehttp 38261 127547826239168 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 22:47:11,979 middleware 38261 127547826239168 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-26 22:47:12,072 views 38261 127547826239168 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 22:47:12,080 basehttp 38261 127547826239168 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 22:48:24,035 basehttp 38261 127547826239168 "OPTIONS /api/properties/ HTTP/1.1" 200 0
+WARNING 2025-04-26 22:48:24,069 log 38261 127547826239168 Bad Request: /api/properties/
+WARNING 2025-04-26 22:48:24,070 basehttp 38261 127547826239168 "POST /api/properties/ HTTP/1.1" 400 84
+INFO 2025-04-26 22:52:04,553 basehttp 38261 127547826239168 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 22:52:09,593 basehttp 38261 127547826239168 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 22:53:01,430 basehttp 38261 127547826239168 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 22:53:02,874 basehttp 38261 127547826239168 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 22:53:04,215 basehttp 38261 127547826239168 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 22:53:36,554 basehttp 38261 127547826239168 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 22:53:41,309 middleware 38261 127547826239168 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-26 22:53:41,965 views 38261 127547826239168 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 22:53:41,969 basehttp 38261 127547826239168 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-26 22:55:07,461 log 38261 127547826239168 Bad Request: /api/properties/
+WARNING 2025-04-26 22:55:07,462 basehttp 38261 127547826239168 "POST /api/properties/ HTTP/1.1" 400 84
+WARNING 2025-04-26 22:55:09,639 log 38261 127547826239168 Bad Request: /api/properties/
+WARNING 2025-04-26 22:55:09,640 basehttp 38261 127547826239168 "POST /api/properties/ HTTP/1.1" 400 84
+WARNING 2025-04-26 22:55:10,526 log 38261 127547826239168 Bad Request: /api/properties/
+WARNING 2025-04-26 22:55:10,526 basehttp 38261 127547826239168 "POST /api/properties/ HTTP/1.1" 400 84
+WARNING 2025-04-26 22:55:19,725 log 38261 127547826239168 Bad Request: /api/properties/
+WARNING 2025-04-26 22:55:19,727 basehttp 38261 127547826239168 "POST /api/properties/ HTTP/1.1" 400 84
+INFO 2025-04-26 23:00:41,915 middleware 38261 127547826239168 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-26 23:00:42,005 views 38261 127547826239168 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 23:00:42,010 basehttp 38261 127547826239168 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-26 23:01:51,313 log 38261 127547826239168 Bad Request: /api/properties/
+WARNING 2025-04-26 23:01:51,314 basehttp 38261 127547826239168 "POST /api/properties/ HTTP/1.1" 400 125
+INFO 2025-04-26 23:06:05,028 middleware 38261 127547826239168 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-26 23:06:05,112 views 38261 127547826239168 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 23:06:05,114 basehttp 38261 127547826239168 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-26 23:07:00,179 log 38261 127547826239168 Bad Request: /api/properties/
+WARNING 2025-04-26 23:07:00,180 basehttp 38261 127547826239168 "POST /api/properties/ HTTP/1.1" 400 84

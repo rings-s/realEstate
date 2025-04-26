@@ -2,7 +2,9 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Q
-from rest_framework import generics, status, filters, permissions
+from rest_framework import generics, status, filters, permissions, serializers
+from django.contrib.contenttypes.models import ContentType
+from django.core.files.uploadedfile import InMemoryUploadedFile
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
@@ -11,6 +13,10 @@ import logging
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.exceptions import ValidationError, PermissionDenied
 import json
+
+
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     Property,
@@ -73,67 +79,111 @@ class PropertyListCreateView(generics.ListCreateAPIView):
     ordering_fields = ['created_at', 'market_value', 'size_sqm', 'bedrooms', 'year_built']
     ordering = ['-is_featured', '-created_at']
 
-
     def get_permissions(self):
         if self.request.method == 'GET':
             return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), IsVerifiedUser()]
 
     def list(self, request, *args, **kwargs):
-            queryset = self.filter_queryset(self.get_queryset())
-            page = self.paginate_queryset(queryset)
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
 
-            if page is not None:
-                serializer = self.get_serializer(page, many=True)
-                response = self.get_paginated_response(serializer.data)
-                return Response({
-                    'status': 'success',
-                    'data': {
-                        'results': serializer.data,
-                        'count': self.paginator.page.paginator.count
-                    }
-                })
-
-            serializer = self.get_serializer(queryset, many=True)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            response = self.get_paginated_response(serializer.data)
             return Response({
                 'status': 'success',
                 'data': {
                     'results': serializer.data,
-                    'count': len(serializer.data)
+                    'count': self.paginator.page.paginator.count
                 }
             })
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response({
+            'status': 'success',
+            'data': {
+                'results': serializer.data,
+                'count': len(serializer.data)
+            }
+        })
 
     def get_queryset(self):
         user = self.request.user
         base_queryset = Property.objects.all()
 
-        # Add logging to understand the queryset
-        print(f"Total properties: {base_queryset.count()}")
-        print(f"User: {user}, Is Staff: {user.is_staff}")
-
         try:
             if user.is_staff:
                 return base_queryset
 
-            # Filter by ownership and publication status
             own_properties = Q(owner=user)
             published_properties = Q(is_published=True)
 
             if check_user_permission(user, 'manage_owned_properties'):
                 return base_queryset.filter(own_properties | published_properties)
 
-            # Others see only published properties
             return base_queryset.filter(published_properties)
         except Exception as e:
-            print(f"Error in get_queryset: {e}")
+            logger.error(f"Error in get_queryset: {e}")
             return Property.objects.none()
 
-    @log_api_calls
-    @api_verified_user_required
-    def perform_create(self, serializer):
-        if not check_user_permission(self.request.user, 'create_property'):
-            raise PermissionDenied(_("You don't have permission to create properties."))
-        serializer.save(owner=self.request.user)
+    def create(self, request, *args, **kwargs):
+            try:
+                # Create a mutable copy of the data
+                property_data = request.POST.copy()
+
+                # Handle JSON fields
+                json_fields = ['features', 'amenities', 'rooms', 'specifications',
+                             'location', 'pricing_details', 'metadata', 'highQualityStreets']
+
+                for field in json_fields:
+                    if field in property_data:
+                        try:
+                            property_data[field] = json.loads(property_data[field])
+                        except json.JSONDecodeError:
+                            property_data[field] = [] if field in ['features', 'amenities', 'rooms', 'highQualityStreets'] else {}
+
+                # Create serializer with processed data
+                serializer = self.get_serializer(data=property_data)
+                serializer.is_valid(raise_exception=True)
+
+                # Save property instance
+                property_instance = serializer.save(owner=request.user)
+
+                # Handle media files
+                media_files = request.FILES.getlist('media')
+
+                for media_file in media_files:
+                    Media.objects.create(
+                        file=media_file,
+                        content_type=ContentType.objects.get_for_model(property_instance),
+                        object_id=property_instance.id,
+                        name=media_file.name,
+                        media_type='image'  # Adjust based on file type if needed
+                    )
+
+                # Return serialized data including media
+                return_serializer = self.get_serializer(property_instance)
+
+                return Response({
+                    'status': 'success',
+                    'message': 'Property created successfully',
+                    'data': return_serializer.data
+                }, status=status.HTTP_201_CREATED)
+
+            except serializers.ValidationError as e:
+                return Response({
+                    'status': 'error',
+                    'error': 'Validation error',
+                    'errors': e.detail
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            except Exception as e:
+                logger.error(f"Error creating property: {str(e)}")
+                return Response({
+                    'status': 'error',
+                    'error': str(e)
+                }, status=status.HTTP_400_BAD_REQUEST)
 
 class PropertyDetailView(generics.RetrieveAPIView):
     """

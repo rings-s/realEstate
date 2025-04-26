@@ -367,11 +367,10 @@ class MessageThreadSerializer(BaseModelSerializer):
 
 
 class PropertySerializer(BaseModelSerializer):
-    """Serializer for Property model"""
     media = MediaSerializer(many=True, read_only=True, label=_('ملفات الوسائط'))
     owner_details = UserBriefSerializer(source='owner', read_only=True, label=_('تفاصيل المالك'))
-    property_type_display = serializers.CharField(source='get_property_type_display', read_only=True, label=_('نوع العقار المعروض'))
-    status_display = serializers.CharField(source='get_status_display', read_only=True, label=_('الحالة المعروضة'))
+    property_type_display = serializers.CharField(source='get_property_type_display', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
 
     class Meta:
         model = Property
@@ -382,80 +381,67 @@ class PropertySerializer(BaseModelSerializer):
             'rooms', 'specifications', 'size_sqm', 'bedrooms', 'bathrooms',
             'floors', 'parking_spaces', 'year_built', 'market_value', 'minimum_bid',
             'pricing_details', 'owner', 'owner_details', 'is_published',
-            'is_featured', 'is_verified', 'slug',
-            'media',
-            'metadata', 'created_at', 'updated_at',
-            'deed_number', 'highQualityStreets'
+            'is_featured', 'is_verified', 'slug', 'media', 'metadata',
+            'created_at', 'updated_at', 'deed_number', 'highQualityStreets'
         ]
         extra_kwargs = {
-            'owner': {'write_only': True, 'label': _('المالك')},
-            'property_number': {'read_only': True, 'label': _('رقم العقار')},
-            'slug': {'read_only': True, 'label': _('الرابط المختصر')},
-            'deed_number': {'label': _('رقم الصك')},
-            'highQualityStreets': {'label': _('الشوارع الراقية')},
-            'floors': {'label': _('عدد الطوابق')},
-            'media': {'label': _('ملفات الوسائط')},
+            'owner': {'write_only': True},
+            'property_number': {'read_only': True},
+            'slug': {'read_only': True},
+            'created_at': {'read_only': True},
+            'updated_at': {'read_only': True}
         }
 
-    def validate_location(self, value):
-        """Validate location data."""
-        if value and not isinstance(value, dict):
-            raise serializers.ValidationError(_("يجب أن تكون بيانات الموقع على شكل قاموس."))
-        return value
+    def validate(self, data):
+        # Required fields validation
+        required_fields = ['title', 'property_type', 'address', 'city']
+        for field in required_fields:
+            if field not in data:
+                raise serializers.ValidationError({field: f"{field} is required"})
 
-    def to_internal_value(self, data):
-        """
-        Handle JSON fields properly before validation
-        """
-        # Handle JSON fields if they come as strings
-        json_fields = ['features', 'amenities', 'rooms', 'specifications', 'location', 'pricing_details', 'metadata', 'highQualityStreets']
-
-        data_copy = data.copy()
-        for field in json_fields:
-            if field in data_copy and isinstance(data_copy[field], str):
+        # Validate numeric fields
+        numeric_fields = ['size_sqm', 'bedrooms', 'bathrooms', 'floors',
+                         'parking_spaces', 'market_value', 'minimum_bid']
+        for field in numeric_fields:
+            if field in data and data[field]:
                 try:
-                    # Try to parse if it's a JSON string
-                    data_copy[field] = json.loads(data_copy[field])
-                except (json.JSONDecodeError, ValueError):
-                    # If it's not valid JSON, handle appropriately
-                    if field in ['features', 'amenities', 'rooms', 'highQualityStreets']:
-                        # For array fields
-                        data_copy[field] = []
-                    else:
-                        # For object fields
-                        data_copy[field] = {}
+                    float(data[field])
+                except (TypeError, ValueError):
+                    raise serializers.ValidationError({field: f"{field} must be a number"})
 
-        return super().to_internal_value(data_copy)
+        return data
+
+    def create(self, validated_data):
+        # Handle JSON fields
+        json_fields = ['features', 'amenities', 'rooms', 'specifications',
+                      'location', 'pricing_details', 'metadata', 'highQualityStreets']
+
+        for field in json_fields:
+            if field not in validated_data:
+                validated_data[field] = [] if field in ['features', 'amenities', 'rooms', 'highQualityStreets'] else {}
+
+        # Create the property instance
+        property_instance = super().create(validated_data)
+
+        return property_instance
 
     def to_representation(self, instance):
-        """
-        Ensure JSON fields are properly serialized
-        """
+        """Ensure proper serialization of all fields"""
         representation = super().to_representation(instance)
 
-        # Ensure array fields are properly serialized
-        array_fields = ['features', 'amenities', 'rooms', 'highQualityStreets']
-        for field in array_fields:
-            value = representation.get(field)
-            if value is None:
-                representation[field] = []
-            elif isinstance(value, str):
-                try:
-                    representation[field] = json.loads(value)
-                except (json.JSONDecodeError, ValueError):
-                    representation[field] = []
+        # Ensure proper serialization of JSON fields
+        json_fields = {
+            'array_fields': ['features', 'amenities', 'rooms', 'highQualityStreets'],
+            'object_fields': ['specifications', 'location', 'pricing_details', 'metadata']
+        }
 
-        # Ensure object fields are properly serialized
-        object_fields = ['specifications', 'location', 'pricing_details', 'metadata']
-        for field in object_fields:
-            value = representation.get(field)
-            if value is None:
+        for field in json_fields['array_fields']:
+            if representation.get(field) is None:
+                representation[field] = []
+
+        for field in json_fields['object_fields']:
+            if representation.get(field) is None:
                 representation[field] = {}
-            elif isinstance(value, str):
-                try:
-                    representation[field] = json.loads(value)
-                except (json.JSONDecodeError, ValueError):
-                    representation[field] = {}
 
         return representation
 

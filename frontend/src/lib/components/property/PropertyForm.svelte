@@ -128,22 +128,24 @@
 	async function handleSubmit() {
 		if (!validateForm()) return;
 
-		loading = true;
 		try {
-			// Process uploaded images to ensure we're sending actual File objects
-			const mediaFiles = uploadedImages.map((image) => image.file);
-
-			// Prepare the data to send to the API
-			const dataToSend = {
+			// Process the form data
+			const propertyData = {
 				...formData,
-				mediaFiles // Add media files array
+				mediaFiles: uploadedImages.map((img) => img.file)
 			};
 
-			dispatch('submit', dataToSend);
+			// Filter out undefined/null values
+			Object.keys(propertyData).forEach((key) => {
+				if (propertyData[key] === undefined || propertyData[key] === null) {
+					delete propertyData[key];
+				}
+			});
+
+			dispatch('submit', propertyData);
 		} catch (error) {
-			addToast(error.message || 'حدث خطأ أثناء إنشاء العقار', 'error');
-		} finally {
-			loading = false;
+			console.error('Form submission error:', error);
+			addToast('Error submitting form: ' + error.message, 'error');
 		}
 	}
 

@@ -12,91 +12,139 @@ class ApiService {
 	async fetch(endpoint, options = {}) {
 		try {
 			const accessToken = get(token);
-
-			const headers = {
-				'Content-Type': 'application/json',
-				...options.headers
-			};
+			const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
+			const headers = {};
 
 			if (accessToken) {
 				headers['Authorization'] = `Bearer ${accessToken}`;
 			}
 
-			const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
-
-			console.log('API Request:', {
-				url,
-				method: options.method || 'GET',
-				headers: { ...headers, Authorization: headers.Authorization ? '****' : undefined }, // Mask token
-				body: options.body ? JSON.parse(options.body) : undefined
-			});
-
-			const response = await fetch(url, {
-				...options,
-				headers
-			});
-
-			let responseData;
-			let responseText = '';
-
-			try {
-				responseText = await response.text();
-				responseData = responseText ? JSON.parse(responseText) : null;
-			} catch (error) {
-				console.error('Error parsing JSON response:', error, 'Response text:', responseText);
-				responseData = { status: 'error', error: 'Invalid JSON response' };
+			// Only add Content-Type if not FormData
+			if (!(options.body instanceof FormData)) {
+				headers['Content-Type'] = 'application/json';
 			}
 
-			console.log('API Response:', {
-				status: response.status,
-				data: responseData
+			const requestOptions = {
+				...options,
+				headers: {
+					...headers,
+					...options.headers
+				}
+			};
+
+			console.log('Making request to:', url, {
+				method: requestOptions.method,
+				headers: {
+					...requestOptions.headers,
+					Authorization: requestOptions.headers.Authorization ? '[HIDDEN]' : undefined
+				},
+				bodyType: options.body ? options.body.constructor.name : 'none'
 			});
 
+			const response = await fetch(url, requestOptions);
+			let data;
+
+			const contentType = response.headers.get('content-type');
+			if (contentType?.includes('application/json')) {
+				const text = await response.text();
+				try {
+					data = text ? JSON.parse(text) : null;
+				} catch (e) {
+					console.error('Failed to parse JSON response:', text);
+					throw new Error('Invalid JSON response from server');
+				}
+			} else {
+				data = await response.text();
+			}
+
 			if (!response.ok) {
-				const errorMessage =
-					responseData?.error?.message ||
-					responseData?.error ||
-					responseData?.detail ||
-					'API request failed';
+				let errorMessage = 'API request failed';
+				if (data) {
+					if (data.error?.message) errorMessage = data.error.message;
+					else if (data.error) errorMessage = data.error;
+					else if (data.detail) errorMessage = data.detail;
+				}
 				throw new Error(errorMessage);
 			}
 
-			return responseData;
+			return data;
 		} catch (error) {
-			console.error(`API Error (${endpoint}):`, error);
+			if (error.message.includes('401')) {
+				logout();
+			}
 			throw error;
 		}
 	}
 
+	async createProperty(propertyData, mediaFiles) {
+		try {
+			const formData = new FormData();
+
+			// Handle regular fields
+			Object.entries(propertyData).forEach(([key, value]) => {
+				if (value !== null && value !== undefined) {
+					// JSON stringify objects
+					if (typeof value === 'object') {
+						formData.append(key, JSON.stringify(value));
+					} else {
+						formData.append(key, value);
+					}
+				}
+			});
+
+			// Handle media files
+			if (mediaFiles?.length) {
+				mediaFiles.forEach((file, index) => {
+					formData.append('media', file);
+				});
+			}
+
+			// Log FormData contents for debugging
+			console.log(
+				'FormData contents:',
+				[...formData.entries()].map(([key, value]) => {
+					return `${key}: ${value instanceof File ? value.name : value}`;
+				})
+			);
+
+			return this.fetch('/properties/', {
+				method: 'POST',
+				body: formData
+			});
+		} catch (error) {
+			console.error('Property creation error:', error);
+			throw error;
+		}
+	}
+
+	// Standard REST methods
 	async get(endpoint, params = {}) {
 		const queryParams = new URLSearchParams();
-		for (const [key, value] of Object.entries(params)) {
-			if (value !== undefined && value !== null) {
+		Object.entries(params).forEach(([key, value]) => {
+			if (value !== null && value !== undefined) {
 				queryParams.append(key, value);
 			}
-		}
+		});
 
-		const queryString = queryParams.toString();
-		const url = queryString ? `${endpoint}?${queryString}` : endpoint;
-
+		const url = `${endpoint}${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
 		return this.fetch(url, { method: 'GET' });
 	}
 
-	async post(endpoint, data = {}) {
+	async post(endpoint, data) {
 		return this.fetch(endpoint, {
 			method: 'POST',
 			body: JSON.stringify(data)
 		});
 	}
 
-	async put(endpoint, data = {}) {
+	async put(endpoint, data) {
 		return this.fetch(endpoint, {
 			method: 'PUT',
 			body: JSON.stringify(data)
 		});
 	}
 
-	async patch(endpoint, data = {}) {
+	async patch(endpoint, data) {
 		return this.fetch(endpoint, {
 			method: 'PATCH',
 			body: JSON.stringify(data)
@@ -105,54 +153,6 @@ class ApiService {
 
 	async delete(endpoint) {
 		return this.fetch(endpoint, { method: 'DELETE' });
-	}
-
-	async uploadFile(endpoint, formData) {
-		const accessToken = get(token);
-
-		const headers = {};
-		if (accessToken) {
-			headers['Authorization'] = `Bearer ${accessToken}`;
-		}
-
-		try {
-			const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
-
-			console.log('Uploading to:', url);
-			console.log('Headers:', headers);
-			// Log form data keys for debugging
-			console.log('FormData contains keys:', [...formData.keys()]);
-
-			const response = await fetch(url, {
-				method: 'POST',
-				headers,
-				body: formData
-			});
-
-			let responseData;
-			try {
-				responseData = await response.json();
-			} catch (error) {
-				console.error('Error parsing JSON response:', error);
-				responseData = null;
-			}
-
-			console.log('API Response:', {
-				status: response.status,
-				data: responseData
-			});
-
-			if (!response.ok) {
-				const errorMessage =
-					responseData?.error?.message || responseData?.error || 'API request failed';
-				throw new Error(errorMessage);
-			}
-
-			return responseData;
-		} catch (error) {
-			console.error(`API Error (${endpoint}):`, error);
-			throw error;
-		}
 	}
 }
 

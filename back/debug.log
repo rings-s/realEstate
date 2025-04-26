@@ -5433,3 +5433,36 @@ INFO 2025-04-26 23:06:05,112 views 38261 127547826239168 Successful login for us
 INFO 2025-04-26 23:06:05,114 basehttp 38261 127547826239168 "POST /api/accounts/login/ HTTP/1.1" 200 1186
 WARNING 2025-04-26 23:07:00,179 log 38261 127547826239168 Bad Request: /api/properties/
 WARNING 2025-04-26 23:07:00,180 basehttp 38261 127547826239168 "POST /api/properties/ HTTP/1.1" 400 84
+INFO 2025-04-26 23:16:01,699 basehttp 38261 127547826239168 "GET /media/users/73d10b69-2f8e-4b5f-be8e-07a14a48f9b2/avatars/20250424124603_profile.png HTTP/1.1" 304 0
+INFO 2025-04-26 23:21:25,625 autoreload 38261 127548014329984 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-26 23:21:26,483 autoreload 42423 124935669301376 Watching for file changes with StatReloader
+INFO 2025-04-26 23:22:13,211 autoreload 42423 124935669301376 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-26 23:22:13,853 autoreload 42507 128139887530112 Watching for file changes with StatReloader
+INFO 2025-04-26 23:24:04,889 autoreload 42507 128139887530112 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-26 23:24:05,431 autoreload 42743 127272190771328 Watching for file changes with StatReloader
+INFO 2025-04-26 23:24:28,576 autoreload 42743 127272190771328 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-26 23:24:29,319 autoreload 42826 135537228284032 Watching for file changes with StatReloader
+INFO 2025-04-26 23:24:48,054 middleware 42826 135537063098048 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-26 23:24:48,190 views 42826 135537063098048 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 23:24:48,196 basehttp 42826 135537063098048 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-26 23:27:38,682 autoreload 42826 135537228284032 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-26 23:27:39,258 autoreload 43050 134874573439104 Watching for file changes with StatReloader
+INFO 2025-04-26 23:28:32,163 autoreload 43050 134874573439104 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-26 23:28:32,838 autoreload 43132 138904939032704 Watching for file changes with StatReloader
+INFO 2025-04-26 23:29:03,183 autoreload 43132 138904939032704 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-26 23:29:03,815 autoreload 43229 129240879030400 Watching for file changes with StatReloader
+INFO 2025-04-26 23:30:38,798 autoreload 43229 129240879030400 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-26 23:30:39,476 autoreload 43385 140519471857792 Watching for file changes with StatReloader
+INFO 2025-04-26 23:35:01,973 middleware 43385 140519304853184 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-26 23:35:02,153 views 43385 140519304853184 Successful login for user: rings9619@gmail.com
+INFO 2025-04-26 23:35:02,157 basehttp 43385 140519304853184 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-26 23:35:47,182 log 43385 140519304853184 Bad Request: /api/properties/
+WARNING 2025-04-26 23:35:47,183 basehttp 43385 140519304853184 "POST /api/properties/ HTTP/1.1" 400 329
+WARNING 2025-04-26 23:36:51,193 log 43385 140519304853184 Bad Request: /api/properties/
+WARNING 2025-04-26 23:36:51,194 basehttp 43385 140519304853184 "POST /api/properties/ HTTP/1.1" 400 329
+WARNING 2025-04-26 23:36:52,418 log 43385 140519304853184 Bad Request: /api/properties/
+WARNING 2025-04-26 23:36:52,419 basehttp 43385 140519304853184 "POST /api/properties/ HTTP/1.1" 400 329
+WARNING 2025-04-26 23:36:52,833 log 43385 140519304853184 Bad Request: /api/properties/
+WARNING 2025-04-26 23:36:52,834 basehttp 43385 140519304853184 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-26 23:36:58,562 basehttp 43385 140519304853184 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-26 23:37:02,857 basehttp 43385 140519304853184 "GET /api/properties/property/ HTTP/1.1" 200 1337

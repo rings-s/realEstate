@@ -2,6 +2,8 @@
 import { writable, derived } from 'svelte/store';
 import api from '$lib/services/api';
 import { addToast } from '$lib/stores/ui';
+import { get } from 'svelte/store';
+import { token } from '$lib/stores/auth';
 
 export const properties = writable([]);
 export const currentProperty = writable(null);
@@ -105,63 +107,38 @@ export async function fetchPropertyBySlug(slug) {
 	}
 }
 
-// src/lib/stores/properties.js
-
-// Alternative implementation for createProperty in properties.js
 export async function createProperty(propertyData) {
-	loadingProperties.set(true);
-	propertyError.set(null);
-
 	try {
-		// Create direct request
-		const requestData = {
-			title: propertyData.title || '',
-			property_type: propertyData.property_type || 'residential',
-			description: propertyData.description || '',
-			address: propertyData.address || '',
-			city: propertyData.city || '',
-			state: propertyData.state || '',
-			postal_code: propertyData.postal_code || '',
-			country: propertyData.country || 'المملكة العربية السعودية',
-			is_published: true
-		};
+		// Separate files from data
+		const { mediaFiles, ...propertyFields } = propertyData;
 
-		// Add optional fields if they exist
-		if (propertyData.size_sqm) requestData.size_sqm = Number(propertyData.size_sqm);
-		if (propertyData.bedrooms) requestData.bedrooms = Number(propertyData.bedrooms);
-		if (propertyData.bathrooms) requestData.bathrooms = Number(propertyData.bathrooms);
-		if (propertyData.floors) requestData.floors = Number(propertyData.floors);
-		if (propertyData.market_value) requestData.market_value = Number(propertyData.market_value);
-		if (propertyData.minimum_bid) requestData.minimum_bid = Number(propertyData.minimum_bid);
+		// Ensure numeric fields are numbers
+		const numericFields = [
+			'size_sqm',
+			'bedrooms',
+			'bathrooms',
+			'floors',
+			'parking_spaces',
+			'market_value',
+			'minimum_bid'
+		];
 
-		// Make the POST request
-		const accessToken = get(token);
-
-		const response = await fetch(`${API_URL}/properties/`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Authorization: `Bearer ${accessToken}`
-			},
-			body: JSON.stringify(requestData)
+		numericFields.forEach((field) => {
+			if (propertyFields[field]) {
+				propertyFields[field] = Number(propertyFields[field]);
+			}
 		});
 
-		// Get the response
-		const text = await response.text();
-		const result = text ? JSON.parse(text) : {};
+		const response = await api.createProperty('/properties/', propertyFields, mediaFiles);
 
-		if (!response.ok) {
-			throw new Error(result.error || result.detail || 'Failed to create property');
+		if (response.status === 'success') {
+			return { success: true, data: response.data };
 		}
 
-		addToast('تم إنشاء العقار بنجاح', 'success');
-		return { success: true, data: result };
+		throw new Error(response.error || 'Failed to create property');
 	} catch (error) {
 		console.error('Error creating property:', error);
-		propertyError.set(error.message);
 		return { success: false, error: error.message };
-	} finally {
-		loadingProperties.set(false);
 	}
 }
 

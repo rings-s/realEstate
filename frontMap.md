@@ -134,11 +134,67 @@ src/
 
 
 """
-Error checking slug uniqueness: 'function' object has no attribute 'connection'
-[12/Apr/2025 07:43:14] "POST /api/properties/ HTTP/1.1" 201 1284
-[12/Apr/2025 07:43:14] "OPTIONS /api/properties/1/images/ HTTP/1.1" 200 0
-Bad Request: /api/properties/1/images/
-[12/Apr/2025 07:43:14] "POST /api/properties/1/images/ HTTP/1.1" 400 104
-Bad Request: /api/properties/1/images/
-[12/Apr/2025 07:43:14] "POST /api/properties/1/images/ HTTP/1.1" 400 104
++page.svelte:76 Submit error: ReferenceError: key is not defined
+    at createProperty (properties.js:147:15)
+    at Object.handleSubmit (+page.svelte:69:28)
+    at HTMLFormElement.handleSubmit (PropertyForm.svelte:549:3)
+properties.js:164 Property creation error details: ReferenceError: key is not defined
+    at createProperty (properties.js:147:15)
+    at Object.handleSubmit (+page.svelte:69:28)
+    at HTMLFormElement.handleSubmit (PropertyForm.svelte:549:3)
++page.svelte:76 Submit error: ReferenceError: key is not defined
+    at createProperty (properties.js:147:15)
+    at Object.handleSubmit (+page.svelte:69:28)
+    at HTMLFormElement.handleSubmit (PropertyForm.svelte:549:3)
+properties.js:164 Property creation error details: ReferenceError: key is not defined
+    at createProperty (properties.js:147:15)
+    at Object.handleSubmit (+page.svelte:69:28)
+    at HTMLFormElement.handleSubmit (PropertyForm.svelte:549:3)
++page.svelte:76 Submit error: ReferenceError: key is not defined
+    at createProperty (properties.js:147:15)
+    at Object.handleSubmit (+page.svelte:69:28)
+    at HTMLFormElement.handleSubmit (PropertyForm.svelte:549:3)
+
+﻿
+
+/src/app.css
+10:03:05 AM [vite] (ssr) page reload src/routes/properties/add/+page.svelte
+[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+2350|    }
+2351|  }
+2352|  @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2353|  :root {
+2354|    --sidebar-width: 280px;
+10:03:13 AM [vite] (client) hmr update /src/routes/properties/add/+page.svelte, /src/app.css
+10:03:13 AM [vite] (ssr) page reload src/routes/properties/add/+page.svelte
+[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+2350|    }
+2351|  }
+2352|  @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2353|  :root {
+2354|    --sidebar-width: 280px;
+[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+2350|    }
+2351|  }
+2352|  @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2353|  :root {
+2354|    --sidebar-width: 280px; (x2)
+[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+2350|    }
+2351|  }
+2352|  @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2353|  :root {
+2354|    --sidebar-width: 280px; (x3)
+
+
+
+
+
+
+
+
 """

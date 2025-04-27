@@ -128,63 +128,52 @@ class PropertyListCreateView(generics.ListCreateAPIView):
             return Property.objects.none()
 
     def create(self, request, *args, **kwargs):
-            try:
-                # Create a mutable copy of the data
-                property_data = request.POST.copy()
+        try:
+            # Log the incoming request details
+            logger.info("Property creation request:")
+            logger.info("Data: %s", request.data)
+            logger.info("Files: %s", request.FILES)
+            logger.info("Content-Type: %s", request.content_type)
 
-                # Handle JSON fields
-                json_fields = ['features', 'amenities', 'rooms', 'specifications',
-                             'location', 'pricing_details', 'metadata', 'highQualityStreets']
-
-                for field in json_fields:
-                    if field in property_data:
-                        try:
-                            property_data[field] = json.loads(property_data[field])
-                        except json.JSONDecodeError:
-                            property_data[field] = [] if field in ['features', 'amenities', 'rooms', 'highQualityStreets'] else {}
-
-                # Create serializer with processed data
-                serializer = self.get_serializer(data=property_data)
-                serializer.is_valid(raise_exception=True)
-
-                # Save property instance
-                property_instance = serializer.save(owner=request.user)
-
-                # Handle media files
-                media_files = request.FILES.getlist('media')
-
-                for media_file in media_files:
-                    Media.objects.create(
-                        file=media_file,
-                        content_type=ContentType.objects.get_for_model(property_instance),
-                        object_id=property_instance.id,
-                        name=media_file.name,
-                        media_type='image'  # Adjust based on file type if needed
-                    )
-
-                # Return serialized data including media
-                return_serializer = self.get_serializer(property_instance)
-
-                return Response({
-                    'status': 'success',
-                    'message': 'Property created successfully',
-                    'data': return_serializer.data
-                }, status=status.HTTP_201_CREATED)
-
-            except serializers.ValidationError as e:
+            # Create serializer
+            serializer = self.get_serializer(data=request.data)
+            
+            # Log validation result
+            if not serializer.is_valid():
+                logger.error("Validation errors: %s", serializer.errors)
                 return Response({
                     'status': 'error',
                     'error': 'Validation error',
-                    'errors': e.detail
+                    'errors': serializer.errors
                 }, status=status.HTTP_400_BAD_REQUEST)
 
-            except Exception as e:
-                logger.error(f"Error creating property: {str(e)}")
-                return Response({
-                    'status': 'error',
-                    'error': str(e)
-                }, status=status.HTTP_400_BAD_REQUEST)
+            # Save property
+            property_instance = serializer.save(owner=request.user)
 
+            # Handle media files
+            media_files = request.FILES.getlist('media')
+            for media_file in media_files:
+                Media.objects.create(
+                    file=media_file,
+                    content_type=ContentType.objects.get_for_model(property_instance),
+                    object_id=property_instance.id,
+                    name=media_file.name,
+                    media_type='image'
+                )
+
+            # Return success response
+            return Response({
+                'status': 'success',
+                'data': self.get_serializer(property_instance).data
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.exception("Error in property creation:")
+            return Response({
+                'status': 'error',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
 class PropertyDetailView(generics.RetrieveAPIView):
     """
     Retrieve a property using slug field (with Arabic support).

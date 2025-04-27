@@ -16,65 +16,11 @@ class ApiService {
     this.baseUrl = baseUrl;
   }
 
-
-  async fetch(endpoint, options = {}) {
-	try {
-	  const accessToken = getStoredToken();
-	  const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
-	  const headers = {};
-  
-	  if (accessToken) {
-		headers['Authorization'] = `Bearer ${accessToken}`;
-	  }
-  
-	  // Only add Content-Type if not FormData
-	  if (!(options.body instanceof FormData)) {
-		headers['Content-Type'] = 'application/json';
-		if (options.body && typeof options.body === 'object') {
-		  options.body = JSON.stringify(options.body);
-		}
-	  }
-  
-	  const requestOptions = {
-		...options,
-		headers: {
-		  ...headers,
-		  ...options.headers
-		}
-	  };
-  
-	  const response = await fetch(url, requestOptions);
-	  const data = await response.json();
-  
-	  // Log response for debugging
-	  console.log('API Response:', {
-		url,
-		status: response.status,
-		data
-	  });
-  
-	  if (!response.ok) {
-		throw new Error(data.error?.message || data.error || 'API request failed');
-	  }
-  
-	  return {
-		status: 'success',
-		data: data.data || data
-	  };
-	} catch (error) {
-	  console.error('API Request Error:', error);
-	  return {
-		status: 'error',
-		error: error.message
-	  };
-	}
-  }
-
   // Helper method for handling query parameters
   buildQueryString(params = {}) {
     const queryParams = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {
-      if (value !== null && value !== undefined) {
+      if (value !== null && value !== undefined && value !== '') {
         if (Array.isArray(value)) {
           value.forEach(item => queryParams.append(`${key}[]`, item));
         } else {
@@ -85,6 +31,69 @@ class ApiService {
     return queryParams.toString();
   }
 
+  async fetch(endpoint, options = {}) {
+    try {
+      const accessToken = getStoredToken();
+      const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
+      const headers = {};
+
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      // Do NOT set Content-Type for FormData - browser will set it with the boundary
+      if (!(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+        if (options.body && typeof options.body === 'object') {
+          options.body = JSON.stringify(options.body);
+        }
+      }
+
+      const requestOptions = {
+        ...options,
+        headers: {
+          ...headers,
+          ...options.headers
+        }
+      };
+
+      console.log(`Making API request to ${url}`, {
+        method: requestOptions.method,
+        bodyType: options.body instanceof FormData ? 'FormData' : typeof options.body
+      });
+
+      const response = await fetch(url, requestOptions);
+      let data;
+      
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        data = await response.text();
+        try {
+          data = JSON.parse(data);
+        } catch (e) {
+          // Keep as text if not valid JSON
+        }
+      }
+
+      if (!response.ok) {
+        console.error('API Error:', data);
+        throw new Error(data.error?.message || data.error || 'API request failed');
+      }
+
+      return {
+        status: 'success',
+        data: data.data || data
+      };
+    } catch (error) {
+      console.error('API Request Error:', error);
+      return {
+        status: 'error',
+        error: error.message
+      };
+    }
+  }
   // Standard REST methods
   async get(endpoint, params = {}) {
     const queryString = this.buildQueryString(params);

@@ -8,24 +8,51 @@
   let loading = false;
   let error = '';
 
+
+
+
   async function handleSubmit(event) {
     loading = true;
     error = '';
 
     try {
       const propertyData = event.detail;
+      console.log("Received property data from form:", propertyData);
       
-      // Validate required fields
-      if (!propertyData.title) {
-        throw new Error('عنوان العقار مطلوب');
+      // Validate required fields with detailed messages
+      const requiredFields = {
+        'title': 'عنوان العقار',
+        'property_type': 'نوع العقار',
+        'description': 'وصف العقار',
+        'city': 'المدينة'
+      };
+      
+      for (const [field, label] of Object.entries(requiredFields)) {
+        if (!propertyData[field]) {
+          throw new Error(`${label} مطلوب`);
+        }
       }
-      if (!propertyData.property_type) {
-        throw new Error('نوع العقار مطلوب');
+      
+      // Validate numeric fields
+      if (propertyData.market_value && isNaN(parseFloat(propertyData.market_value))) {
+        throw new Error('القيمة السوقية يجب أن تكون رقمًا');
       }
-      if (!propertyData.city) {
-        throw new Error('المدينة مطلوبة');
+      
+      // Special validation for location
+      if (propertyData.location) {
+        if (typeof propertyData.location !== 'object') {
+          propertyData.location = {}; // Ensure it's an object
+        }
+      } else {
+        propertyData.location = {}; // Create default if missing
+      }
+      
+      // Validate media files exist
+      if (!propertyData.media || !propertyData.media.length) {
+        throw new Error('يجب إضافة صورة واحدة على الأقل');
       }
 
+      console.log("Submitting property with validated data...");
       const result = await createProperty(propertyData);
 
       if (result.success) {
@@ -35,7 +62,7 @@
         throw new Error(result.error || 'فشل في إنشاء العقار');
       }
     } catch (err) {
-      console.error('Property creation error:', err);
+      console.error('Submit error:', err);
       error = err.message;
       addToast(error, 'error');
     } finally {

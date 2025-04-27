@@ -5724,3 +5724,147 @@ INFO 2025-04-27 13:42:49,909 views 7065 126326100977344 User rings9619@gmail.com
 INFO 2025-04-27 13:42:50,346 views 7065 126326084191936 User rings9619@gmail.com logged out successfully
 INFO 2025-04-27 13:42:51,235 views 7065 126325725591232 Successful login for user: rings9619@gmail.com
 INFO 2025-04-27 13:42:52,384 views 7065 126326109370048 User rings9619@gmail.com logged out successfully
+ERROR 2025-04-27 13:42:53,528 views 7065 126326092584640 Logout failed: database is locked
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 948, in get_or_create
+    return self.get(**kwargs), False
+           ^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 649, in get
+    raise self.model.DoesNotExist(
+rest_framework_simplejwt.token_blacklist.models.BlacklistedToken.DoesNotExist: BlacklistedToken matching query does not exist.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+sqlite3.OperationalError: database is locked
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/accounts/views.py", line 248, in post
+    token.blacklist()
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/rest_framework_simplejwt/tokens.py", line 276, in blacklist
+    return BlacklistedToken.objects.get_or_create(token=token)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 955, in get_or_create
+    return self.create(**params), True
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 679, in create
+    obj.save(force_insert=True, using=self.db)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 892, in save
+    self.save_base(
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 998, in save_base
+    updated = self._save_table(
+              ^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 1161, in _save_table
+    results = self._do_insert(
+              ^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/base.py", line 1202, in _do_insert
+    return manager._insert(
+           ^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/query.py", line 1847, in _insert
+    return query.get_compiler(using=using).execute_sql(returning_fields)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/models/sql/compiler.py", line 1836, in execute_sql
+    cursor.execute(sql, params)
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 122, in execute
+    return super().execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 79, in execute
+    return self._execute_with_wrappers(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 92, in _execute_with_wrappers
+    return executor(sql, params, many, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 100, in _execute
+    with self.db.wrap_database_errors:
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/utils.py", line 91, in __exit__
+    raise dj_exc_value.with_traceback(traceback) from exc_value
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/utils.py", line 105, in _execute
+    return self.cursor.execute(sql, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ahmed/tech-Savvy-projects/2025/real_clients/ringoCraft/lib/python3.12/site-packages/django/db/backends/sqlite3/base.py", line 354, in execute
+    return super().execute(query, params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+django.db.utils.OperationalError: database is locked
+INFO 2025-04-27 13:42:56,633 views 7065 126326128244416 Successful login for user: rings9619@gmail.com
+ERROR 2025-04-27 13:43:05,439 log 7065 126326092584640 Internal Server Error: /api/accounts/logout/
+INFO 2025-04-27 13:43:09,518 basehttp 7065 126325725591232 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 13:43:31,624 basehttp 7065 126325725591232 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+WARNING 2025-04-27 13:46:16,738 log 7065 126325725591232 Bad Request: /api/properties/
+WARNING 2025-04-27 13:46:16,739 basehttp 7065 126325725591232 "POST /api/properties/ HTTP/1.1" 400 313
+INFO 2025-04-27 13:48:02,036 autoreload 7065 126326293045376 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-27 13:48:17,041 autoreload 10096 127463994867840 Watching for file changes with StatReloader
+INFO 2025-04-27 13:49:42,314 views 10096 127463824815808 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 13:49:42,317 basehttp 10096 127463824815808 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-27 13:49:45,078 middleware 10096 127463824815808 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 13:49:45,171 views 10096 127463824815808 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 13:49:45,178 basehttp 10096 127463824815808 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 13:49:55,156 basehttp 10096 127463824815808 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-27 13:49:59,333 basehttp 10096 127463824815808 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+WARNING 2025-04-27 13:51:52,104 log 10096 127463824815808 Bad Request: /api/properties/
+WARNING 2025-04-27 13:51:52,106 basehttp 10096 127463824815808 "POST /api/properties/ HTTP/1.1" 400 382
+INFO 2025-04-27 13:58:24,000 middleware 10096 127463824815808 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 13:58:24,167 views 10096 127463824815808 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 13:58:24,192 basehttp 10096 127463824815808 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 13:59:47,104 log 10096 127463824815808 Bad Request: /api/properties/
+WARNING 2025-04-27 13:59:47,105 basehttp 10096 127463824815808 "POST /api/properties/ HTTP/1.1" 400 422
+INFO 2025-04-27 14:02:38,525 autoreload 10096 127463994867840 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/views.py changed, reloading.
+INFO 2025-04-27 14:02:42,165 autoreload 11558 136122959806592 Watching for file changes with StatReloader
+INFO 2025-04-27 14:04:11,195 middleware 11558 136122793457344 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 14:04:11,276 views 11558 136122793457344 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 14:04:11,282 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 15:25:31,549 log 11558 136122793457344 Unauthorized: /api/accounts/login/
+WARNING 2025-04-27 15:25:31,608 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-27 15:25:36,008 log 11558 136122793457344 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-27 15:25:36,008 basehttp 11558 136122793457344 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-27 15:25:39,023 middleware 11558 136122793457344 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 15:25:39,157 views 11558 136122793457344 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 15:25:39,185 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 15:25:51,600 views 11558 136122793457344 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 15:25:51,601 basehttp 11558 136122793457344 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-27 15:25:54,467 middleware 11558 136122793457344 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 15:25:54,672 views 11558 136122793457344 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 15:25:54,682 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 15:27:21,856 views 11558 136122793457344 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 15:27:21,857 basehttp 11558 136122793457344 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-27 15:27:24,144 middleware 11558 136122793457344 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 15:27:24,236 views 11558 136122793457344 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 15:27:24,243 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 15:27:31,565 views 11558 136122793457344 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 15:27:31,566 basehttp 11558 136122793457344 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-27 15:27:33,610 middleware 11558 136122793457344 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 15:27:33,713 views 11558 136122793457344 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 15:27:33,718 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 15:32:39,946 basehttp 11558 136122793457344 "OPTIONS /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 0
+INFO 2025-04-27 15:32:44,619 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+INFO 2025-04-27 15:32:48,672 basehttp 11558 136122766190272 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 200 825
+INFO 2025-04-27 15:32:48,849 basehttp 11558 136122774582976 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 200 825
+INFO 2025-04-27 15:32:50,826 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+INFO 2025-04-27 15:33:20,167 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+INFO 2025-04-27 15:33:44,756 basehttp 11558 136122793457344 "OPTIONS /api/properties/luxury-villa-with-garden/ HTTP/1.1" 200 0
+INFO 2025-04-27 15:33:47,159 basehttp 11558 136122793457344 "GET /api/properties/luxury-villa-with-garden/ HTTP/1.1" 200 2294
+INFO 2025-04-27 15:33:48,562 basehttp 11558 136122774582976 "GET /media/generic_media/2025/04/27/test_property.jpg HTTP/1.1" 200 825
+INFO 2025-04-27 15:34:19,347 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+INFO 2025-04-27 15:34:19,448 basehttp 11558 136122774582976 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 304 0
+INFO 2025-04-27 15:35:43,486 basehttp 11558 136122793457344 "OPTIONS /api/properties/ HTTP/1.1" 200 0
+WARNING 2025-04-27 15:35:43,590 log 11558 136122793457344 Bad Request: /api/properties/
+WARNING 2025-04-27 15:35:43,591 basehttp 11558 136122793457344 "POST /api/properties/ HTTP/1.1" 400 313
+INFO 2025-04-27 15:41:24,229 basehttp 11558 136122793457344 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-27 15:41:27,959 middleware 11558 136122793457344 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 15:41:29,135 views 11558 136122793457344 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 15:41:29,270 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 15:44:09,870 log 11558 136122793457344 Bad Request: /api/properties/
+WARNING 2025-04-27 15:44:09,870 basehttp 11558 136122793457344 "POST /api/properties/ HTTP/1.1" 400 313

@@ -1,12 +1,11 @@
 import { writable } from 'svelte/store';
+import api from '$lib/services/api';
 
 // Store for properties
 export const properties = writable([]);
 export const currentProperty = writable(null);
 export const loadingProperties = writable(false);
 export const propertyError = writable(null);
-
-const API_URL = 'http://localhost:8000/api';
 
 /**
  * Fetch properties with optional filter parameters
@@ -27,27 +26,23 @@ export async function fetchProperties(params = {}) {
 		}
 
 		const queryString = queryParams.toString();
-		const url = queryString ? `${API_URL}/properties/?${queryString}` : `${API_URL}/properties/`;
+		const endpoint = queryString ? `/properties/?${queryString}` : '/properties/';
 
-		// Make API request
-		const response = await fetch(url, {
-			headers: {
-				'Content-Type': 'application/json',
-				// Add authorization header if authenticated
-				...getAuthHeader()
-			}
-		});
+		// Make API request using ApiService
+		const data = await api.fetch(endpoint, { method: 'GET' });
 
-		if (!response.ok) {
-			throw new Error('فشل في جلب بيانات العقارات');
+		// Assuming the API returns { success: true, data: { results: [...], count: ... } }
+		if (data && data.success && data.data) {
+			properties.set(data.data.results || []);
+			return {
+				results: data.data.results || [],
+				count: data.data.count || 0
+			};
+		} else {
+			// Handle cases where the structure might be different or success is false
+			throw new Error(data?.error?.message || 'Invalid response structure from server');
 		}
 
-		const data = await response.json();
-		properties.set(data.data?.results || []);
-		return {
-			results: data.data?.results || [],
-			count: data.data?.count || 0
-		};
 	} catch (error) {
 		console.error('Error fetching properties:', error);
 		propertyError.set(error.message);
@@ -64,27 +59,22 @@ export async function fetchProperties(params = {}) {
 /**
  * Fetch a single property by its slug
  * @param {string} slug - Property slug
- * @returns {Promise<Object>} - Property data
+ * @returns {Promise<Object | null>} - Property data or null on error
  */
 export async function fetchPropertyBySlug(slug) {
 	loadingProperties.set(true);
 	propertyError.set(null);
 
 	try {
-		const response = await fetch(`${API_URL}/properties/${slug}/`, {
-			headers: {
-				'Content-Type': 'application/json',
-				...getAuthHeader()
-			}
-		});
+		const endpoint = `/properties/${slug}/`;
+		const data = await api.fetch(endpoint, { method: 'GET' });
 
-		if (!response.ok) {
-			throw new Error('فشل في جلب تفاصيل العقار');
+		if (data && data.success && data.data) {
+			currentProperty.set(data.data);
+			return data.data;
+		} else {
+			throw new Error(data?.error?.message || 'Failed to fetch property details');
 		}
-
-		const data = await response.json();
-		currentProperty.set(data.data);
-		return data.data;
 	} catch (error) {
 		console.error('Error fetching property:', error);
 		propertyError.set(error.message);
@@ -96,47 +86,35 @@ export async function fetchPropertyBySlug(slug) {
 }
 
 /**
- * Create a new property
- * @param {Object} propertyData - Property data
- * @returns {Promise<Object>} - Created property data
+ * Create a new property using FormData
+ * @param {FormData} formData - The FormData object containing property data and files
+ * @returns {Promise<Object>} - Result object with success status and created property data or error
  */
-export async function createProperty(propertyData) {
+export async function createProperty(formData) {
 	loadingProperties.set(true);
 	propertyError.set(null);
 
 	try {
-		const response = await fetch(`${API_URL}/properties/`, {
+		console.log('Sending FormData to ApiService...');
+
+		const data = await api.fetch('/properties/', {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				...getAuthHeader()
-			},
-			body: JSON.stringify(propertyData)
+			body: formData
 		});
 
-		if (!response.ok) {
-			const errorData = await response.json();
-			throw new Error(errorData.error?.message || 'فشل في إنشاء العقار');
+		console.log('Response from ApiService:', data);
+
+		if (data && data.success) {
+			return { success: true, data: data.data };
+		} else {
+			throw new Error(data?.error || 'Failed to create property');
 		}
 
-		const data = await response.json();
-		return { success: true, data: data.data };
 	} catch (error) {
-		console.error('Error creating property:', error);
+		console.error('Error in createProperty service:', error);
 		propertyError.set(error.message);
 		return { success: false, error: error.message };
 	} finally {
 		loadingProperties.set(false);
 	}
-}
-
-// Helper function to get auth header if user is logged in
-function getAuthHeader() {
-	if (typeof localStorage !== 'undefined') {
-		const token = localStorage.getItem('token');
-		if (token) {
-			return { Authorization: `Bearer ${token}` };
-		}
-	}
-	return {};
 }

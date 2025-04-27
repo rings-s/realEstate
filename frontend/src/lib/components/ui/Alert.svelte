@@ -31,7 +31,7 @@
 				<i class={iconClasses[type]}></i>
 			</div>
 			<div class="mr-3 flex-1">
-				<p class="text-sm">{message}</p>
+				<p class="text-sm">{@html message}</p>
 			</div>
 			{#if dismissible}
 				<button on:click={dismiss} class="text-slate-400 hover:text-slate-600">

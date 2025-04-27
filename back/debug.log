@@ -5466,3 +5466,120 @@ WARNING 2025-04-26 23:36:52,833 log 43385 140519304853184 Bad Request: /api/prop
 WARNING 2025-04-26 23:36:52,834 basehttp 43385 140519304853184 "POST /api/properties/ HTTP/1.1" 400 329
 INFO 2025-04-26 23:36:58,562 basehttp 43385 140519304853184 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
 INFO 2025-04-26 23:37:02,857 basehttp 43385 140519304853184 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-26 23:38:06,702 basehttp 43385 140519304853184 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-27 00:11:41,783 autoreload 7552 140407970603136 Watching for file changes with StatReloader
+INFO 2025-04-27 00:14:06,850 basehttp 7552 140407807669952 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 0
+INFO 2025-04-27 00:14:11,580 basehttp 7552 140407807669952 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-27 00:15:04,295 basehttp 7552 140407807669952 "OPTIONS /api/properties/ HTTP/1.1" 200 0
+WARNING 2025-04-27 00:15:04,319 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:15:04,320 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 00:17:12,201 basehttp 7552 140407807669952 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-27 00:17:13,433 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:17:13,679 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:17:13,750 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 00:18:28,996 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:18:28,997 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 00:19:27,808 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:19:27,980 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:19:27,983 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 00:20:15,205 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:20:15,209 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 00:21:47,916 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:21:48,001 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:21:48,004 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 00:22:00,990 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:22:01,081 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:22:01,087 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 00:22:38,568 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:22:38,569 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 00:24:28,972 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:24:29,076 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:24:29,079 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 00:25:06,369 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:25:06,370 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+WARNING 2025-04-27 00:27:03,808 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:27:03,809 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 00:28:37,746 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:28:37,859 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:28:37,863 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 00:29:17,374 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:29:17,375 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 00:33:15,145 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:33:15,229 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:33:15,232 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 00:33:57,790 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:33:57,790 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 00:36:31,899 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:36:31,988 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:36:31,995 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 00:38:08,850 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:38:08,851 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 00:47:15,573 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:47:15,679 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:47:15,685 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 00:48:22,159 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:48:22,159 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 00:50:46,024 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:50:46,119 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:50:46,125 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 00:55:31,548 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 00:55:31,549 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 00:59:09,241 middleware 7552 140407807669952 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 00:59:09,387 views 7552 140407807669952 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 00:59:09,392 basehttp 7552 140407807669952 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 00:59:16,968 basehttp 7552 140407807669952 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+WARNING 2025-04-27 01:00:06,473 log 7552 140407807669952 Bad Request: /api/properties/
+WARNING 2025-04-27 01:00:06,473 basehttp 7552 140407807669952 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 02:46:56,475 autoreload 12530 135780715946112 Watching for file changes with StatReloader
+INFO 2025-04-27 02:48:26,776 basehttp 12530 135780550833856 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 0
+WARNING 2025-04-27 02:48:27,780 log 12530 135780550833856 Unauthorized: /api/properties/
+WARNING 2025-04-27 02:48:27,781 basehttp 12530 135780550833856 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-27 02:48:29,566 log 12530 135780550833856 Unauthorized: /api/properties/
+WARNING 2025-04-27 02:48:29,567 basehttp 12530 135780550833856 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-27 02:48:30,588 log 12530 135780550833856 Unauthorized: /api/properties/
+WARNING 2025-04-27 02:48:30,588 basehttp 12530 135780550833856 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-27 02:48:30,793 log 12530 135780550833856 Unauthorized: /api/properties/
+WARNING 2025-04-27 02:48:30,793 basehttp 12530 135780550833856 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-27 02:48:30,976 log 12530 135780550833856 Unauthorized: /api/properties/
+WARNING 2025-04-27 02:48:30,977 basehttp 12530 135780550833856 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-27 02:48:45,487 basehttp 12530 135780550833856 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+WARNING 2025-04-27 02:48:45,496 log 12530 135780550833856 Unauthorized: /api/accounts/login/
+WARNING 2025-04-27 02:48:45,497 basehttp 12530 135780550833856 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-27 02:48:46,974 log 12530 135780550833856 Unauthorized: /api/accounts/login/
+WARNING 2025-04-27 02:48:46,974 basehttp 12530 135780550833856 "POST /api/accounts/login/ HTTP/1.1" 401 183
+INFO 2025-04-27 02:48:49,596 basehttp 12530 135780550833856 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-27 02:48:49,601 log 12530 135780550833856 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-27 02:48:49,601 basehttp 12530 135780550833856 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-27 02:48:51,766 middleware 12530 135780550833856 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 02:48:51,892 views 12530 135780550833856 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 02:48:51,908 basehttp 12530 135780550833856 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 02:48:57,551 middleware 12530 135780550833856 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 02:48:57,637 views 12530 135780550833856 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 02:48:57,643 basehttp 12530 135780550833856 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 02:49:52,365 middleware 12530 135780550833856 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 02:49:52,457 views 12530 135780550833856 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 02:49:52,460 basehttp 12530 135780550833856 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 02:50:06,004 log 12530 135780550833856 Unauthorized: /api/properties/
+WARNING 2025-04-27 02:50:06,005 basehttp 12530 135780550833856 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 58
+WARNING 2025-04-27 02:50:08,354 log 12530 135780550833856 Unauthorized: /api/properties/
+WARNING 2025-04-27 02:50:08,355 basehttp 12530 135780550833856 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 58
+INFO 2025-04-27 02:50:13,772 middleware 12530 135780550833856 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 02:50:13,867 views 12530 135780550833856 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 02:50:13,871 basehttp 12530 135780550833856 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 02:51:28,222 middleware 12530 135780550833856 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 02:51:28,309 views 12530 135780550833856 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 02:51:28,312 basehttp 12530 135780550833856 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 03:03:08,364 middleware 12530 135780550833856 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 03:03:08,451 views 12530 135780550833856 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 03:03:08,455 basehttp 12530 135780550833856 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 03:03:11,664 log 12530 135780550833856 Unauthorized: /api/properties/
+WARNING 2025-04-27 03:03:11,666 basehttp 12530 135780550833856 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 58
+INFO 2025-04-27 03:10:09,463 middleware 12530 135780531959488 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 03:10:09,552 views 12530 135780531959488 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 03:10:09,557 basehttp 12530 135780531959488 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 03:25:21,554 middleware 12530 135780531959488 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 03:25:21,646 views 12530 135780531959488 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 03:25:21,652 basehttp 12530 135780531959488 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 03:25:25,366 middleware 12530 135780531959488 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 03:25:25,487 views 12530 135780531959488 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 03:25:25,493 basehttp 12530 135780531959488 "POST /api/accounts/login/ HTTP/1.1" 200 1186

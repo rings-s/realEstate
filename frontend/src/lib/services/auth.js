@@ -24,6 +24,25 @@ if (browser) {
   });
 }
 
+
+
+export function getStoredToken() {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('token');
+  }
+  return null;
+}
+
+export function setStoredToken(token) {
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('token', token);
+    } else {
+      localStorage.removeItem('token');
+    }
+  }
+}
+
 export async function register(userData) {
   try {
     const res = await fetch(`${API_URL}/accounts/register/`, {

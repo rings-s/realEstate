@@ -16,103 +16,52 @@ class ApiService {
     this.baseUrl = baseUrl;
   }
 
-  async fetch(endpoint, options = {}) {
-    try {
-      const accessToken = getStoredToken();
-      const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
-      const headers = {};
 
-      if (accessToken) {
-        headers['Authorization'] = `Bearer ${accessToken}`;
-      }
+	async fetch(endpoint, options = {}) {
+		try {
+			const accessToken = getStoredToken();
+			const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
+			const headers = {};
 
-      // Only add Content-Type if not FormData
-      if (!(options.body instanceof FormData)) {
-        headers['Content-Type'] = 'application/json';
-        if (options.body && typeof options.body === 'object') {
-          options.body = JSON.stringify(options.body);
-        }
-      }
+			if (accessToken) {
+			headers['Authorization'] = `Bearer ${accessToken}`;
+			}
 
-      const requestOptions = {
-        ...options,
-        headers: {
-          ...headers,
-          ...options.headers
-        }
-      };
+			// Only add Content-Type if not FormData
+			if (!(options.body instanceof FormData)) {
+			headers['Content-Type'] = 'application/json';
+			if (options.body && typeof options.body === 'object') {
+				options.body = JSON.stringify(options.body);
+			}
+			}
 
-      console.log('Making request to:', url, {
-        method: requestOptions.method,
-        headers: {
-          ...requestOptions.headers,
-          Authorization: requestOptions.headers.Authorization ? '[HIDDEN]' : undefined
-        },
-        bodyType: options.body ? options.body.constructor.name : 'none'
-      });
+			const requestOptions = {
+			...options,
+			headers: {
+				...headers,
+				...options.headers
+			}
+			};
 
-      const response = await fetch(url, requestOptions);
-      let data;
+			const response = await fetch(url, requestOptions);
+			const data = await response.json();
 
-      const contentType = response.headers.get('content-type');
-      if (contentType?.includes('application/json')) {
-        const text = await response.text();
-        try {
-          data = text ? JSON.parse(text) : null;
-        } catch (e) {
-          console.error('Failed to parse JSON response:', text);
-          throw new Error('Invalid JSON response from server');
-        }
-      } else {
-        data = await response.text();
-      }
+			if (!response.ok) {
+			throw new Error(data.error || 'API request failed');
+			}
 
-      if (!response.ok) {
-        let errorMessage = 'API request failed';
-        console.error('Full API error response:', data);
-        
-        if (data) {
-          if (data.error?.message) errorMessage = data.error.message;
-          else if (data.error) errorMessage = data.error;
-          else if (data.detail) errorMessage = data.detail;
-          else if (data.errors) {
-            // Format field errors
-            const fieldErrors = [];
-            Object.entries(data.errors).forEach(([field, errors]) => {
-              if (Array.isArray(errors)) {
-                fieldErrors.push(`${field}: ${errors.join(', ')}`);
-              } else if (typeof errors === 'string') {
-                fieldErrors.push(`${field}: ${errors}`);
-              } else {
-                fieldErrors.push(`${field}: Invalid data`);
-              }
-            });
-            
-            if (fieldErrors.length) {
-              errorMessage = `Validation errors:\n${fieldErrors.join('\n')}`;
-            }
-          }
-        }
-        throw new Error(errorMessage);
-      }
-
-      return {
-        status: 'success',
-        data
-      };
-    } catch (error) {
-      console.error('API Request Error:', error);
-      if (error.message.includes('401')) {
-        // Handle unauthorized access
-        logout();
-        window.location.href = '/login';
-      }
-      return {
-        status: 'error',
-        error: error.message
-      };
-    }
-  }
+			return {
+			status: 'success',
+			data
+			};
+		} catch (error) {
+			console.error('API Request Error:', error);
+			return {
+			status: 'error',
+			error: error.message
+			};
+		}
+	}
 
   // Helper method for handling query parameters
   buildQueryString(params = {}) {

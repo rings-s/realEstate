@@ -134,18 +134,36 @@ export async function verifyEmail(email, verification_code) {
 
 export async function login(email, password) {
 	try {
-		const response = await api.post('/accounts/login/', { email, password });
-
-		if (response.data?.tokens && response.data?.user) {
-			token.set(response.data.tokens.access);
-			refreshToken.set(response.data.tokens.refresh);
-			user.set(response.data.user);
-			return { success: true };
-		}
-
-		return { success: false, error: 'بيانات غير كاملة' };
+	  const response = await api.post('/accounts/login/', {
+		email: email.trim().toLowerCase(),
+		password
+	  });
+  
+	  console.log('Login response:', response); // Debug log
+  
+	  if (response.status === 'success' && response.data?.tokens && response.data?.user) {
+		// Log token before storing
+		console.log('Received tokens:', {
+		  access: response.data.tokens.access ? 'present' : 'missing',
+		  refresh: response.data.tokens.refresh ? 'present' : 'missing'
+		});
+  
+		// Store tokens in localStorage
+		localStorage.setItem('token', response.data.tokens.access);
+		localStorage.setItem('refreshToken', response.data.tokens.refresh);
+		
+		// Update stores
+		token.set(response.data.tokens.access);
+		refreshToken.set(response.data.tokens.refresh);
+		user.set(response.data.user);
+  
+		return { success: true };
+	  }
+  
+	  throw new Error(response.error || 'Login response missing tokens or user data');
 	} catch (error) {
-		return { success: false, error: error.message };
+	  console.error('Login error:', error);
+	  return { success: false, error: error.message };
 	}
 }
 

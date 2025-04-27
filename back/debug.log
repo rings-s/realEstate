@@ -5694,3 +5694,33 @@ WARNING 2025-04-27 10:34:58,753 log 12530 135780550833856 Bad Request: /api/prop
 WARNING 2025-04-27 10:34:58,754 basehttp 12530 135780550833856 "POST /api/properties/ HTTP/1.1" 400 329
 WARNING 2025-04-27 10:35:16,008 log 12530 135780550833856 Bad Request: /api/properties/
 WARNING 2025-04-27 10:35:16,008 basehttp 12530 135780550833856 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 13:26:09,423 autoreload 7065 126326293045376 Watching for file changes with StatReloader
+INFO 2025-04-27 13:28:26,013 basehttp 7065 126326128244416 "OPTIONS /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 0
+WARNING 2025-04-27 13:28:27,019 log 7065 126326128244416 Unauthorized: /api/properties/
+WARNING 2025-04-27 13:28:27,019 basehttp 7065 126326128244416 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-27 13:28:29,919 log 7065 126326128244416 Unauthorized: /api/properties/
+WARNING 2025-04-27 13:28:29,920 basehttp 7065 126326128244416 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+WARNING 2025-04-27 13:28:31,204 log 7065 126326128244416 Unauthorized: /api/properties/
+WARNING 2025-04-27 13:28:31,204 basehttp 7065 126326128244416 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-27 13:28:33,071 basehttp 7065 126326128244416 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-27 13:28:33,079 log 7065 126326128244416 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-27 13:28:33,080 basehttp 7065 126326128244416 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-27 13:28:34,392 basehttp 7065 126326128244416 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-27 13:28:35,240 middleware 7065 126326128244416 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 13:28:35,391 views 7065 126326128244416 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 13:28:35,399 basehttp 7065 126326128244416 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 13:28:36,693 basehttp 7065 126326128244416 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-27 13:28:36,835 basehttp 7065 126326109370048 "GET /media/generic_media/2025/04/24/d.jpeg HTTP/1.1" 304 0
+INFO 2025-04-27 13:28:38,078 basehttp 7065 126326128244416 "OPTIONS /api/properties/property/ HTTP/1.1" 200 0
+INFO 2025-04-27 13:28:38,428 basehttp 7065 126326128244416 "GET /api/properties/property/ HTTP/1.1" 200 1337
+INFO 2025-04-27 13:28:42,748 basehttp 7065 126326128244416 "GET /api/properties/?page=1&page_size=12&property_type=&city=&min_market_value=&max_market_value=&bedrooms=&bathrooms=&search=&ordering=newest HTTP/1.1" 200 1389
+INFO 2025-04-27 13:32:00,698 basehttp 7065 126326128244416 "OPTIONS /api/properties/ HTTP/1.1" 200 0
+WARNING 2025-04-27 13:32:00,714 log 7065 126326128244416 Bad Request: /api/properties/
+WARNING 2025-04-27 13:32:00,715 basehttp 7065 126326128244416 "POST /api/properties/ HTTP/1.1" 400 329
+INFO 2025-04-27 13:42:43,421 middleware 7065 126325725591232 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 13:42:43,515 middleware 7065 126326128244416 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 13:42:48,160 views 7065 126326075799232 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 13:42:49,909 views 7065 126326100977344 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 13:42:50,346 views 7065 126326084191936 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 13:42:51,235 views 7065 126325725591232 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 13:42:52,384 views 7065 126326109370048 User rings9619@gmail.com logged out successfully

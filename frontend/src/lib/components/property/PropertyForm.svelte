@@ -401,43 +401,63 @@
 	});
   
 	// Form submission
+	// src/lib/components/property/PropertyForm.svelte
+
 	async function handleSubmit() {
-	  if (!validateStep(currentStep)) {
-		addToast('يرجى تصحيح الأخطاء في الخطوة الحالية قبل الحفظ', 'error');
-		errors = { ...errors };
-		return;
-	  }
-  
-	  // Prepare final data for submission
-	  const finalData = {
-		...formData,
-		// Ensure all required fields are properly formatted
-		size_sqm: formData.size_sqm ? Number(formData.size_sqm) : null,
-		bedrooms: formData.bedrooms ? Number(formData.bedrooms) : null,
-		bathrooms: formData.bathrooms ? Number(formData.bathrooms) : null,
-		floors: formData.floors ? Number(formData.floors) : null,
-		parking_spaces: formData.parking_spaces ? Number(formData.parking_spaces) : null,
-		year_built: formData.year_built ? Number(formData.year_built) : null,
-		market_value: formData.market_value ? Number(formData.market_value) : null,
-		minimum_bid: formData.minimum_bid ? Number(formData.minimum_bid) : null,
-	  };
-  
-	  // Get existing media IDs if editing
-	  const existingMediaIds = uploadedImages
-		.filter(img => img.id)
-		.map(img => img.id);
-  
-	  // Get new files to upload
-	  const newFiles = uploadedImages
-		.filter(img => img.file)
-		.map(img => img.file);
-  
-	  // Dispatch the submit event with the form data and the image files
-	  dispatch('submit', { 
-		formData: finalData, 
-		images: newFiles,
-		existingMedia: existingMediaIds
-	  });
+	// Validate current step
+		if (!validateStep(currentStep)) {
+			return;
+		}
+
+		// Create final form data object
+		const submitData = {
+			// Basic info
+			title: formData.title?.trim(),
+			property_type: formData.property_type,
+			description: formData.description?.trim(),
+			status: formData.status || 'available',
+			deed_number: formData.deed_number?.trim(),
+
+			// Location
+			location: {
+			latitude: formData.location?.latitude || null,
+			longitude: formData.location?.longitude || null
+			},
+			address: formData.address?.trim(),
+			city: formData.city?.trim(),
+			state: formData.state?.trim(),
+			postal_code: formData.postal_code?.trim(),
+			country: formData.country?.trim(),
+
+			// Details
+			size_sqm: formData.size_sqm ? parseFloat(formData.size_sqm) : null,
+			bedrooms: formData.bedrooms ? parseInt(formData.bedrooms) : null,
+			bathrooms: formData.bathrooms ? parseInt(formData.bathrooms) : null,
+			floors: formData.floors ? parseInt(formData.floors) : null,
+			parking_spaces: formData.parking_spaces ? parseInt(formData.parking_spaces) : null,
+			year_built: formData.year_built ? parseInt(formData.year_built) : null,
+
+			// Features & Amenities
+			features: formData.features || [],
+			amenities: formData.amenities || [],
+			rooms: formData.rooms || [],
+			specifications: formData.specifications || {},
+
+			// Pricing
+			market_value: formData.market_value ? parseFloat(formData.market_value) : null,
+			minimum_bid: formData.minimum_bid ? parseFloat(formData.minimum_bid) : null,
+			pricing_details: formData.pricing_details || {},
+
+			// Publication status
+			is_published: formData.is_published || false,
+			is_featured: formData.is_featured || false,
+
+			// Media files
+			media: uploadedImages.map(img => img.file).filter(Boolean)
+		};
+
+		// Dispatch the submit event with cleaned data
+		dispatch('submit', submitData);
 	}
   </script>
   

@@ -102,47 +102,56 @@ export async function fetchPropertyBySlug(slug) {
 	}
 }
 
+// src/lib/stores/properties.js
+
 export async function createProperty(propertyData) {
 	loadingProperties.set(true);
 	propertyError.set(null);
   
 	try {
-	  // Create FormData for handling files
+	  // Create FormData
 	  const formData = new FormData();
   
-	  // Add all property data
-	  Object.keys(propertyData).forEach(key => {
-		if (key === 'media') {
-		  // Handle media files
-		  propertyData.media.forEach(file => {
-			formData.append('media', file);
+	  // Handle each field appropriately
+	  Object.entries(propertyData).forEach(([key, value]) => {
+		// Skip null/undefined values
+		if (value === null || value === undefined) return;
+  
+		// Handle arrays and objects (except FileList/media)
+		if (key !== 'media' && typeof value === 'object') {
+		  formData.append(key, JSON.stringify(value));
+		}
+		// Handle media files
+		else if (key === 'media' && Array.isArray(value)) {
+		  value.forEach(file => {
+			if (file instanceof File) {
+			  formData.append('media', file);
+			}
 		  });
-		} else if (typeof propertyData[key] === 'object' && propertyData[key] !== null) {
-		  // Handle JSON fields
-		  formData.append(key, JSON.stringify(propertyData[key]));
-		} else if (propertyData[key] !== null && propertyData[key] !== undefined) {
-		  formData.append(key, propertyData[key]);
+		}
+		// Handle primitive values
+		else {
+		  formData.append(key, value);
 		}
 	  });
   
+	  // Make API request
 	  const response = await api.post('/properties/', formData);
   
-	  if (response.status === 'success') {
-		addToast('تم إضافة العقار بنجاح', 'success');
+	  if (response.status === 'success' && response.data) {
 		return { success: true, data: response.data };
 	  } else {
 		throw new Error(response.error || 'Failed to create property');
 	  }
+  
 	} catch (error) {
 	  console.error('Error creating property:', error);
-	  propertyError.set(error.message);
-	  addToast(error.message || 'فشل في إضافة العقار', 'error');
-	  return { success: false, error: error.message };
+	  throw error;
 	} finally {
 	  loadingProperties.set(false);
 	}
-  }
-  
+}
+
 export async function updateProperty(slug, propertyData) {
 	if (!slug) {
 		return { success: false, error: 'Invalid property ID' };

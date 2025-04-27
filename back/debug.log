@@ -5915,3 +5915,32 @@ INFO 2025-04-27 16:06:49,669 basehttp 11558 136122774582976 "GET /media/generic_
 INFO 2025-04-27 16:06:49,676 basehttp 11558 136122774582976 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 304 0
 WARNING 2025-04-27 16:08:37,494 log 11558 136122793457344 Bad Request: /api/properties/
 WARNING 2025-04-27 16:08:37,495 basehttp 11558 136122793457344 "POST /api/properties/ HTTP/1.1" 400 313
+INFO 2025-04-27 16:09:24,455 views 11558 136122793457344 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 16:09:24,456 basehttp 11558 136122793457344 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-27 21:40:50,991 autoreload 7360 124282800005248 Watching for file changes with StatReloader
+INFO 2025-04-27 21:46:40,012 autoreload 7360 124282800005248 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 21:46:43,735 autoreload 9135 132327902998656 Watching for file changes with StatReloader
+INFO 2025-04-27 21:48:26,671 autoreload 9135 132327902998656 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 21:48:27,443 autoreload 9297 123713759740032 Watching for file changes with StatReloader
+INFO 2025-04-27 21:48:48,545 autoreload 9297 123713759740032 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 21:48:49,272 autoreload 9360 130053979148416 Watching for file changes with StatReloader
+INFO 2025-04-27 21:51:50,467 autoreload 9360 130053979148416 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 21:51:51,076 autoreload 9593 138686163411072 Watching for file changes with StatReloader
+INFO 2025-04-27 21:53:15,688 autoreload 9593 138686163411072 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 21:53:16,570 autoreload 9695 130326965842048 Watching for file changes with StatReloader
+INFO 2025-04-27 21:57:32,369 autoreload 9695 130326965842048 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 21:57:33,000 autoreload 10114 140157503197312 Watching for file changes with StatReloader
+INFO 2025-04-27 21:58:27,886 autoreload 10114 140157503197312 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 21:58:28,822 autoreload 10201 134837236232320 Watching for file changes with StatReloader
+INFO 2025-04-27 21:59:26,922 autoreload 10201 134837236232320 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 21:59:27,543 autoreload 10335 128228864663680 Watching for file changes with StatReloader
+INFO 2025-04-27 22:00:15,227 autoreload 10335 128228864663680 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 22:00:15,861 autoreload 10395 136729734897792 Watching for file changes with StatReloader
+INFO 2025-04-27 22:00:58,452 autoreload 10395 136729734897792 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 22:00:59,074 autoreload 10470 137837430358144 Watching for file changes with StatReloader
+INFO 2025-04-27 22:02:18,563 autoreload 10470 137837430358144 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 22:02:19,151 autoreload 10580 126268216184960 Watching for file changes with StatReloader
+INFO 2025-04-27 22:03:15,207 autoreload 10580 126268216184960 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 22:03:16,111 autoreload 10679 124281070002304 Watching for file changes with StatReloader
+INFO 2025-04-27 22:05:47,347 autoreload 10679 124281070002304 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 22:05:48,106 autoreload 10959 133118504595584 Watching for file changes with StatReloader

@@ -1,10 +1,11 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 import json
 from django.db import models
-
+from django.core.exceptions import ValidationError
+from django.utils.translation import gettext_lazy as _
+import logging
 
 from .models import (
     MessageThread, ThreadParticipant, Message, Property, Auction, Bid,
@@ -12,6 +13,8 @@ from .models import (
 )
 from .utils import sanitize_html, truncate_text
 
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -123,8 +126,11 @@ class MediaSerializer(serializers.ModelSerializer):
 # -------------------------------------------------------------------------
 
 
+
+
 class BaseModelSerializer(serializers.ModelSerializer):
     """Base serializer with common fields for most models"""
+
     created_at = serializers.DateTimeField(
         read_only=True,
         format="%Y-%m-%d %H:%M:%S",
@@ -136,65 +142,144 @@ class BaseModelSerializer(serializers.ModelSerializer):
         label=_('Last Updated')
     )
 
-    def to_internal_value(self, data):
-        """
-        Handle JSON fields and sanitize text fields
-        """
-        # Get model class
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._setup_json_fields()
+
+    def _setup_json_fields(self):
+        """Cache JSON field information for better performance"""
         model_class = self.Meta.model
-
-        # Identify JSON and text fields in the model
-        json_fields = [
-            field.name for field in model_class._meta.fields
+        self._json_fields = {
+            field.name: field for field in model_class._meta.fields
             if isinstance(field, models.JSONField)
-        ]
-        text_fields = [
-            field.name for field in model_class._meta.fields
-            if isinstance(field, models.TextField)
-        ]
+        }
+        self._dict_json_fields = set(name for name, field in self._json_fields.items()
+                                   if field.default == dict)
+        self._list_json_fields = set(name for name, field in self._json_fields.items()
+                                   if field.default == list)
 
-        # Process JSON fields
-        for field in json_fields:
-            if field in data and isinstance(data[field], str):
+    def handle_empty_json_field(self, field_name, value):
+        """Handle empty or null JSON field values"""
+        if value is None or value == '':
+            return {} if field_name in self._dict_json_fields else []
+        return value
+
+    def get_field_type(self, field_name):
+        """Get the expected type for a JSON field"""
+        if field_name in self._dict_json_fields:
+            return dict
+        elif field_name in self._list_json_fields:
+            return list
+        return None
+
+    def validate_json_field(self, field_name, value):
+        """Validate individual JSON fields"""
+        try:
+            # Handle empty values
+            if not value:
+                return self.handle_empty_json_field(field_name, value)
+
+            # Handle string inputs
+            if isinstance(value, str):
                 try:
-                    data[field] = json.loads(data[field])
-                except (json.JSONDecodeError, TypeError):
-                    data[field] = {} if field in ['metadata', 'location'] else []
+                    value = json.loads(value)
+                except json.JSONDecodeError:
+                    raise ValidationError(f"Invalid JSON format for {field_name}")
 
-        # Sanitize text fields
-        for field in text_fields:
-            if field in data and isinstance(data[field], str):
-                data[field] = sanitize_html(data[field])
+            # Validate dictionary fields
+            if field_name in self._dict_json_fields:
+                if not isinstance(value, dict):
+                    raise ValidationError(f"{field_name} must be a dictionary")
+                return value
 
-        return super().to_internal_value(data)
+            # Validate list fields
+            if field_name in self._list_json_fields:
+                if not isinstance(value, list):
+                    raise ValidationError(f"{field_name} must be a list")
+                return value
+
+            return value
+
+        except Exception as e:
+            logger.error(f"Error validating JSON field {field_name}: {str(e)}")
+            raise ValidationError(f"Error processing {field_name}: {str(e)}")
+
+    def validate(self, data):
+        """Validate all JSON fields in the data"""
+        try:
+            for field_name in self._json_fields:
+                if field_name in data:
+                    data[field_name] = self.validate_json_field(field_name, data[field_name])
+            return super().validate(data)
+        except Exception as e:
+            logger.error(f"Validation error: {str(e)}")
+            raise serializers.ValidationError(f"Validation error: {str(e)}")
+
+    def to_internal_value(self, data):
+        """Process incoming data, handling JSON fields appropriately"""
+        try:
+            # Handle JSON fields
+            for field_name in self._json_fields:
+                if field_name in data:
+                    value = data[field_name]
+
+                    # Handle empty values
+                    if not value:
+                        data[field_name] = self.handle_empty_json_field(field_name, value)
+                        continue
+
+                    # Convert string to JSON if needed
+                    if isinstance(value, str):
+                        try:
+                            data[field_name] = json.loads(value)
+                        except json.JSONDecodeError:
+                            data[field_name] = self.handle_empty_json_field(field_name, value)
+
+                    # Validate type
+                    expected_type = self.get_field_type(field_name)
+                    if expected_type and not isinstance(data[field_name], expected_type):
+                        data[field_name] = self.handle_empty_json_field(field_name, value)
+
+            return super().to_internal_value(data)
+
+        except Exception as e:
+            logger.error(f"Error processing incoming data: {str(e)}")
+            raise serializers.ValidationError(f"Error processing data: {str(e)}")
 
     def to_representation(self, instance):
-        """
-        Ensure JSON fields are properly serialized
-        """
-        representation = super().to_representation(instance)
+        """Convert model instance to JSON-compatible data"""
+        try:
+            representation = super().to_representation(instance)
 
-        # Get model class
-        model_class = self.Meta.model
+            # Process JSON fields
+            for field_name in self._json_fields:
+                value = representation.get(field_name)
 
-        # Identify JSON fields
-        json_fields = [
-            field.name for field in model_class._meta.fields
-            if isinstance(field, models.JSONField)
-        ]
+                # Handle null values
+                if value is None:
+                    representation[field_name] = self.handle_empty_json_field(field_name, value)
+                    continue
 
-        # Ensure JSON fields are properly formatted
-        for field in json_fields:
-            value = representation.get(field)
-            if value is None:
-                representation[field] = {} if field in ['metadata', 'location'] else []
-            elif isinstance(value, str):
-                try:
-                    representation[field] = json.loads(value)
-                except (json.JSONDecodeError, TypeError):
-                    representation[field] = {} if field in ['metadata', 'location'] else []
+                # Convert string JSON to Python object if needed
+                if isinstance(value, str):
+                    try:
+                        representation[field_name] = json.loads(value)
+                    except json.JSONDecodeError:
+                        representation[field_name] = self.handle_empty_json_field(field_name, value)
 
-        return representation
+                # Ensure correct type
+                expected_type = self.get_field_type(field_name)
+                if expected_type and not isinstance(representation[field_name], expected_type):
+                    representation[field_name] = self.handle_empty_json_field(field_name, value)
+
+            return representation
+
+        except Exception as e:
+            logger.error(f"Error converting to representation: {str(e)}")
+            raise serializers.ValidationError(f"Error processing response: {str(e)}")
+
+    class Meta:
+        abstract = True
 # -------------------------------------------------------------------------
 # Message & Thread Serializers
 # -------------------------------------------------------------------------
@@ -364,13 +449,29 @@ class MessageThreadSerializer(BaseModelSerializer):
 # -------------------------------------------------------------------------
 # Property Serializers
 # -------------------------------------------------------------------------
-
-
 class PropertySerializer(BaseModelSerializer):
+    # Nested serializers and display fields
     media = MediaSerializer(many=True, read_only=True, label=_('ملفات الوسائط'))
     owner_details = UserBriefSerializer(source='owner', read_only=True, label=_('تفاصيل المالك'))
     property_type_display = serializers.CharField(source='get_property_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    view_count = serializers.IntegerField(read_only=True)
+
+    # Add choice fields with validation
+    property_type = serializers.ChoiceField(
+        choices=Property.PROPERTY_TYPES,
+        label=_('نوع العقار')
+    )
+    status = serializers.ChoiceField(
+        choices=Property.STATUS_CHOICES,
+        label=_('الحالة')
+    )
+    building_type = serializers.ChoiceField(
+        choices=Property.BUILDING_TYPE_CHOICES,
+        required=False,
+        allow_null=True,
+        label=_('نوع المبنى')
+    )
 
     class Meta:
         model = Property
@@ -382,7 +483,7 @@ class PropertySerializer(BaseModelSerializer):
             'floors', 'parking_spaces', 'year_built', 'market_value', 'minimum_bid',
             'pricing_details', 'owner', 'owner_details', 'is_published',
             'is_featured', 'is_verified', 'slug', 'media', 'metadata',
-            'created_at', 'updated_at', 'deed_number', 'highQualityStreets'
+            'created_at', 'updated_at', 'deed_number', 'highQualityStreets', 'building_type'
         ]
         extra_kwargs = {
             'owner': {'write_only': True},
@@ -392,26 +493,89 @@ class PropertySerializer(BaseModelSerializer):
             'updated_at': {'read_only': True}
         }
 
-    def validate(self, data):
-        # Required fields validation
-        required_fields = ['title', 'property_type', 'address', 'city']
-        for field in required_fields:
-            if field not in data:
-                raise serializers.ValidationError({field: f"{field} is required"})
+    def validate_property_type(self, value):
+        """Validate property type against model choices"""
+        valid_types = dict(Property.PROPERTY_TYPES)
+        if value not in valid_types:
+            raise serializers.ValidationError(
+                _("نوع العقار غير صالح. يجب أن يكون أحد الخيارات التالية: {}")
+                .format(", ".join(valid_types.values()))
+            )
+        return value
 
-        # Validate numeric fields
-        numeric_fields = ['size_sqm', 'bedrooms', 'bathrooms', 'floors',
-                         'parking_spaces', 'market_value', 'minimum_bid']
-        for field in numeric_fields:
-            if field in data and data[field]:
-                try:
-                    float(data[field])
-                except (TypeError, ValueError):
-                    raise serializers.ValidationError({field: f"{field} must be a number"})
+    def validate_status(self, value):
+        """Validate status against model choices"""
+        valid_statuses = dict(Property.STATUS_CHOICES)
+        if value not in valid_statuses:
+            raise serializers.ValidationError(
+                _("حالة العقار غير صالحة. يجب أن تكون إحدى الحالات التالية: {}")
+                .format(", ".join(valid_statuses.values()))
+            )
+        return value
+
+    def validate_building_type(self, value):
+        """Validate building type if provided"""
+        if value:
+            valid_types = dict(Property.BUILDING_TYPE_CHOICES)
+            if value not in valid_types:
+                raise serializers.ValidationError(
+                    _("نوع المبنى غير صالح. يجب أن يكون أحد الأنواع التالية: {}")
+                    .format(", ".join(valid_types.values()))
+                )
+        return value
+
+    def validate(self, data):
+        """Enhanced validation with model-specific rules"""
+        # Existing validation
+        data = super().validate(data)
+
+        # Property type-specific validation
+        property_type = data.get('property_type')
+        if property_type == 'residential':
+            # Residential properties should have bedrooms and bathrooms
+            if not data.get('bedrooms'):
+                raise serializers.ValidationError({
+                    'bedrooms': _("عدد غرف النوم مطلوب للعقارات السكنية")
+                })
+            if not data.get('bathrooms'):
+                raise serializers.ValidationError({
+                    'bathrooms': _("عدد الحمامات مطلوب للعقارات السكنية")
+                })
+
+        # Land property validation
+        if property_type == 'land':
+            # Lands shouldn't have bedrooms, bathrooms, or floors
+            if any(data.get(field) for field in ['bedrooms', 'bathrooms', 'floors']):
+                raise serializers.ValidationError(
+                    _("الأراضي لا يجب أن تحتوي على غرف نوم أو حمامات أو طوابق")
+                )
+
+        # Status-specific validation
+        status = data.get('status')
+        if status in ['sold', 'under_contract'] and not data.get('pricing_details'):
+            raise serializers.ValidationError({
+                'pricing_details': _("تفاصيل التسعير مطلوبة للعقارات المباعة أو تحت العقد")
+            })
+
+        # Location validation based on property type
+        location = data.get('location', {})
+        if property_type in ['residential', 'commercial'] and not all(
+            location.get(field) for field in ['latitude', 'longitude', 'address']
+        ):
+            raise serializers.ValidationError({
+                'location': _("الموقع الجغرافي مطلوب للعقارات السكنية والتجارية")
+            })
+
+        # Market value validation for published properties
+        if data.get('is_published') and not data.get('market_value'):
+            raise serializers.ValidationError({
+                'market_value': _("القيمة السوقية مطلوبة للعقارات المنشورة")
+            })
 
         return data
 
     def create(self, validated_data):
+        """Create a new property instance"""
         # Handle JSON fields
         json_fields = ['features', 'amenities', 'rooms', 'specifications',
                       'location', 'pricing_details', 'metadata', 'highQualityStreets']
@@ -420,32 +584,54 @@ class PropertySerializer(BaseModelSerializer):
             if field not in validated_data:
                 validated_data[field] = [] if field in ['features', 'amenities', 'rooms', 'highQualityStreets'] else {}
 
-        # Create the property instance
-        property_instance = super().create(validated_data)
-
-        return property_instance
+        try:
+            property_instance = super().create(validated_data)
+            return property_instance
+        except Exception as e:
+            logger.error(f"Error creating property: {str(e)}")
+            raise serializers.ValidationError(f"Error creating property: {str(e)}")
 
     def to_representation(self, instance):
         """Ensure proper serialization of all fields"""
-        representation = super().to_representation(instance)
+        try:
+            representation = super().to_representation(instance)
 
-        # Ensure proper serialization of JSON fields
-        json_fields = {
-            'array_fields': ['features', 'amenities', 'rooms', 'highQualityStreets'],
-            'object_fields': ['specifications', 'location', 'pricing_details', 'metadata']
-        }
+            # JSON field handling
+            json_fields = {
+                'array_fields': ['features', 'amenities', 'rooms', 'highQualityStreets'],
+                'object_fields': ['specifications', 'location', 'pricing_details', 'metadata']
+            }
 
-        for field in json_fields['array_fields']:
-            if representation.get(field) is None:
-                representation[field] = []
+            for field in json_fields['array_fields']:
+                if representation.get(field) is None:
+                    representation[field] = []
 
-        for field in json_fields['object_fields']:
-            if representation.get(field) is None:
-                representation[field] = {}
+            for field in json_fields['object_fields']:
+                if representation.get(field) is None:
+                    representation[field] = {}
 
-        return representation
+            # Format numeric fields
+            numeric_fields = ['size_sqm', 'market_value', 'minimum_bid']
+            for field in numeric_fields:
+                if representation.get(field):
+                    representation[field] = float(representation[field])
 
+            # Add choice field labels
+            representation['property_type_label'] = dict(Property.PROPERTY_TYPES).get(
+                representation.get('property_type', ''), ''
+            )
+            representation['status_label'] = dict(Property.STATUS_CHOICES).get(
+                representation.get('status', ''), ''
+            )
+            if 'building_type' in representation:
+                representation['building_type_label'] = dict(Property.BUILDING_TYPE_CHOICES).get(
+                    representation.get('building_type', ''), ''
+                )
 
+            return representation
+        except Exception as e:
+            logger.error(f"Error in property representation: {str(e)}")
+            raise serializers.ValidationError(f"Error processing property data: {str(e)}")
 # -------------------------------------------------------------------------
 # Bid Serializer
 # -------------------------------------------------------------------------

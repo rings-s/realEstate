@@ -79,8 +79,12 @@ class ApiService {
 
       if (!response.ok) {
         console.error('API Error:', data);
-        throw new Error(data.error?.message || data.error || 'API request failed');
+        if (data.errors) {
+          console.error('Validation errors:', data.errors);
+        }
+        throw new Error(data.error || 'API request failed');
       }
+
 
       return {
         status: 'success',

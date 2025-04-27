@@ -83,39 +83,38 @@ export async function fetchPropertyBySlug(slug) {
   }
 }
 
+// In properties.js
 export async function createProperty(propertyData) {
 	loadingProperties.set(true);
 	propertyError.set(null);
-  
+	
 	try {
 	  console.log('Creating property with data:', propertyData);
 	  
 	  // Create FormData
 	  const formData = new FormData();
   
-	  // Handle each field appropriately with proper JSON formatting
+	  // List of fields that need JSON stringification
+	  const jsonFields = ['location', 'features', 'amenities', 'rooms', 
+						   'specifications', 'pricing_details', 'highQualityStreets'];
+	  
+	  // Process each field
 	  Object.entries(propertyData).forEach(([key, value]) => {
-		// Skip null/undefined values
 		if (value === null || value === undefined) return;
-  
+		
 		// Special handling for JSON fields
-		if (['location', 'features', 'amenities', 'rooms', 'specifications', 'pricing_details', 'highQualityStreets'].includes(key)) {
-		  if (typeof value === 'object') {
-			// Convert to JSON string but ensure it's properly formatted
-			const jsonString = JSON.stringify(value);
-			formData.append(key, jsonString);
-			console.log(`Added JSON field ${key}:`, jsonString);
-		  } else {
-			// If it's already a string, make sure it's valid JSON
-			try {
-			  // Validate it's proper JSON by parsing and re-stringifying
-			  const jsonObj = typeof value === 'string' ? JSON.parse(value) : value;
-			  formData.append(key, JSON.stringify(jsonObj));
-			  console.log(`Added validated JSON field ${key}`);
-			} catch (e) {
-			  console.error(`Invalid JSON for field ${key}:`, value);
-			  formData.append(key, JSON.stringify(value === 'string' ? {} : []));
-			}
+		if (jsonFields.includes(key)) {
+		  // Always stringify these fields properly
+		  try {
+			const jsonValue = JSON.stringify(value);
+			formData.append(key, jsonValue);
+			console.log(`Added JSON field ${key}:`, jsonValue);
+		  } catch (e) {
+			console.error(`Failed to stringify ${key}:`, e);
+			// Use appropriate default
+			const defaultValue = ['features', 'amenities', 'rooms', 'highQualityStreets'].includes(key) 
+			  ? '[]' : '{}';
+			formData.append(key, defaultValue);
 		  }
 		}
 		// Handle media files
@@ -127,17 +126,14 @@ export async function createProperty(propertyData) {
 			}
 		  });
 		}
-		// Handle primitive values
+		// Regular fields
 		else {
 		  formData.append(key, value);
 		  console.log(`Added field ${key}: ${value}`);
 		}
 	  });
   
-	  // Debug log FormData (can't directly view contents)
-	  console.log('FormData created for property submission');
-  
-	  // Make API request
+	  // API request
 	  const response = await api.post('/properties/', formData);
 	  console.log('Property creation response:', response);
   
@@ -154,6 +150,7 @@ export async function createProperty(propertyData) {
 	  loadingProperties.set(false);
 	}
 }
+
 
 export async function updateProperty(slug, propertyData) {
   if (!slug) {

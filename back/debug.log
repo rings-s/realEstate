@@ -5868,3 +5868,50 @@ INFO 2025-04-27 15:41:29,135 views 11558 136122793457344 Successful login for us
 INFO 2025-04-27 15:41:29,270 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
 WARNING 2025-04-27 15:44:09,870 log 11558 136122793457344 Bad Request: /api/properties/
 WARNING 2025-04-27 15:44:09,870 basehttp 11558 136122793457344 "POST /api/properties/ HTTP/1.1" 400 313
+WARNING 2025-04-27 15:47:31,371 log 11558 136122793457344 Bad Request: /api/properties/
+WARNING 2025-04-27 15:47:31,374 basehttp 11558 136122793457344 "POST /api/properties/ HTTP/1.1" 400 313
+INFO 2025-04-27 15:47:37,346 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+INFO 2025-04-27 15:47:37,970 basehttp 11558 136122774582976 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 304 0
+INFO 2025-04-27 15:47:37,977 basehttp 11558 136122774582976 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 304 0
+INFO 2025-04-27 15:47:46,944 basehttp 11558 136122793457344 "OPTIONS /api/properties/?page=1&page_size=12&ordering=price_low HTTP/1.1" 200 0
+INFO 2025-04-27 15:47:46,973 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=price_low HTTP/1.1" 200 5519
+INFO 2025-04-27 15:47:48,769 basehttp 11558 136122793457344 "OPTIONS /api/properties/?page=1&page_size=12&ordering=price_high HTTP/1.1" 200 0
+INFO 2025-04-27 15:47:48,795 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=price_high HTTP/1.1" 200 5519
+INFO 2025-04-27 15:47:50,423 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+INFO 2025-04-27 15:47:51,879 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=price_high HTTP/1.1" 200 5519
+INFO 2025-04-27 15:47:54,037 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+INFO 2025-04-27 15:48:19,954 basehttp 11558 136122793457344 "OPTIONS /api/properties/modern-apartment-downtown/ HTTP/1.1" 200 0
+INFO 2025-04-27 15:48:20,128 basehttp 11558 136122793457344 "GET /api/properties/modern-apartment-downtown/ HTTP/1.1" 200 1834
+INFO 2025-04-27 15:49:04,247 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+INFO 2025-04-27 15:49:31,937 basehttp 11558 136122793457344 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+INFO 2025-04-27 15:49:32,040 views 11558 136122793457344 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 15:49:32,041 basehttp 11558 136122793457344 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-27 15:49:47,755 middleware 11558 136122793457344 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 15:49:47,931 views 11558 136122793457344 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 15:49:47,935 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 15:49:59,926 views 11558 136122793457344 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 15:49:59,927 basehttp 11558 136122793457344 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-27 15:50:01,928 middleware 11558 136122793457344 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 15:50:02,019 views 11558 136122793457344 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 15:50:02,024 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 15:51:51,064 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+WARNING 2025-04-27 15:53:43,621 log 11558 136122793457344 Bad Request: /api/properties/
+WARNING 2025-04-27 15:53:43,622 basehttp 11558 136122793457344 "POST /api/properties/ HTTP/1.1" 400 313
+INFO 2025-04-27 16:00:33,789 views 11558 136122793457344 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 16:00:33,846 basehttp 11558 136122793457344 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-27 16:00:43,817 middleware 11558 136122793457344 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 16:00:43,896 views 11558 136122793457344 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 16:00:44,013 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 16:00:48,220 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+INFO 2025-04-27 16:00:48,563 basehttp 11558 136122774582976 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 304 0
+INFO 2025-04-27 16:00:48,567 basehttp 11558 136122774582976 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 304 0
+WARNING 2025-04-27 16:02:29,816 log 11558 136122793457344 Bad Request: /api/properties/
+WARNING 2025-04-27 16:02:29,817 basehttp 11558 136122793457344 "POST /api/properties/ HTTP/1.1" 400 313
+INFO 2025-04-27 16:06:44,015 middleware 11558 136122793457344 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 16:06:44,323 views 11558 136122793457344 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 16:06:44,506 basehttp 11558 136122793457344 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 16:06:49,368 basehttp 11558 136122793457344 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5519
+INFO 2025-04-27 16:06:49,669 basehttp 11558 136122774582976 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 304 0
+INFO 2025-04-27 16:06:49,676 basehttp 11558 136122774582976 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 304 0
+WARNING 2025-04-27 16:08:37,494 log 11558 136122793457344 Bad Request: /api/properties/
+WARNING 2025-04-27 16:08:37,495 basehttp 11558 136122793457344 "POST /api/properties/ HTTP/1.1" 400 313

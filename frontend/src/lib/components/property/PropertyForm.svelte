@@ -71,7 +71,10 @@
 		'الخبر',
 		'الظهران',
 		'تبوك',
-		'أبها'
+		'أبها',
+		'الباحة',
+		'القصيم',
+		'العسير'
 	];
 
 	// Specifications fields
@@ -441,6 +444,131 @@
 		window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
+	async function handleSubmit() {
+		// Validate current step
+		if (!validateStep(currentStep)) {
+			return;
+		}
+
+		try {
+			// Create FormData instance
+			const formData = new FormData();
+
+			// Helper function to safely stringify JSON fields
+			const safeJSONStringify = (value) => {
+				try {
+					return JSON.stringify(value);
+				} catch (e) {
+					return JSON.stringify({});
+				}
+			};
+
+			// Basic info
+			formData.append('title', formData.title?.trim() || '');
+			formData.append('property_type', formData.property_type);
+			formData.append('description', formData.description?.trim() || '');
+			formData.append('status', formData.status || 'available');
+			formData.append('deed_number', formData.deed_number?.trim() || '');
+
+			// Location
+			const locationData = {
+				latitude: formData.location?.latitude || null,
+				longitude: formData.location?.longitude || null,
+				city: formData.city,
+				address: formData.address
+			};
+			formData.append('location', safeJSONStringify(locationData));
+
+			// Address fields
+			formData.append('address', formData.address?.trim() || '');
+			formData.append('city', formData.city?.trim() || '');
+			formData.append('state', formData.state?.trim() || '');
+			formData.append('postal_code', formData.postal_code?.trim() || '');
+			formData.append('country', formData.country?.trim() || '');
+			formData.append('highQualityStreets', safeJSONStringify(formData.highQualityStreets || []));
+
+			// Numeric fields - convert to numbers and handle empty values
+			const numericFields = {
+				size_sqm: parseFloat,
+				bedrooms: parseInt,
+				bathrooms: parseInt,
+				floors: parseInt,
+				parking_spaces: parseInt,
+				year_built: parseInt,
+				market_value: parseFloat,
+				minimum_bid: parseFloat
+			};
+
+			Object.entries(numericFields).forEach(([field, converter]) => {
+				const value = formData[field];
+				if (value !== '' && value != null) {
+					const convertedValue = converter(value);
+					if (!isNaN(convertedValue)) {
+						formData.append(field, convertedValue);
+					}
+				}
+			});
+
+			// JSON Array fields
+			formData.append(
+				'features',
+				safeJSONStringify(Array.isArray(formData.features) ? formData.features : [])
+			);
+			formData.append(
+				'amenities',
+				safeJSONStringify(Array.isArray(formData.amenities) ? formData.amenities : [])
+			);
+			formData.append(
+				'rooms',
+				safeJSONStringify(Array.isArray(formData.rooms) ? formData.rooms : [])
+			);
+
+			// JSON Object fields
+			formData.append(
+				'specifications',
+				safeJSONStringify(
+					typeof formData.specifications === 'object' ? formData.specifications : {}
+				)
+			);
+			formData.append(
+				'pricing_details',
+				safeJSONStringify(
+					typeof formData.pricing_details === 'object' ? formData.pricing_details : {}
+				)
+			);
+
+			// Boolean fields
+			formData.append('is_published', formData.is_published || false);
+			formData.append('is_featured', formData.is_featured || false);
+
+			// Handle media files
+			if (uploadedImages && uploadedImages.length > 0) {
+				uploadedImages.forEach((img) => {
+					if (img.file instanceof File) {
+						formData.append('media', img.file);
+					}
+				});
+			}
+
+			// Validate required fields
+			const requiredFields = ['title', 'property_type', 'description', 'city'];
+			const missingFields = requiredFields.filter((field) => !formData.get(field));
+			if (missingFields.length > 0) {
+				throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+			}
+
+			// Log the prepared FormData
+			console.log('Prepared FormData:', ...formData.entries());
+
+			// Dispatch the submit event with FormData
+			dispatch('submit', formData);
+		} catch (error) {
+			console.error('Error preparing property data:', error);
+			addToast(error.message || 'حدث خطأ أثناء إعداد بيانات العقار', 'error');
+			throw error;
+		}
+	}
+
 	// Initialize form data if initialData is provided
 	onMount(() => {
 		if (initialData) {
@@ -491,79 +619,6 @@
 			formData.year_built = new Date().getFullYear();
 		}
 	});
-
-	async function handleSubmit() {
-	// Validate current step
-	if (!validateStep(currentStep)) {
-		return;
-	}
-
-	try {
-		// Create final form data object with proper data types
-		const submitData = {
-		// Basic info
-		title: formData.title?.trim(),
-		property_type: formData.property_type,
-		description: formData.description?.trim(),
-		status: formData.status || 'available',
-		deed_number: formData.deed_number?.trim(),
-
-		// Location - ensure it's a proper object, not a string
-		location: {
-			latitude: formData.location?.latitude || null,
-			longitude: formData.location?.longitude || null,
-			city: formData.city,
-			address: formData.address
-		},
-		address: formData.address?.trim(),
-		city: formData.city?.trim(),
-		state: formData.state?.trim(),
-		postal_code: formData.postal_code?.trim(),
-		country: formData.country?.trim(),
-		highQualityStreets: formData.highQualityStreets || [],
-
-		// Details
-		size_sqm: formData.size_sqm ? parseFloat(formData.size_sqm) : null,
-		bedrooms: formData.bedrooms !== '' ? parseInt(formData.bedrooms) : null,
-		bathrooms: formData.bathrooms !== '' ? parseInt(formData.bathrooms) : null,
-		floors: formData.floors !== '' ? parseInt(formData.floors) : null,
-		parking_spaces: formData.parking_spaces !== '' ? parseInt(formData.parking_spaces) : null,
-		year_built: formData.year_built !== '' ? parseInt(formData.year_built) : null,
-
-		// Features & Amenities - ensure these are proper arrays, not strings
-		features: Array.isArray(formData.features) ? formData.features : [],
-		amenities: Array.isArray(formData.amenities) ? formData.amenities : [],
-		rooms: Array.isArray(formData.rooms) ? formData.rooms : [],
-		
-		// Specifications - ensure it's a proper object
-		specifications: typeof formData.specifications === 'object' ? 
-						formData.specifications : {},
-
-		// Pricing
-		market_value: formData.market_value !== '' ? parseFloat(formData.market_value) : null,
-		minimum_bid: formData.minimum_bid !== '' ? parseFloat(formData.minimum_bid) : null,
-		
-		// Pricing details - ensure it's a proper object
-		pricing_details: typeof formData.pricing_details === 'object' ? 
-						formData.pricing_details : {},
-
-		// Publication status
-		is_published: formData.is_published || false,
-		is_featured: formData.is_featured || false,
-
-		// Media files
-		media: uploadedImages.map(img => img.file).filter(Boolean)
-		};
-
-		console.log("Prepared property data:", submitData);
-
-		// Dispatch the submit event with properly structured data
-		dispatch('submit', submitData);
-	} catch (error) {
-		console.error("Error preparing property data:", error);
-		addToast('حدث خطأ أثناء إعداد بيانات العقار', 'error');
-	}
-	}
 </script>
 
 <div class="mb-8">
@@ -1043,7 +1098,7 @@
 								{feature}
 								<button
 									type="button"
-									class="-mr-1 ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-blue-500 hover:bg-blue-200 hover:text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-1"
+									class="-mr-1 ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-blue-500 hover:bg-blue-200 hover:text-blue-700 focus:ring-2 focus:ring-blue-400 focus:ring-offset-1 focus:outline-none"
 									on:click={() => removeFeature(i)}
 									title="إزالة {feature}"
 								>
@@ -1124,7 +1179,7 @@
 										{amenity}
 										<button
 											type="button"
-											class="-mr-1 ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-green-500 hover:bg-green-200 hover:text-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-offset-1"
+											class="-mr-1 ml-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-green-500 hover:bg-green-200 hover:text-green-700 focus:ring-2 focus:ring-green-400 focus:ring-offset-1 focus:outline-none"
 											on:click={() => removeAmenity(formData.amenities.indexOf(amenity))}
 											title="إزالة {amenity}"
 										>
@@ -1280,11 +1335,11 @@
 										loading="lazy"
 									/>
 									<div
-										class="absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 transition-opacity group-hover:bg-opacity-40"
+										class="bg-opacity-0 group-hover:bg-opacity-40 absolute inset-0 flex items-center justify-center bg-black transition-opacity"
 									>
 										<button
 											type="button"
-											class="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white opacity-0 shadow-md transition-all hover:bg-red-700 group-hover:opacity-100"
+											class="absolute top-1 right-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-white opacity-0 shadow-md transition-all group-hover:opacity-100 hover:bg-red-700"
 											on:click={() => removeImage(i)}
 											title="إزالة الصورة"
 										>
@@ -1300,7 +1355,7 @@
 										</div>
 									{/if}
 									<div
-										class="absolute bottom-0 right-0 rounded-tl-md bg-gray-700 bg-opacity-70 px-1.5 py-0.5 text-xs text-white"
+										class="bg-opacity-70 absolute right-0 bottom-0 rounded-tl-md bg-gray-700 px-1.5 py-0.5 text-xs text-white"
 									>
 										{image.file ? (image.file.size / 1024 / 1024).toFixed(2) + ' MB' : 'موجود'}
 									</div>
@@ -1320,7 +1375,7 @@
 							</p>
 						</div>
 						<div
-							class="relative mr-2 inline-block w-10 select-none align-middle transition duration-200 ease-in"
+							class="relative mr-2 inline-block w-10 align-middle transition duration-200 ease-in select-none"
 						>
 							<input
 								type="checkbox"
@@ -1340,7 +1395,7 @@
 							</p>
 						</div>
 						<div
-							class="relative mr-2 inline-block w-10 select-none align-middle transition duration-200 ease-in"
+							class="relative mr-2 inline-block w-10 align-middle transition duration-200 ease-in select-none"
 						>
 							<input
 								type="checkbox"

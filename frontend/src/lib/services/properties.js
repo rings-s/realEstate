@@ -1,23 +1,21 @@
-import { writable } from 'svelte/store';
+// src/lib/services/properties.js
 import api from '$lib/services/api';
-
-// Store for properties
-export const properties = writable([]);
-export const currentProperty = writable(null);
-export const loadingProperties = writable(false);
-export const propertyError = writable(null);
+import {
+	properties,
+	currentProperty,
+	loadingProperties,
+	propertyError
+} from '$lib/stores/properties';
+import { addToast } from '$lib/stores/ui';
 
 /**
- * Fetch properties with optional filter parameters
- * @param {Object} params - Query parameters for filtering
- * @returns {Promise<Object>} - Properties data with results and count
+ * Fetch properties with filters
  */
 export async function fetchProperties(params = {}) {
 	loadingProperties.set(true);
 	propertyError.set(null);
 
 	try {
-		// Build query string from params
 		const queryParams = new URLSearchParams();
 		for (const [key, value] of Object.entries(params)) {
 			if (value !== undefined && value !== null && value !== '') {
@@ -25,55 +23,45 @@ export async function fetchProperties(params = {}) {
 			}
 		}
 
-		const queryString = queryParams.toString();
-		const endpoint = queryString ? `/properties/?${queryString}` : '/properties/';
+		const endpoint = `/properties/${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+		const response = await api.get(endpoint);
 
-		// Make API request using ApiService
-		const data = await api.fetch(endpoint, { method: 'GET' });
-
-		// Assuming the API returns { success: true, data: { results: [...], count: ... } }
-		if (data && data.success && data.data) {
-			properties.set(data.data.results || []);
+		if (response.status === 'success' && response.data) {
+			properties.set(response.data.results || []);
 			return {
-				results: data.data.results || [],
-				count: data.data.count || 0
+				results: response.data.results || [],
+				count: response.data.count || 0
 			};
 		} else {
-			// Handle cases where the structure might be different or success is false
-			throw new Error(data?.error?.message || 'Invalid response structure from server');
+			throw new Error(response.error || 'Failed to fetch properties');
 		}
-
 	} catch (error) {
 		console.error('Error fetching properties:', error);
 		propertyError.set(error.message);
 		properties.set([]);
-		return {
-			results: [],
-			count: 0
-		};
+		return { results: [], count: 0 };
 	} finally {
 		loadingProperties.set(false);
 	}
 }
 
 /**
- * Fetch a single property by its slug
- * @param {string} slug - Property slug
- * @returns {Promise<Object | null>} - Property data or null on error
+ * Fetch single property
  */
 export async function fetchPropertyBySlug(slug) {
+	if (!slug) return null;
+
 	loadingProperties.set(true);
 	propertyError.set(null);
 
 	try {
-		const endpoint = `/properties/${slug}/`;
-		const data = await api.fetch(endpoint, { method: 'GET' });
+		const response = await api.get(`/properties/${slug}/`);
 
-		if (data && data.success && data.data) {
-			currentProperty.set(data.data);
-			return data.data;
+		if (response.status === 'success' && response.data) {
+			currentProperty.set(response.data);
+			return response.data;
 		} else {
-			throw new Error(data?.error?.message || 'Failed to fetch property details');
+			throw new Error('Failed to fetch property details');
 		}
 	} catch (error) {
 		console.error('Error fetching property:', error);
@@ -86,35 +74,153 @@ export async function fetchPropertyBySlug(slug) {
 }
 
 /**
- * Create a new property using FormData
- * @param {FormData} formData - The FormData object containing property data and files
- * @returns {Promise<Object>} - Result object with success status and created property data or error
+ * Create new property
  */
-export async function createProperty(formData) {
+export async function createProperty(propertyData) {
 	loadingProperties.set(true);
 	propertyError.set(null);
 
 	try {
-		console.log('Sending FormData to ApiService...');
+		const formData = new FormData();
 
-		const data = await api.fetch('/properties/', {
-			method: 'POST',
-			body: formData
+		// Fields that need JSON stringification
+		const jsonFields = [
+			'location',
+			'features',
+			'amenities',
+			'rooms',
+			'specifications',
+			'pricing_details',
+			'highQualityStreets'
+		];
+
+		// Process fields
+		Object.entries(propertyData).forEach(([key, value]) => {
+			if (value === null || value === undefined) return;
+
+			if (jsonFields.includes(key)) {
+				formData.append(key, JSON.stringify(value));
+			} else if (key === 'media' && Array.isArray(value)) {
+				value.forEach((file) => {
+					if (file instanceof File) {
+						formData.append('media', file);
+					}
+				});
+			} else {
+				formData.append(key, value);
+			}
 		});
 
-		console.log('Response from ApiService:', data);
+		const response = await api.post('/properties/', formData);
 
-		if (data && data.success) {
-			return { success: true, data: data.data };
+		if (response.status === 'success' && response.data) {
+			properties.update((props) => [...props, response.data]);
+			addToast('تم إضافة العقار بنجاح', 'success');
+			return { success: true, data: response.data };
 		} else {
-			throw new Error(data?.error || 'Failed to create property');
+			throw new Error(response.error || 'Failed to create property');
 		}
-
 	} catch (error) {
-		console.error('Error in createProperty service:', error);
+		console.error('Error creating property:', error);
 		propertyError.set(error.message);
+		addToast(error.message, 'error');
 		return { success: false, error: error.message };
 	} finally {
 		loadingProperties.set(false);
 	}
 }
+
+/**
+ * Update property
+ */
+export async function updateProperty(slug, propertyData) {
+	if (!slug) return { success: false, error: 'Invalid property ID' };
+
+	loadingProperties.set(true);
+	propertyError.set(null);
+
+	try {
+		const formData = new FormData();
+		const jsonFields = [
+			'location',
+			'features',
+			'amenities',
+			'rooms',
+			'specifications',
+			'pricing_details',
+			'highQualityStreets'
+		];
+
+		Object.entries(propertyData).forEach(([key, value]) => {
+			if (value === null || value === undefined) return;
+
+			if (jsonFields.includes(key)) {
+				formData.append(key, JSON.stringify(value));
+			} else if (key === 'media' && Array.isArray(value)) {
+				value.forEach((file) => {
+					if (file instanceof File) {
+						formData.append('media', file);
+					}
+				});
+			} else {
+				formData.append(key, value);
+			}
+		});
+
+		const response = await api.patch(`/properties/${slug}/`, formData);
+
+		if (response.status === 'success' && response.data) {
+			properties.update((props) => props.map((p) => (p.slug === slug ? response.data : p)));
+			currentProperty.set(response.data);
+			addToast('تم تحديث العقار بنجاح', 'success');
+			return { success: true, data: response.data };
+		} else {
+			throw new Error(response.error || 'Failed to update property');
+		}
+	} catch (error) {
+		console.error('Error updating property:', error);
+		propertyError.set(error.message);
+		addToast(error.message, 'error');
+		return { success: false, error: error.message };
+	} finally {
+		loadingProperties.set(false);
+	}
+}
+
+/**
+ * Delete property
+ */
+export async function deleteProperty(slug) {
+	if (!slug) return { success: false, error: 'Invalid property ID' };
+
+	loadingProperties.set(true);
+	propertyError.set(null);
+
+	try {
+		const response = await api.delete(`/properties/${slug}/`);
+
+		if (response.status === 'success') {
+			properties.update((props) => props.filter((p) => p.slug !== slug));
+			currentProperty.update((prop) => (prop?.slug === slug ? null : prop));
+			addToast('تم حذف العقار بنجاح', 'success');
+			return { success: true };
+		} else {
+			throw new Error(response.error || 'Failed to delete property');
+		}
+	} catch (error) {
+		console.error('Error deleting property:', error);
+		propertyError.set(error.message);
+		addToast(error.message, 'error');
+		return { success: false, error: error.message };
+	} finally {
+		loadingProperties.set(false);
+	}
+}
+
+export default {
+	fetchProperties,
+	fetchPropertyBySlug,
+	createProperty,
+	updateProperty,
+	deleteProperty
+};

@@ -5944,3 +5944,84 @@ INFO 2025-04-27 22:03:15,207 autoreload 10580 126268216184960 /home/ahmed/tech-S
 INFO 2025-04-27 22:03:16,111 autoreload 10679 124281070002304 Watching for file changes with StatReloader
 INFO 2025-04-27 22:05:47,347 autoreload 10679 124281070002304 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
 INFO 2025-04-27 22:05:48,106 autoreload 10959 133118504595584 Watching for file changes with StatReloader
+INFO 2025-04-27 22:07:20,777 basehttp 10959 133118338004672 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-27 22:07:21,667 middleware 10959 133118338004672 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 22:07:22,458 views 10959 133118338004672 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 22:07:22,462 basehttp 10959 133118338004672 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 22:07:22,735 basehttp 10959 133118319130304 "GET /media/users/73d10b69-2f8e-4b5f-be8e-07a14a48f9b2/avatars/20250424124603_profile.png HTTP/1.1" 304 0
+INFO 2025-04-27 22:07:24,765 basehttp 10959 133118338004672 "OPTIONS /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 0
+WARNING 2025-04-27 22:07:24,782 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:24,783 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:27,626 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:27,627 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:28,741 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:28,742 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:29,365 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:29,365 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:29,703 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:29,704 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:29,932 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:29,933 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:31,486 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:31,487 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+INFO 2025-04-27 22:07:33,890 basehttp 10959 133118338004672 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+INFO 2025-04-27 22:07:33,968 views 10959 133118338004672 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 22:07:33,969 basehttp 10959 133118338004672 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-27 22:07:35,794 middleware 10959 133118338004672 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 22:07:35,873 views 10959 133118338004672 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 22:07:35,878 basehttp 10959 133118338004672 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 22:07:37,586 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:37,586 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:38,905 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:38,906 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:39,445 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:39,445 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:39,772 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:39,773 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:39,999 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:40,000 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:40,178 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:40,178 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:40,346 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:40,346 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:07:40,522 log 10959 133118338004672 Bad Request: /api/properties/
+WARNING 2025-04-27 22:07:40,523 basehttp 10959 133118338004672 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+INFO 2025-04-27 22:09:03,753 autoreload 11489 132361140183168 Watching for file changes with StatReloader
+INFO 2025-04-27 22:09:07,130 views 11489 132361043834560 User rings9619@gmail.com logged out successfully
+INFO 2025-04-27 22:09:07,131 basehttp 11489 132361043834560 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-27 22:09:22,911 middleware 11489 132361043834560 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 22:09:23,105 views 11489 132361043834560 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 22:09:23,109 basehttp 11489 132361043834560 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-27 22:09:24,687 log 11489 132361043834560 Bad Request: /api/properties/
+WARNING 2025-04-27 22:09:24,688 basehttp 11489 132361043834560 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:09:54,206 log 11489 132361043834560 Bad Request: /api/properties/
+WARNING 2025-04-27 22:09:54,207 basehttp 11489 132361043834560 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+WARNING 2025-04-27 22:11:32,256 log 11489 132361043834560 Bad Request: /api/properties/
+WARNING 2025-04-27 22:11:32,256 basehttp 11489 132361043834560 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 400 224
+INFO 2025-04-27 22:12:21,133 autoreload 11489 132361140183168 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-27 22:12:21,761 autoreload 11738 130135598583936 Watching for file changes with StatReloader
+INFO 2025-04-27 22:12:26,821 basehttp 11738 130135428691648 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5853
+INFO 2025-04-27 22:12:27,138 basehttp 11738 130135409817280 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 304 0
+INFO 2025-04-27 22:12:27,139 basehttp 11738 130135401424576 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 304 0
+INFO 2025-04-27 22:12:27,146 basehttp 11738 130135401424576 "GET /media/generic_media/2025/04/24/d.jpeg HTTP/1.1" 304 0
+INFO 2025-04-27 22:12:30,932 basehttp 11738 130135428691648 "OPTIONS /api/properties/property/ HTTP/1.1" 200 0
+INFO 2025-04-27 22:12:31,130 basehttp 11738 130135428691648 "GET /api/properties/property/ HTTP/1.1" 200 1449
+INFO 2025-04-27 22:12:32,704 basehttp 11738 130135428691648 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5853
+INFO 2025-04-27 22:13:06,245 middleware 11738 130135428691648 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 22:13:06,327 views 11738 130135428691648 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 22:13:06,331 basehttp 11738 130135428691648 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 22:14:56,099 basehttp 11738 130135428691648 "OPTIONS /api/properties/ HTTP/1.1" 200 0
+WARNING 2025-04-27 22:14:56,164 log 11738 130135428691648 Bad Request: /api/properties/
+WARNING 2025-04-27 22:14:56,164 basehttp 11738 130135428691648 "POST /api/properties/ HTTP/1.1" 400 96
+INFO 2025-04-27 22:20:54,778 middleware 11738 130135428691648 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 22:20:54,959 views 11738 130135428691648 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 22:20:54,962 basehttp 11738 130135428691648 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 22:29:34,583 middleware 11738 130135428691648 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-27 22:29:34,657 views 11738 130135428691648 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 22:29:34,663 basehttp 11738 130135428691648 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-27 22:29:36,242 basehttp 11738 130135428691648 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5853
+INFO 2025-04-27 22:29:39,366 basehttp 11738 130135428691648 "GET /api/properties/property/ HTTP/1.1" 200 1449
+INFO 2025-04-27 22:43:58,148 basehttp 11738 130135428691648 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5853
+INFO 2025-04-27 22:46:10,157 middleware 11738 130135428691648 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-27 22:46:10,239 views 11738 130135428691648 Successful login for user: rings9619@gmail.com
+INFO 2025-04-27 22:46:10,242 basehttp 11738 130135428691648 "POST /api/accounts/login/ HTTP/1.1" 200 1186

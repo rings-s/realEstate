@@ -483,7 +483,8 @@ class PropertySerializer(BaseModelSerializer):
             'floors', 'parking_spaces', 'year_built', 'market_value', 'minimum_bid',
             'pricing_details', 'owner', 'owner_details', 'is_published',
             'is_featured', 'is_verified', 'slug', 'media', 'metadata',
-            'created_at', 'updated_at', 'deed_number', 'highQualityStreets', 'building_type'
+            'created_at', 'updated_at', 'deed_number', 'highQualityStreets', 'building_type', 'view_count'  # Add this field here
+
         ]
         extra_kwargs = {
             'owner': {'write_only': True},

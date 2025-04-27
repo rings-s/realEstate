@@ -17,51 +17,58 @@ class ApiService {
   }
 
 
-	async fetch(endpoint, options = {}) {
-		try {
-			const accessToken = getStoredToken();
-			const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
-			const headers = {};
-
-			if (accessToken) {
-			headers['Authorization'] = `Bearer ${accessToken}`;
-			}
-
-			// Only add Content-Type if not FormData
-			if (!(options.body instanceof FormData)) {
-			headers['Content-Type'] = 'application/json';
-			if (options.body && typeof options.body === 'object') {
-				options.body = JSON.stringify(options.body);
-			}
-			}
-
-			const requestOptions = {
-			...options,
-			headers: {
-				...headers,
-				...options.headers
-			}
-			};
-
-			const response = await fetch(url, requestOptions);
-			const data = await response.json();
-
-			if (!response.ok) {
-			throw new Error(data.error || 'API request failed');
-			}
-
-			return {
-			status: 'success',
-			data
-			};
-		} catch (error) {
-			console.error('API Request Error:', error);
-			return {
-			status: 'error',
-			error: error.message
-			};
+  async fetch(endpoint, options = {}) {
+	try {
+	  const accessToken = getStoredToken();
+	  const url = endpoint.startsWith('http') ? endpoint : `${this.baseUrl}${endpoint}`;
+	  const headers = {};
+  
+	  if (accessToken) {
+		headers['Authorization'] = `Bearer ${accessToken}`;
+	  }
+  
+	  // Only add Content-Type if not FormData
+	  if (!(options.body instanceof FormData)) {
+		headers['Content-Type'] = 'application/json';
+		if (options.body && typeof options.body === 'object') {
+		  options.body = JSON.stringify(options.body);
 		}
+	  }
+  
+	  const requestOptions = {
+		...options,
+		headers: {
+		  ...headers,
+		  ...options.headers
+		}
+	  };
+  
+	  const response = await fetch(url, requestOptions);
+	  const data = await response.json();
+  
+	  // Log response for debugging
+	  console.log('API Response:', {
+		url,
+		status: response.status,
+		data
+	  });
+  
+	  if (!response.ok) {
+		throw new Error(data.error?.message || data.error || 'API request failed');
+	  }
+  
+	  return {
+		status: 'success',
+		data: data.data || data
+	  };
+	} catch (error) {
+	  console.error('API Request Error:', error);
+	  return {
+		status: 'error',
+		error: error.message
+	  };
 	}
+  }
 
   // Helper method for handling query parameters
   buildQueryString(params = {}) {

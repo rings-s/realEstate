@@ -841,4 +841,4 @@
 	.toggle-checkbox:checked + .toggle-label {
 	  @apply bg-blue-600;
 	}
-</style>
+   </style>

@@ -31,6 +31,8 @@ class ApiService {
     return queryParams.toString();
   }
 
+  // src/lib/services/api.js
+
   async fetch(endpoint, options = {}) {
     try {
       const accessToken = getStoredToken();
@@ -41,7 +43,7 @@ class ApiService {
         headers['Authorization'] = `Bearer ${accessToken}`;
       }
 
-      // Do NOT set Content-Type for FormData - browser will set it with the boundary
+      // Don't set Content-Type for FormData
       if (!(options.body instanceof FormData)) {
         headers['Content-Type'] = 'application/json';
         if (options.body && typeof options.body === 'object') {
@@ -57,15 +59,10 @@ class ApiService {
         }
       };
 
-      console.log(`Making API request to ${url}`, {
-        method: requestOptions.method,
-        bodyType: options.body instanceof FormData ? 'FormData' : typeof options.body
-      });
-
       const response = await fetch(url, requestOptions);
-      let data;
-      
       const contentType = response.headers.get('content-type');
+      
+      let data;
       if (contentType && contentType.includes('application/json')) {
         data = await response.json();
       } else {
@@ -78,13 +75,9 @@ class ApiService {
       }
 
       if (!response.ok) {
-        console.error('API Error:', data);
-        if (data.errors) {
-          console.error('Validation errors:', data.errors);
-        }
-        throw new Error(data.error || 'API request failed');
+        const error = data.error || data.detail || 'API request failed';
+        throw new Error(error);
       }
-
 
       return {
         status: 'success',
@@ -98,6 +91,7 @@ class ApiService {
       };
     }
   }
+
   // Standard REST methods
   async get(endpoint, params = {}) {
     const queryString = this.buildQueryString(params);

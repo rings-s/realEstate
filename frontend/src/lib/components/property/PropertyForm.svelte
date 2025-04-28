@@ -262,6 +262,28 @@
 		}
 	}
 
+	// Add this check before submitting
+	function validateFormData(formData) {
+		const requiredFields = [
+			'title',
+			'property_type',
+			'status',
+			'address',
+			'city',
+			'state',
+			'description',
+			'deed_number'
+		];
+
+		const missing = requiredFields.filter(field => !formData.get(field));
+		
+		if (missing.length > 0) {
+			throw new Error(`الحقول التالية مطلوبة: ${missing.join(', ')}`);
+		}
+
+		return true;
+	}
+
 	// Add this to your property form validation
 	function validateDeedNumber(deedNumber) {
 		if (!deedNumber) return '';
@@ -340,80 +362,171 @@
 		const currentFields = steps[step - 1].fields;
 		errors = {};
 
-		currentFields.forEach((field) => {
-			// General required fields check
-			if (['title', 'property_type', 'description'].includes(field) && !formData[field]?.trim()) {
-				errors[field] = `هذا الحقل مطلوب`;
+		// Required fields for all steps
+		const requiredFields = {
+			'title': 'عنوان العقار',
+			'property_type': 'نوع العقار',
+			'description': 'وصف العقار',
+			'deed_number': 'رقم الصك',
+			'status': 'حالة العقار',
+		};
+
+		// Step-specific validation
+		switch (step) {
+			case 1: // Basic Information
+			currentFields.forEach(field => {
+				if (requiredFields[field] && !formData[field]?.trim()) {
+				errors[field] = `${requiredFields[field]} مطلوب`;
+				}
+
+				// Validate deed number format if provided
+				if (field === 'deed_number' && formData.deed_number) {
+				const deedNumberRegex = /^[A-Za-z0-9-_]+$/;
+				if (!deedNumberRegex.test(formData.deed_number)) {
+					errors.deed_number = 'رقم الصك يجب أن يحتوي على أحرف وأرقام فقط';
+				}
+				}
+			});
+			break;
+
+			case 2: // Location
+			// Location object validation
+			if (currentFields.includes('location')) {
+				const hasCoordinates = formData.location?.latitude && formData.location?.longitude;
+				const hasAddress = formData.address?.trim() && formData.city?.trim();
+
+				if (!hasCoordinates && !hasAddress) {
+				errors.location = 'يرجى تحديد الموقع على الخريطة أو إدخال العنوان والمدينة';
+				}
 			}
 
-			// Step-specific validation
-			if (step === 2) {
-				// Location object validation
-				if (field === 'location' && (!formData.location.latitude || !formData.location.longitude)) {
-					// Check if address/city were filled manually instead
-					if (!formData.address?.trim() || !formData.city?.trim()) {
-						errors.location = 'يرجى تحديد الموقع على الخريطة أو إدخال العنوان والمدينة';
-					}
-				}
-				// Address fields validation
-				if (field === 'city' && !formData.city?.trim()) {
-					errors.city = 'يرجى اختيار أو إدخال المدينة';
-				}
-				if (field === 'address' && !formData.address?.trim()) {
-					errors.address = 'يرجى إدخال العنوان التفصيلي';
-				}
-			} else if (step === 3) {
-				if (
-					field === 'size_sqm' &&
-					(formData.size_sqm === '' ||
-						formData.size_sqm == null ||
-						parseFloat(formData.size_sqm) <= 0)
-				) {
+			// Address validation
+			if (currentFields.includes('city') && !formData.city?.trim()) {
+				errors.city = 'يرجى اختيار أو إدخال المدينة';
+			}
+			if (currentFields.includes('address') && !formData.address?.trim()) {
+				errors.address = 'يرجى إدخال العنوان التفصيلي';
+			}
+
+			// Optional postal code format validation
+			if (formData.postal_code && !/^\d{5}$/.test(formData.postal_code)) {
+				errors.postal_code = 'الرمز البريدي يجب أن يتكون من 5 أرقام';
+			}
+			break;
+
+			case 3: // Property Details
+			currentFields.forEach(field => {
+				// Size validation
+				if (field === 'size_sqm') {
+				const size = parseFloat(formData.size_sqm);
+				if (!size || size <= 0) {
 					errors.size_sqm = 'يرجى إدخال مساحة صحيحة (أكبر من 0)';
 				}
-				if (
-					field === 'year_built' &&
-					formData.year_built &&
-					(parseInt(formData.year_built) < 1800 ||
-						parseInt(formData.year_built) > new Date().getFullYear() + 1)
-				) {
-					errors.year_built = `سنة البناء يجب أن تكون بين 1800 و ${new Date().getFullYear() + 1}`;
 				}
-				// Validate number inputs are not negative
-				['bedrooms', 'bathrooms', 'floors', 'parking_spaces'].forEach((numField) => {
-					if (
-						field === numField &&
-						formData[numField] !== '' &&
-						formData[numField] != null &&
-						parseInt(formData[numField]) < 0
-					) {
-						errors[numField] = 'القيمة يجب أن تكون صفر أو أكبر';
+
+				// Year built validation
+				if (field === 'year_built' && formData.year_built) {
+				const year = parseInt(formData.year_built);
+				const currentYear = new Date().getFullYear();
+				if (year < 1800 || year > currentYear + 1) {
+					errors.year_built = `سنة البناء يجب أن تكون بين 1800 و ${currentYear + 1}`;
+				}
+				}
+
+				// Numeric fields validation
+				['bedrooms', 'bathrooms', 'floors', 'parking_spaces'].forEach(numField => {
+				if (field === numField && formData[numField] !== '') {
+					const value = parseInt(formData[numField]);
+					if (isNaN(value) || value < 0) {
+					errors[numField] = 'القيمة يجب أن تكون صفر أو أكبر';
 					}
+				}
 				});
-			} else if (step === 5) {
-				// Pricing validation
-				if (
-					field === 'market_value' &&
-					(formData.market_value === '' ||
-						formData.market_value == null ||
-						parseFloat(formData.market_value) <= 0)
-				) {
+
+				// Specifications validation if provided
+				if (field === 'specifications' && formData.specifications) {
+				try {
+					if (typeof formData.specifications === 'string') {
+					JSON.parse(formData.specifications);
+					}
+				} catch (e) {
+					errors.specifications = 'تنسيق المواصفات غير صحيح';
+				}
+				}
+			});
+			break;
+
+			case 4: // Features and Amenities
+			// Validate features and amenities format
+			if (currentFields.includes('features') && !Array.isArray(formData.features)) {
+				errors.features = 'تنسيق المميزات غير صحيح';
+			}
+			if (currentFields.includes('amenities') && !Array.isArray(formData.amenities)) {
+				errors.amenities = 'تنسيق المرافق غير صحيح';
+			}
+
+			// Validate rooms data if provided
+			if (currentFields.includes('rooms') && formData.rooms?.length) {
+				formData.rooms.forEach((room, index) => {
+				if (!room.name?.trim()) {
+					errors[`rooms.${index}`] = 'اسم الغرفة مطلوب';
+				}
+				if (room.size && (isNaN(room.size) || parseFloat(room.size) <= 0)) {
+					errors[`rooms.${index}.size`] = 'مساحة الغرفة يجب أن تكون رقماً موجباً';
+				}
+				});
+			}
+			break;
+
+			case 5: // Pricing
+			currentFields.forEach(field => {
+				// Market value validation
+				if (field === 'market_value') {
+				const value = parseFloat(formData.market_value);
+				if (!value || value <= 0) {
 					errors.market_value = 'يرجى إدخال القيمة السوقية (أكبر من 0)';
 				}
-				if (
-					field === 'minimum_bid' &&
-					formData.minimum_bid !== '' &&
-					formData.minimum_bid != null &&
-					parseFloat(formData.minimum_bid) < 0
-				) {
+				}
+
+				// Minimum bid validation
+				if (field === 'minimum_bid' && formData.minimum_bid !== '') {
+				const minBid = parseFloat(formData.minimum_bid);
+				if (isNaN(minBid) || minBid < 0) {
 					errors.minimum_bid = 'الحد الأدنى للمزايدة لا يمكن أن يكون سالباً';
 				}
-			}
-		});
+				}
 
-		// Image validation (Step 6)
-		if (step === 6 && uploadedImages.length === 0) {
-			errors.media = 'يرجى إضافة صورة واحدة على الأقل';
+				// Pricing details validation
+				if (field === 'pricing_details' && formData.pricing_details) {
+				try {
+					if (typeof formData.pricing_details === 'string') {
+					JSON.parse(formData.pricing_details);
+					}
+				} catch (e) {
+					errors.pricing_details = 'تنسيق تفاصيل السعر غير صحيح';
+				}
+				}
+			});
+			break;
+
+			case 6: // Media and Publishing
+			// Media validation
+			if (uploadedImages.length === 0) {
+				errors.media = 'يرجى إضافة صورة واحدة على الأقل';
+			}
+
+			// Validate media file types and sizes
+			uploadedImages.forEach((image, index) => {
+				if (image.file instanceof File) {
+				if (!image.file.type.startsWith('image/')) {
+					errors[`media.${index}`] = 'نوع الملف غير مدعوم';
+				}
+				if (image.file.size > 5 * 1024 * 1024) { // 5MB limit
+					errors[`media.${index}`] = 'حجم الملف يتجاوز 5 ميجابايت';
+				}
+				}
+			});
+			break;
 		}
 
 		const isValid = Object.keys(errors).length === 0;
@@ -425,150 +538,160 @@
 
 	// Handle step navigation
 	function handleStepChange(direction) {
-		if (direction === 'next') {
+		// Animation flag to handle transitions
+		let isAnimating = false;
+
+		try {
+			if (direction === 'next') {
+			// Validate current step
 			if (!validateStep(currentStep)) {
 				addToast('يرجى تصحيح الأخطاء أو إكمال الحقول المطلوبة للمتابعة', 'error');
+				// Create a new errors object to trigger reactivity
 				errors = { ...errors };
 				return;
 			}
+
+			// Move to next step if not at the end
 			if (currentStep < steps.length) {
+				isAnimating = true;
+				// Clear errors before moving to next step
+				errors = {};
 				currentStep++;
-				errors = {};
-			}
-		} else {
-			if (currentStep > 1) {
-				currentStep--;
-				errors = {};
-			}
-		}
-		window.scrollTo({ top: 0, behavior: 'smooth' });
-	}
-
-	async function handleSubmit() {
-		// Validate current step
-		if (!validateStep(currentStep)) {
-			return;
-		}
-
-		try {
-			// Create FormData instance
-			const formData = new FormData();
-
-			// Helper function to safely stringify JSON fields
-			const safeJSONStringify = (value) => {
+				
+				// Save form state to localStorage for recovery
 				try {
-					return JSON.stringify(value);
+				localStorage.setItem('propertyFormData', JSON.stringify(formData));
+				localStorage.setItem('propertyFormStep', currentStep.toString());
 				} catch (e) {
-					return JSON.stringify({});
+				console.warn('Failed to save form state:', e);
 				}
-			};
+			}
+			} else {
+			// Move to previous step if not at the beginning
+			if (currentStep > 1) {
+				isAnimating = true;
+				// Clear errors when moving back
+				errors = {};
+				currentStep--;
+			}
+			}
 
-			// Basic info
-			formData.append('title', formData.title?.trim() || '');
-			formData.append('property_type', formData.property_type);
-			formData.append('description', formData.description?.trim() || '');
-			formData.append('status', formData.status || 'available');
-			formData.append('deed_number', formData.deed_number?.trim() || '');
-
-			// Location
-			const locationData = {
-				latitude: formData.location?.latitude || null,
-				longitude: formData.location?.longitude || null,
-				city: formData.city,
-				address: formData.address
-			};
-			formData.append('location', safeJSONStringify(locationData));
-
-			// Address fields
-			formData.append('address', formData.address?.trim() || '');
-			formData.append('city', formData.city?.trim() || '');
-			formData.append('state', formData.state?.trim() || '');
-			formData.append('postal_code', formData.postal_code?.trim() || '');
-			formData.append('country', formData.country?.trim() || '');
-			formData.append('highQualityStreets', safeJSONStringify(formData.highQualityStreets || []));
-
-			// Numeric fields - convert to numbers and handle empty values
-			const numericFields = {
-				size_sqm: parseFloat,
-				bedrooms: parseInt,
-				bathrooms: parseInt,
-				floors: parseInt,
-				parking_spaces: parseInt,
-				year_built: parseInt,
-				market_value: parseFloat,
-				minimum_bid: parseFloat
-			};
-
-			Object.entries(numericFields).forEach(([field, converter]) => {
-				const value = formData[field];
-				if (value !== '' && value != null) {
-					const convertedValue = converter(value);
-					if (!isNaN(convertedValue)) {
-						formData.append(field, convertedValue);
-					}
-				}
+			// Smooth scroll with animation completion check
+			if (isAnimating) {
+			window.scrollTo({ 
+				top: 0, 
+				behavior: 'smooth' 
 			});
 
-			// JSON Array fields
-			formData.append(
-				'features',
-				safeJSONStringify(Array.isArray(formData.features) ? formData.features : [])
-			);
-			formData.append(
-				'amenities',
-				safeJSONStringify(Array.isArray(formData.amenities) ? formData.amenities : [])
-			);
-			formData.append(
-				'rooms',
-				safeJSONStringify(Array.isArray(formData.rooms) ? formData.rooms : [])
-			);
-
-			// JSON Object fields
-			formData.append(
-				'specifications',
-				safeJSONStringify(
-					typeof formData.specifications === 'object' ? formData.specifications : {}
-				)
-			);
-			formData.append(
-				'pricing_details',
-				safeJSONStringify(
-					typeof formData.pricing_details === 'object' ? formData.pricing_details : {}
-				)
-			);
-
-			// Boolean fields
-			formData.append('is_published', formData.is_published || false);
-			formData.append('is_featured', formData.is_featured || false);
-
-			// Handle media files
-			if (uploadedImages && uploadedImages.length > 0) {
-				uploadedImages.forEach((img) => {
-					if (img.file instanceof File) {
-						formData.append('media', img.file);
-					}
-				});
+			// Wait for scroll animation to complete
+			const checkScrollComplete = setInterval(() => {
+				if (window.scrollY === 0) {
+				clearInterval(checkScrollComplete);
+				isAnimating = false;
+				}
+			}, 100);
 			}
 
-			// Validate required fields
-			const requiredFields = ['title', 'property_type', 'description', 'city'];
-			const missingFields = requiredFields.filter((field) => !formData.get(field));
-			if (missingFields.length > 0) {
-				throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-			}
-
-			// Log the prepared FormData
-			console.log('Prepared FormData:', ...formData.entries());
-
-			// Dispatch the submit event with FormData
-			dispatch('submit', formData);
 		} catch (error) {
-			console.error('Error preparing property data:', error);
-			addToast(error.message || 'حدث خطأ أثناء إعداد بيانات العقار', 'error');
-			throw error;
+			console.error('Error during step change:', error);
+			addToast('حدث خطأ أثناء تغيير الخطوة', 'error');
+			isAnimating = false;
 		}
 	}
 
+		// Helper function to check if fields in a step are complete
+	function isStepComplete(step) {
+		const fields = steps[step - 1].fields;
+		return fields.every(field => {
+			// Check if field has a value
+			if (typeof formData[field] === 'undefined' || formData[field] === null) {
+			return false;
+			}
+			// For strings, check if they're not empty after trimming
+			if (typeof formData[field] === 'string') {
+			return formData[field].trim().length > 0;
+			}
+			// For arrays, check if they have items
+			if (Array.isArray(formData[field])) {
+			return formData[field].length > 0;
+			}
+			// For objects, check if they have properties
+			if (typeof formData[field] === 'object') {
+			return Object.keys(formData[field]).length > 0;
+			}
+			return true;
+		});
+	}
+
+		// Progress tracking
+	function getStepProgress() {
+		const totalSteps = steps.length;
+		const completedSteps = steps.slice(0, currentStep).filter((_, index) => 
+			isStepComplete(index + 1)
+		).length;
+		
+		return {
+			current: currentStep,
+			total: totalSteps,
+			completed: completedSteps,
+			percentage: Math.round((completedSteps / totalSteps) * 100)
+		};
+	}
+
+	// In PropertyForm.svelte, modify handleSubmit
+	async function handleSubmit() {
+	// Log the current form data to check what we have
+		console.log("Form Data Before Submit:", {
+			title: formData.title,
+			property_type: formData.property_type,
+			description: formData.description,
+			status: formData.status,
+			deed_number: formData.deed_number,
+			address: formData.address,
+			city: formData.city,
+			state: formData.state
+		});
+
+		const propertyFormData = new FormData();
+
+		// Add basic required fields first
+		propertyFormData.append('title', formData.title);
+		propertyFormData.append('property_type', formData.property_type);
+		propertyFormData.append('description', formData.description);
+		propertyFormData.append('status', formData.status || 'available');
+		propertyFormData.append('deed_number', formData.deed_number);
+		propertyFormData.append('address', formData.address);
+		propertyFormData.append('city', formData.city);
+		propertyFormData.append('state', formData.state);
+
+		// Add JSON fields
+		if (formData.location) {
+			propertyFormData.append('location', JSON.stringify(formData.location));
+		}
+		if (formData.features?.length) {
+			propertyFormData.append('features', JSON.stringify(formData.features));
+		}
+		if (formData.amenities?.length) {
+			propertyFormData.append('amenities', JSON.stringify(formData.amenities));
+		}
+
+		// Add files
+		if (uploadedImages?.length) {
+			uploadedImages.forEach(img => {
+			if (img.file instanceof File) {
+				propertyFormData.append('media', img.file);
+			}
+			});
+		}
+
+		// Log what we're about to send
+		console.log("FormData entries before dispatch:");
+		for (let [key, value] of propertyFormData.entries()) {
+			console.log(key, ':', value);
+		}
+
+		dispatch('submit', propertyFormData);
+	}
 	// Initialize form data if initialData is provided
 	onMount(() => {
 		if (initialData) {

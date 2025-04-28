@@ -76,57 +76,28 @@ export async function fetchPropertyBySlug(slug) {
 /**
  * Create new property
  */
-export async function createProperty(propertyData) {
-	loadingProperties.set(true);
-	propertyError.set(null);
 
+// src/lib/services/properties.js
+
+// src/lib/services/properties.js 
+export async function createProperty(formData) {
 	try {
-		const formData = new FormData();
-
-		// Fields that need JSON stringification
-		const jsonFields = [
-			'location',
-			'features',
-			'amenities',
-			'rooms',
-			'specifications',
-			'pricing_details',
-			'highQualityStreets'
-		];
-
-		// Process fields
-		Object.entries(propertyData).forEach(([key, value]) => {
-			if (value === null || value === undefined) return;
-
-			if (jsonFields.includes(key)) {
-				formData.append(key, JSON.stringify(value));
-			} else if (key === 'media' && Array.isArray(value)) {
-				value.forEach((file) => {
-					if (file instanceof File) {
-						formData.append('media', file);
-					}
-				});
-			} else {
-				formData.append(key, value);
-			}
-		});
-
-		const response = await api.post('/properties/', formData);
-
-		if (response.status === 'success' && response.data) {
-			properties.update((props) => [...props, response.data]);
-			addToast('تم إضافة العقار بنجاح', 'success');
-			return { success: true, data: response.data };
-		} else {
-			throw new Error(response.error || 'Failed to create property');
-		}
+	  // Log what we're sending to the API
+	  console.log("Sending FormData to API:");
+	  for (let [key, value] of formData.entries()) {
+		console.log(key, ':', value);
+	  }
+  
+	  const response = await api.post('/properties/', formData);
+  
+	  if (response.status === 'success' && response.data) {
+		return { success: true, data: response.data };
+	  }
+  
+	  throw new Error(response.error || 'Failed to create property');
 	} catch (error) {
-		console.error('Error creating property:', error);
-		propertyError.set(error.message);
-		addToast(error.message, 'error');
-		return { success: false, error: error.message };
-	} finally {
-		loadingProperties.set(false);
+	  console.error('Property creation error:', error);
+	  return { success: false, error: error.message };
 	}
 }
 

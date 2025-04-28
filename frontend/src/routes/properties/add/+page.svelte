@@ -8,64 +8,28 @@
 	let loading = false;
 	let error = '';
 
+
+
   async function handleSubmit(event) {
     loading = true;
     error = '';
 
     try {
-      const propertyData = event.detail;
-      console.log("Received property data from form:", propertyData);
+      const formData = event.detail;
       
-      // Validate required fields
-      const requiredFields = {
-        'title': 'عنوان العقار',
-        'property_type': 'نوع العقار', 
-        'description': 'وصف العقار',
-        'city': 'المدينة'
-      };
-      
-      for (const [field, label] of Object.entries(requiredFields)) {
-        if (!propertyData[field]) {
-          throw new Error(`${label} مطلوب`);
-        }
-      }
-      
-      // Ensure numeric fields are valid numbers
-      if (propertyData.market_value && isNaN(parseFloat(propertyData.market_value))) {
-        throw new Error('القيمة السوقية يجب أن تكون رقمًا');
-      }
-      
-      // Ensure location structure
-      if (!propertyData.location || typeof propertyData.location !== 'object') {
-        propertyData.location = {}; 
-      }
-      
-      // Make sure arrays and objects are initialized properly
-      ['features', 'amenities', 'rooms', 'highQualityStreets'].forEach(field => {
-        if (!Array.isArray(propertyData[field])) {
-          propertyData[field] = [];
-        }
-      });
-      
-      ['specifications', 'pricing_details'].forEach(field => {
-        if (!propertyData[field] || typeof propertyData[field] !== 'object') {
-          propertyData[field] = {};
-        }
-      });
-      
-      // Validate media files
-      if (!propertyData.media || !propertyData.media.length) {
-        throw new Error('يجب إضافة صورة واحدة على الأقل');
+      // Log what we received
+      console.log("Received FormData entries:");
+      for (let [key, value] of formData.entries()) {
+        console.log(key, ':', value);
       }
 
-      console.log("Submitting property with validated data...");
-      const result = await createProperty(propertyData);
-
+      const result = await createProperty(formData);
+      
       if (result.success) {
         addToast('تم إضافة العقار بنجاح', 'success');
         goto('/properties/' + result.data.slug);
       } else {
-        throw new Error(result.error || 'فشل في إنشاء العقار');
+        throw new Error(result.error || 'Failed to create property');
       }
     } catch (err) {
       console.error('Submit error:', err);

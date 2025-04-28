@@ -6025,3 +6025,37 @@ INFO 2025-04-27 22:43:58,148 basehttp 11738 130135428691648 "GET /api/properties
 INFO 2025-04-27 22:46:10,157 middleware 11738 130135428691648 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
 INFO 2025-04-27 22:46:10,239 views 11738 130135428691648 Successful login for user: rings9619@gmail.com
 INFO 2025-04-27 22:46:10,242 basehttp 11738 130135428691648 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 02:19:57,529 autoreload 18453 136695446601856 Watching for file changes with StatReloader
+INFO 2025-04-28 02:21:09,063 basehttp 18453 136695282398912 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+WARNING 2025-04-28 02:21:09,969 log 18453 136695282398912 Unauthorized: /api/accounts/login/
+WARNING 2025-04-28 02:21:09,970 basehttp 18453 136695282398912 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-28 02:21:21,461 log 18453 136695282398912 Unauthorized: /api/accounts/login/
+WARNING 2025-04-28 02:21:21,461 basehttp 18453 136695282398912 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-28 02:21:22,345 log 18453 136695282398912 Unauthorized: /api/accounts/login/
+WARNING 2025-04-28 02:21:22,345 basehttp 18453 136695282398912 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-28 02:21:22,673 log 18453 136695282398912 Unauthorized: /api/accounts/login/
+WARNING 2025-04-28 02:21:22,674 basehttp 18453 136695282398912 "POST /api/accounts/login/ HTTP/1.1" 401 183
+WARNING 2025-04-28 02:21:40,763 log 18453 136695282398912 Unauthorized: /api/accounts/login/
+WARNING 2025-04-28 02:21:40,763 basehttp 18453 136695282398912 "POST /api/accounts/login/ HTTP/1.1" 401 183
+INFO 2025-04-28 02:21:48,065 basehttp 18453 136695282398912 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-28 02:21:48,070 log 18453 136695282398912 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-28 02:21:48,070 basehttp 18453 136695282398912 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-28 02:21:52,983 middleware 18453 136695282398912 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-28 02:21:53,104 views 18453 136695282398912 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 02:21:53,120 basehttp 18453 136695282398912 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 02:21:55,188 basehttp 18453 136695282398912 "OPTIONS /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 0
+INFO 2025-04-28 02:21:55,228 basehttp 18453 136695282398912 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5853
+INFO 2025-04-28 02:21:55,439 basehttp 18453 136695262475968 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 304 0
+INFO 2025-04-28 02:21:55,446 basehttp 18453 136695262475968 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 304 0
+INFO 2025-04-28 02:24:24,205 basehttp 18453 136695282398912 "OPTIONS /api/properties/ HTTP/1.1" 200 0
+WARNING 2025-04-28 02:24:24,264 log 18453 136695282398912 Bad Request: /api/properties/
+WARNING 2025-04-28 02:24:24,265 basehttp 18453 136695282398912 "POST /api/properties/ HTTP/1.1" 400 96
+WARNING 2025-04-28 02:24:31,074 log 18453 136695282398912 Bad Request: /api/properties/
+WARNING 2025-04-28 02:24:31,075 basehttp 18453 136695282398912 "POST /api/properties/ HTTP/1.1" 400 96
+WARNING 2025-04-28 02:24:36,656 log 18453 136695282398912 Bad Request: /api/properties/
+WARNING 2025-04-28 02:24:36,657 basehttp 18453 136695282398912 "POST /api/properties/ HTTP/1.1" 400 96
+INFO 2025-04-28 02:30:21,822 basehttp 18453 136695282398912 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5853
+WARNING 2025-04-28 02:31:50,286 log 18453 136695282398912 Bad Request: /api/properties/
+WARNING 2025-04-28 02:31:50,286 basehttp 18453 136695282398912 "POST /api/properties/ HTTP/1.1" 400 96
+INFO 2025-04-28 02:39:09,742 basehttp 18453 136695282398912 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5853
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             

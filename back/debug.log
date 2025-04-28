@@ -6058,4 +6058,139 @@ INFO 2025-04-28 02:30:21,822 basehttp 18453 136695282398912 "GET /api/properties
 WARNING 2025-04-28 02:31:50,286 log 18453 136695282398912 Bad Request: /api/properties/
 WARNING 2025-04-28 02:31:50,286 basehttp 18453 136695282398912 "POST /api/properties/ HTTP/1.1" 400 96
 INFO 2025-04-28 02:39:09,742 basehttp 18453 136695282398912 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5853
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             INFO 2025-04-28 03:49:18,955 autoreload 9469 129812727828608 Watching for file changes with StatReloader
+INFO 2025-04-28 03:50:32,482 basehttp 9469 129812563752640 "OPTIONS /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 0
+WARNING 2025-04-28 03:50:33,975 log 9469 129812563752640 Unauthorized: /api/properties/
+WARNING 2025-04-28 03:50:33,976 basehttp 9469 129812563752640 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-28 03:50:36,413 basehttp 9469 129812563752640 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-28 03:50:36,420 log 9469 129812563752640 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-28 03:50:36,420 basehttp 9469 129812563752640 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-28 03:50:38,264 basehttp 9469 129812563752640 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-28 03:50:39,042 middleware 9469 129812563752640 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-28 03:50:39,883 views 9469 129812563752640 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 03:50:39,943 basehttp 9469 129812563752640 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 03:50:41,855 basehttp 9469 129812563752640 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5853
+INFO 2025-04-28 03:50:42,029 basehttp 9469 129812544878272 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 304 0
+INFO 2025-04-28 03:50:42,036 basehttp 9469 129812544878272 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 304 0
+INFO 2025-04-28 03:59:48,292 basehttp 9469 129812563752640 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 5853
+INFO 2025-04-28 04:07:50,266 basehttp 9469 129812563752640 "OPTIONS /api/properties/ HTTP/1.1" 200 0
+WARNING 2025-04-28 04:07:50,331 log 9469 129812563752640 Bad Request: /api/properties/
+WARNING 2025-04-28 04:07:50,331 basehttp 9469 129812563752640 "POST /api/properties/ HTTP/1.1" 400 96
+INFO 2025-04-28 04:10:24,925 middleware 9469 129812563752640 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-28 04:10:25,049 views 9469 129812563752640 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 04:10:25,053 basehttp 9469 129812563752640 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-28 04:11:41,584 log 9469 129812563752640 Bad Request: /api/properties/
+WARNING 2025-04-28 04:11:41,585 basehttp 9469 129812563752640 "POST /api/properties/ HTTP/1.1" 400 96
+INFO 2025-04-28 04:14:28,451 middleware 9469 129812544878272 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'curl/8.5.0...'
+INFO 2025-04-28 04:14:28,566 views 9469 129812544878272 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 04:14:28,571 basehttp 9469 129812544878272 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-28 04:16:07,761 log 9469 129812544878272 Unauthorized: /api/properties/
+WARNING 2025-04-28 04:16:07,762 basehttp 9469 129812544878272 "POST /api/properties/ HTTP/1.1" 401 58
+WARNING 2025-04-28 04:17:09,261 log 9469 129812544878272 Unauthorized: /api/properties/
+WARNING 2025-04-28 04:17:09,262 basehttp 9469 129812544878272 "POST /api/properties/ HTTP/1.1" 401 58
+                                                                                                                                                                                              INFO 2025-04-28 06:01:20,685 autoreload 9330 123288756998272 Watching for file changes with StatReloader
+INFO 2025-04-28 06:01:46,006 middleware 9330 123288661522112 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'curl/8.5.0...'
+INFO 2025-04-28 06:01:46,702 views 9330 123288661522112 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 06:01:46,708 basehttp 9330 123288661522112 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-28 06:02:58,855 log 9330 123288661522112 Not Found: /api/base/properties/
+WARNING 2025-04-28 06:02:58,856 basehttp 9330 123288661522112 "POST /api/base/properties/ HTTP/1.1" 404 13418
+WARNING 2025-04-28 06:03:51,627 log 9330 123288661522112 Bad Request: /api/properties/
+WARNING 2025-04-28 06:03:51,628 basehttp 9330 123288661522112 "POST /api/properties/ HTTP/1.1" 400 1521
+INFO 2025-04-28 06:04:35,321 autoreload 9330 123288756998272 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/models.py changed, reloading.
+INFO 2025-04-28 06:04:36,932 autoreload 9535 127628099031168 Watching for file changes with StatReloader
+INFO 2025-04-28 06:05:40,436 autoreload 9594 136309735997568 Watching for file changes with StatReloader
+INFO 2025-04-28 06:06:12,776 autoreload 9890 123282040565888 Watching for file changes with StatReloader
+INFO 2025-04-28 06:06:19,892 basehttp 9890 123281868846784 "POST /api/properties/ HTTP/1.1" 201 1608
+INFO 2025-04-28 06:07:11,650 basehttp 9890 123281868846784 "OPTIONS /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 0
+WARNING 2025-04-28 06:07:11,691 log 9890 123281868846784 Unauthorized: /api/properties/
+WARNING 2025-04-28 06:07:11,692 basehttp 9890 123281868846784 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-28 06:07:14,809 basehttp 9890 123281868846784 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-28 06:07:14,816 log 9890 123281868846784 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-28 06:07:14,817 basehttp 9890 123281868846784 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-28 06:07:17,387 basehttp 9890 123281868846784 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-28 06:07:18,195 middleware 9890 123281868846784 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-28 06:07:18,344 views 9890 123281868846784 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 06:07:18,348 basehttp 9890 123281868846784 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 06:07:19,977 basehttp 9890 123281868846784 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+INFO 2025-04-28 06:07:20,325 basehttp 9890 123281849972416 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 304 0
+INFO 2025-04-28 06:07:20,331 basehttp 9890 123281849972416 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 304 0
+INFO 2025-04-28 06:09:03,495 basehttp 9890 123281868846784 "OPTIONS /api/properties/ HTTP/1.1" 200 0
+WARNING 2025-04-28 06:09:03,562 log 9890 123281868846784 Bad Request: /api/properties/
+WARNING 2025-04-28 06:09:03,562 basehttp 9890 123281868846784 "POST /api/properties/ HTTP/1.1" 400 96
+INFO 2025-04-28 06:15:28,339 middleware 9890 123281868846784 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-28 06:15:28,425 views 9890 123281868846784 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 06:15:28,428 basehttp 9890 123281868846784 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 06:15:30,889 basehttp 9890 123281868846784 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+WARNING 2025-04-28 06:17:20,706 log 9890 123281868846784 Bad Request: /api/properties/
+WARNING 2025-04-28 06:17:20,707 basehttp 9890 123281868846784 "POST /api/properties/ HTTP/1.1" 400 96
+INFO 2025-04-28 06:19:07,964 autoreload 9890 123282040565888 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-28 06:19:17,813 autoreload 11093 126375911256192 Watching for file changes with StatReloader
+INFO 2025-04-28 06:19:41,283 autoreload 11093 126375911256192 /home/ahmed/tech-Savvy-projects/2025/real_clients/realEstate/back/base/serializers.py changed, reloading.
+INFO 2025-04-28 06:19:42,028 autoreload 11167 125918668361856 Watching for file changes with StatReloader
+INFO 2025-04-28 11:38:41,523 autoreload 27047 129354575425664 Watching for file changes with StatReloader
+INFO 2025-04-28 11:39:22,711 autoreload 27131 133154255593600 Watching for file changes with StatReloader
+INFO 2025-04-28 11:39:37,170 basehttp 27131 133154090251968 "GET /media/users/73d10b69-2f8e-4b5f-be8e-07a14a48f9b2/avatars/20250424124603_profile.png HTTP/1.1" 304 0
+INFO 2025-04-28 11:39:43,314 basehttp 27131 133154081859264 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-28 11:39:43,476 log 27131 133154081859264 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-28 11:39:43,477 basehttp 27131 133154081859264 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-28 11:41:21,726 basehttp 27131 133154081859264 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-28 11:41:22,591 middleware 27131 133154081859264 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-28 11:41:22,670 views 27131 133154081859264 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 11:41:22,674 basehttp 27131 133154081859264 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 11:41:31,536 views 27131 133154081859264 User rings9619@gmail.com logged out successfully
+INFO 2025-04-28 11:41:31,537 basehttp 27131 133154081859264 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-28 11:41:38,580 middleware 27131 133154081859264 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-28 11:41:38,680 views 27131 133154081859264 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 11:41:38,683 basehttp 27131 133154081859264 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 11:41:41,012 basehttp 27131 133154081859264 "OPTIONS /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 0
+INFO 2025-04-28 11:41:41,058 basehttp 27131 133154081859264 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+INFO 2025-04-28 11:41:41,143 basehttp 27131 133154090251968 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 304 0
+INFO 2025-04-28 11:41:41,146 basehttp 27131 133153851176640 "GET /media/generic_media/2025/04/24/d.jpeg HTTP/1.1" 304 0
+INFO 2025-04-28 11:41:41,148 basehttp 27131 133154062988992 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 304 0
+INFO 2025-04-28 11:41:46,315 basehttp 27131 133154081859264 "OPTIONS /api/properties/?page=1&page_size=12&ordering=price_low HTTP/1.1" 200 0
+INFO 2025-04-28 11:41:46,364 basehttp 27131 133154081859264 "GET /api/properties/?page=1&page_size=12&ordering=price_low HTTP/1.1" 200 7434
+INFO 2025-04-28 11:41:48,501 basehttp 27131 133154081859264 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+INFO 2025-04-28 11:42:27,152 basehttp 27131 133154081859264 "OPTIONS /api/properties/?page=1&page_size=12&ordering=price_high HTTP/1.1" 200 0
+INFO 2025-04-28 11:42:27,232 basehttp 27131 133154081859264 "GET /api/properties/?page=1&page_size=12&ordering=price_high HTTP/1.1" 200 7434
+INFO 2025-04-28 11:42:28,954 basehttp 27131 133154081859264 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+INFO 2025-04-28 11:42:35,783 basehttp 27131 133154081859264 "OPTIONS /api/properties/property/ HTTP/1.1" 200 0
+INFO 2025-04-28 11:42:36,020 basehttp 27131 133154081859264 "GET /api/properties/property/ HTTP/1.1" 200 1449
+INFO 2025-04-28 11:45:13,765 basehttp 27131 133154081859264 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+INFO 2025-04-28 11:48:14,996 basehttp 27131 133154081859264 "OPTIONS /api/properties/ HTTP/1.1" 200 0
+WARNING 2025-04-28 11:48:15,007 log 27131 133154081859264 Bad Request: /api/properties/
+WARNING 2025-04-28 11:48:15,007 basehttp 27131 133154081859264 "POST /api/properties/ HTTP/1.1" 400 366
+INFO 2025-04-28 12:07:48,655 middleware 27131 133154081859264 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-28 12:07:48,750 views 27131 133154081859264 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 12:07:48,753 basehttp 27131 133154081859264 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 12:07:50,171 basehttp 27131 133154081859264 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+WARNING 2025-04-28 12:14:50,389 log 27131 133154062988992 Bad Request: /api/properties/
+WARNING 2025-04-28 12:14:50,390 basehttp 27131 133154062988992 "POST /api/properties/ HTTP/1.1" 400 366
+INFO 2025-04-28 14:26:01,709 basehttp 27131 133154062988992 "OPTIONS /api/properties/ HTTP/1.1" 200 0
+WARNING 2025-04-28 14:26:01,718 log 27131 133154062988992 Unauthorized: /api/properties/
+WARNING 2025-04-28 14:26:01,719 basehttp 27131 133154062988992 "POST /api/properties/ HTTP/1.1" 401 183
+WARNING 2025-04-28 14:26:02,827 log 27131 133154062988992 Unauthorized: /api/properties/
+WARNING 2025-04-28 14:26:02,827 basehttp 27131 133154062988992 "POST /api/properties/ HTTP/1.1" 401 183
+INFO 2025-04-28 14:26:06,814 basehttp 27131 133154062988992 "OPTIONS /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 0
+WARNING 2025-04-28 14:26:06,827 log 27131 133154062988992 Unauthorized: /api/properties/
+WARNING 2025-04-28 14:26:06,829 basehttp 27131 133154062988992 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 401 183
+INFO 2025-04-28 14:26:09,446 basehttp 27131 133154062988992 "OPTIONS /api/accounts/logout/ HTTP/1.1" 200 0
+WARNING 2025-04-28 14:26:09,451 log 27131 133154062988992 Unauthorized: /api/accounts/logout/
+WARNING 2025-04-28 14:26:09,452 basehttp 27131 133154062988992 "POST /api/accounts/logout/ HTTP/1.1" 401 183
+INFO 2025-04-28 14:26:10,454 basehttp 27131 133154062988992 "OPTIONS /api/accounts/login/ HTTP/1.1" 200 0
+INFO 2025-04-28 14:26:11,361 middleware 27131 133154062988992 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-28 14:26:11,499 views 27131 133154062988992 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 14:26:11,503 basehttp 27131 133154062988992 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 14:26:12,717 basehttp 27131 133154062988992 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+INFO 2025-04-28 14:26:12,787 basehttp 27131 133154090251968 "GET /media/generic_media/2025/04/27/interior.jpg HTTP/1.1" 304 0
+INFO 2025-04-28 14:26:12,787 basehttp 27131 133154081859264 "GET /media/generic_media/2025/04/27/apartment_view.jpg HTTP/1.1" 304 0
+INFO 2025-04-28 14:26:23,344 basehttp 27131 133154062988992 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+INFO 2025-04-28 14:26:25,831 views 27131 133154062988992 User rings9619@gmail.com logged out successfully
+INFO 2025-04-28 14:26:25,831 basehttp 27131 133154062988992 "POST /api/accounts/logout/ HTTP/1.1" 200 56
+INFO 2025-04-28 14:26:31,773 middleware 27131 133154062988992 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-28 14:26:31,853 views 27131 133154062988992 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 14:26:31,856 basehttp 27131 133154062988992 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 14:26:37,546 basehttp 27131 133154062988992 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+WARNING 2025-04-28 14:28:48,932 log 27131 133154062988992 Bad Request: /api/properties/
+WARNING 2025-04-28 14:28:48,933 basehttp 27131 133154062988992 "POST /api/properties/ HTTP/1.1" 400 366
+WARNING 2025-04-28 14:29:02,468 log 27131 133154062988992 Bad Request: /api/properties/
+WARNING 2025-04-28 14:29:02,468 basehttp 27131 133154062988992 "POST /api/properties/ HTTP/1.1" 400 366

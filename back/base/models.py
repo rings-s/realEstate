@@ -393,6 +393,13 @@ class Property(models.Model):
     property_number = models.CharField(_('رقم العقار'), max_length=50, unique=True)
     title = models.CharField(_('العنوان'), max_length=255)
     property_type = models.CharField(_('نوع العقار'), max_length=20, choices=PROPERTY_TYPES)
+    building_type = models.CharField(
+        _('نوع المبنى'),
+        max_length=20,
+        choices=BUILDING_TYPE_CHOICES,
+        blank=True,
+        null=True
+    )
     status = models.CharField(_('الحالة'), max_length=20, choices=STATUS_CHOICES, default='available')
     view_count = models.PositiveIntegerField(_('عدد المشاهدات'), default=0)
 

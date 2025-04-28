@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 import json
+
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
@@ -11,6 +12,7 @@ from .models import (
     MessageThread, ThreadParticipant, Message, Property, Auction, Bid,
     Document, Contract, Notification, Media, RoleChoices
 )
+
 from .utils import sanitize_html, truncate_text
 
 
@@ -142,144 +144,42 @@ class BaseModelSerializer(serializers.ModelSerializer):
         label=_('Last Updated')
     )
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._setup_json_fields()
-
-    def _setup_json_fields(self):
-        """Cache JSON field information for better performance"""
-        model_class = self.Meta.model
-        self._json_fields = {
-            field.name: field for field in model_class._meta.fields
-            if isinstance(field, models.JSONField)
-        }
-        self._dict_json_fields = set(name for name, field in self._json_fields.items()
-                                   if field.default == dict)
-        self._list_json_fields = set(name for name, field in self._json_fields.items()
-                                   if field.default == list)
-
-    def handle_empty_json_field(self, field_name, value):
-        """Handle empty or null JSON field values"""
-        if value is None or value == '':
-            return {} if field_name in self._dict_json_fields else []
-        return value
-
-    def get_field_type(self, field_name):
-        """Get the expected type for a JSON field"""
-        if field_name in self._dict_json_fields:
-            return dict
-        elif field_name in self._list_json_fields:
-            return list
-        return None
-
-    def validate_json_field(self, field_name, value):
-        """Validate individual JSON fields"""
-        try:
-            # Handle empty values
-            if not value:
-                return self.handle_empty_json_field(field_name, value)
-
-            # Handle string inputs
-            if isinstance(value, str):
-                try:
-                    value = json.loads(value)
-                except json.JSONDecodeError:
-                    raise ValidationError(f"Invalid JSON format for {field_name}")
-
-            # Validate dictionary fields
-            if field_name in self._dict_json_fields:
-                if not isinstance(value, dict):
-                    raise ValidationError(f"{field_name} must be a dictionary")
-                return value
-
-            # Validate list fields
-            if field_name in self._list_json_fields:
-                if not isinstance(value, list):
-                    raise ValidationError(f"{field_name} must be a list")
-                return value
-
-            return value
-
-        except Exception as e:
-            logger.error(f"Error validating JSON field {field_name}: {str(e)}")
-            raise ValidationError(f"Error processing {field_name}: {str(e)}")
-
-    def validate(self, data):
-        """Validate all JSON fields in the data"""
-        try:
-            for field_name in self._json_fields:
-                if field_name in data:
-                    data[field_name] = self.validate_json_field(field_name, data[field_name])
-            return super().validate(data)
-        except Exception as e:
-            logger.error(f"Validation error: {str(e)}")
-            raise serializers.ValidationError(f"Validation error: {str(e)}")
-
-    def to_internal_value(self, data):
-        """Process incoming data, handling JSON fields appropriately"""
-        try:
-            # Handle JSON fields
-            for field_name in self._json_fields:
-                if field_name in data:
-                    value = data[field_name]
-
-                    # Handle empty values
-                    if not value:
-                        data[field_name] = self.handle_empty_json_field(field_name, value)
-                        continue
-
-                    # Convert string to JSON if needed
-                    if isinstance(value, str):
-                        try:
-                            data[field_name] = json.loads(value)
-                        except json.JSONDecodeError:
-                            data[field_name] = self.handle_empty_json_field(field_name, value)
-
-                    # Validate type
-                    expected_type = self.get_field_type(field_name)
-                    if expected_type and not isinstance(data[field_name], expected_type):
-                        data[field_name] = self.handle_empty_json_field(field_name, value)
-
-            return super().to_internal_value(data)
-
-        except Exception as e:
-            logger.error(f"Error processing incoming data: {str(e)}")
-            raise serializers.ValidationError(f"Error processing data: {str(e)}")
-
     def to_representation(self, instance):
         """Convert model instance to JSON-compatible data"""
-        try:
-            representation = super().to_representation(instance)
+        representation = super().to_representation(instance)
 
-            # Process JSON fields
-            for field_name in self._json_fields:
-                value = representation.get(field_name)
+        # Ensure specific JSON fields are dicts or lists even if null in DB
+        # This relies on the model having these fields as JSONField
+        json_field_names = getattr(self.Meta, 'json_fields', [])
+        for field_name in json_field_names:
+            if field_name in representation and representation[field_name] is None:
+                # Attempt to determine default type (dict or list)
+                # This part might need refinement based on actual model field defaults
+                model_field = instance._meta.get_field(field_name)
+                if isinstance(model_field.default, list):
+                    representation[field_name] = []
+                else:
+                    representation[field_name] = {} # Default to dict if unsure
 
-                # Handle null values
-                if value is None:
-                    representation[field_name] = self.handle_empty_json_field(field_name, value)
-                    continue
+        # Format dates/times if necessary (already handled by DRF DateTimeField)
 
-                # Convert string JSON to Python object if needed
-                if isinstance(value, str):
-                    try:
-                        representation[field_name] = json.loads(value)
-                    except json.JSONDecodeError:
-                        representation[field_name] = self.handle_empty_json_field(field_name, value)
+        # Sanitize HTML fields if specified in Meta
+        html_fields = getattr(self.Meta, 'html_fields', [])
+        for field_name in html_fields:
+            if field_name in representation and representation[field_name]:
+                representation[field_name] = sanitize_html(representation[field_name])
 
-                # Ensure correct type
-                expected_type = self.get_field_type(field_name)
-                if expected_type and not isinstance(representation[field_name], expected_type):
-                    representation[field_name] = self.handle_empty_json_field(field_name, value)
+        # Truncate text fields if specified in Meta
+        truncate_fields = getattr(self.Meta, 'truncate_fields', {})
+        for field_name, length in truncate_fields.items():
+            if field_name in representation and representation[field_name]:
+                representation[field_name] = truncate_text(representation[field_name], length)
 
-            return representation
-
-        except Exception as e:
-            logger.error(f"Error converting to representation: {str(e)}")
-            raise serializers.ValidationError(f"Error processing response: {str(e)}")
+        return representation
 
     class Meta:
         abstract = True
+
 # -------------------------------------------------------------------------
 # Message & Thread Serializers
 # -------------------------------------------------------------------------
@@ -449,6 +349,42 @@ class MessageThreadSerializer(BaseModelSerializer):
 # -------------------------------------------------------------------------
 # Property Serializers
 # -------------------------------------------------------------------------
+class JSONSerializerField(serializers.Field):
+    """
+    Custom serializer field for handling JSON data with type inference and validation.
+    """
+    def to_representation(self, value):
+        """
+        Convert JSON data to representation.
+
+        Args:
+            value: JSON data
+
+        Returns:
+            Dict or list
+        """
+        if value is None:
+            return {} if isinstance(value, dict) else []
+        return value
+
+    def to_internal_value(self, data):
+        """
+        Validate and convert input data to JSON.
+
+        Args:
+            data: Input data
+
+        Returns:
+            Dict or list
+        """
+        if isinstance(data, str):
+            try:
+                import json
+                return json.loads(data)
+            except (json.JSONDecodeError, TypeError):
+                raise serializers.ValidationError(_("Invalid JSON format"))
+        return data
+
 class PropertySerializer(BaseModelSerializer):
     # Nested serializers and display fields
     media = MediaSerializer(many=True, read_only=True, label=_('ملفات الوسائط'))
@@ -473,6 +409,15 @@ class PropertySerializer(BaseModelSerializer):
         label=_('نوع المبنى')
     )
 
+    # Use JSONSerializerField for expected JSON fields
+    location = JSONSerializerField(required=False, allow_null=True, label=_('الموقع'))
+    features = JSONSerializerField(required=False, allow_null=True, label=_('المميزات'))
+    amenities = JSONSerializerField(required=False, allow_null=True, label=_('وسائل الراحة'))
+    rooms = JSONSerializerField(required=False, allow_null=True, label=_('الغرف'))
+    specifications = JSONSerializerField(required=False, allow_null=True, label=_('المواصفات'))
+    pricing_details = JSONSerializerField(required=False, allow_null=True, label=_('تفاصيل التسعير'))
+    metadata = JSONSerializerField(required=False, allow_null=True, label=_('بيانات وصفية'))
+
     class Meta:
         model = Property
         fields = [
@@ -493,6 +438,12 @@ class PropertySerializer(BaseModelSerializer):
             'created_at': {'read_only': True},
             'updated_at': {'read_only': True}
         }
+        # Define fields that contain JSON data for to_representation handling
+        json_fields = ['location', 'features', 'amenities', 'rooms', 'specifications', 'pricing_details', 'metadata']
+        # Define fields containing HTML for sanitization
+        html_fields = ['description']
+        # Define fields for text truncation
+        truncate_fields = {'description': 250}
 
     def validate_property_type(self, value):
         """Validate property type against model choices"""
@@ -633,6 +584,9 @@ class PropertySerializer(BaseModelSerializer):
         except Exception as e:
             logger.error(f"Error in property representation: {str(e)}")
             raise serializers.ValidationError(f"Error processing property data: {str(e)}")
+
+
+
 # -------------------------------------------------------------------------
 # Bid Serializer
 # -------------------------------------------------------------------------
@@ -1047,42 +1001,4 @@ class NotificationSerializer(BaseModelSerializer):
         if notification_type in ['payment_due', 'payment_received'] and not related_contract:
             raise serializers.ValidationError(_("يجب تحديد العقد المرتبط لإشعارات الدفع."))
 
-        return data
-
-
-
-class JSONSerializerField(serializers.Field):
-    """
-    Custom serializer field for handling JSON data with type inference and validation.
-    """
-    def to_representation(self, value):
-        """
-        Convert JSON data to representation.
-
-        Args:
-            value: JSON data
-
-        Returns:
-            Dict or list
-        """
-        if value is None:
-            return {} if isinstance(value, dict) else []
-        return value
-
-    def to_internal_value(self, data):
-        """
-        Validate and convert input data to JSON.
-
-        Args:
-            data: Input data
-
-        Returns:
-            Dict or list
-        """
-        if isinstance(data, str):
-            try:
-                import json
-                return json.loads(data)
-            except (json.JSONDecodeError, TypeError):
-                raise serializers.ValidationError(_("Invalid JSON format"))
         return data

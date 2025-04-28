@@ -1,14 +1,12 @@
 <script>
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { createProperty } from '$lib/stores/properties';
-	import { addToast } from '$lib/stores/ui';
-	import PropertyForm from '$lib/components/property/PropertyForm.svelte';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { createProperty } from '$lib/services/properties';
+  import { addToast } from '$lib/stores/ui';
+  import PropertyForm from '$lib/components/property/PropertyForm.svelte';
 
-	let loading = false;
-	let error = '';
-
-
+  let loading = false;
+  let error = '';
 
   async function handleSubmit(event) {
     loading = true;
@@ -17,12 +15,24 @@
     try {
       const formData = event.detail;
       
-      // Log what we received
-      console.log("Received FormData entries:");
-      for (let [key, value] of formData.entries()) {
-        console.log(key, ':', value);
+      if (!(formData instanceof FormData)) {
+        throw new Error('Expected FormData object but received different data type');
       }
-
+      
+      // Debug what we're sending
+      console.log("Sending property data to API...");
+      for (let [key, value] of formData.entries()) {
+        if (typeof value === 'string' && (key === 'location' || key === 'features' || 
+            key === 'amenities' || key === 'rooms' || key === 'specifications' || 
+            key === 'pricing_details' || key === 'highQualityStreets')) {
+          console.log(`${key}: ${value.substring(0, 100)}${value.length > 100 ? '...' : ''}`);
+        } else if (value instanceof File) {
+          console.log(`${key}: File (${value.name}, ${value.size} bytes)`);
+        } else {
+          console.log(`${key}: ${value}`);
+        }
+      }
+      
       const result = await createProperty(formData);
       
       if (result.success) {
@@ -39,6 +49,7 @@
       loading = false;
     }
   }
+  
 </script>
 
 <div class="mx-auto max-w-5xl px-4 py-8">

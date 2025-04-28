@@ -1,8 +1,9 @@
 <!-- src/lib/components/property/PropertyMap.svelte -->
 <script>
-	import { onMount, onDestroy, tick } from 'svelte';
+	import { onMount, onDestroy, tick, createEventDispatcher } from 'svelte';
 	import { browser } from '$app/environment';
 
+	const dispatch = createEventDispatcher();
 	export let latitude = 24.774265; // Default Riyadh
 	export let longitude = 46.738586;
 	export let editable = false;
@@ -50,10 +51,17 @@
 
 				if (editable) {
 					marker.on('dragend', (e) => {
-						const { lat, lng } = e.target.getLatLng();
-						latitude = lat;
-						longitude = lng;
-						onLocationChange({ latitude: lat, longitude: lng });
+						const latlng = e.target.getLatLng();
+						latitude = latlng.lat;
+						longitude = latlng.lng;
+						
+						// Use dispatch function correctly
+						dispatch('locationchange', { 
+						lat: latlng.lat, 
+						lng: latlng.lng 
+						});
+						
+						console.log('Location updated:', latitude, longitude);
 					});
 				}
 

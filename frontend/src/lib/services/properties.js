@@ -75,28 +75,59 @@ export async function fetchPropertyBySlug(slug) {
 
 /**
  * Create new property
+ * @param {object} propertyData - The raw property data object from the form.
  */
-
-// src/lib/services/properties.js
-
-// src/lib/services/properties.js 
-export async function createProperty(formData) {
+export async function createProperty(propertyData) {
 	try {
-	  // Log what we're sending to the API
-	  console.log("Sending FormData to API:");
+	  const formData = new FormData();
+	  const jsonFields = [
+		'location',
+		'features',
+		'amenities',
+		'rooms',
+		'specifications',
+		'pricing_details',
+		'highQualityStreets',
+		'metadata'
+	  ];
+
+	  Object.entries(propertyData).forEach(([key, value]) => {
+		if (value === null || value === undefined) return;
+
+		if (jsonFields.includes(key) && typeof value === 'object') {
+		  formData.append(key, JSON.stringify(value));
+		} else if (key === 'media' && Array.isArray(value)) {
+		  value.forEach((file) => {
+			if (file instanceof File) {
+			  formData.append('media', file);
+			}
+		  });
+		} else {
+		  if (typeof value === 'boolean') {
+			formData.append(key, value ? 'true' : 'false');
+		  } else {
+			formData.append(key, value);
+		  }
+		}
+	  });
+
+	  console.log("Sending constructed FormData to API for creation:");
 	  for (let [key, value] of formData.entries()) {
 		console.log(key, ':', value);
 	  }
-  
+
 	  const response = await api.post('/properties/', formData);
-  
+
 	  if (response.status === 'success' && response.data) {
+		properties.update(props => [response.data, ...props]);
+		addToast('تم إنشاء العقار بنجاح', 'success');
 		return { success: true, data: response.data };
 	  }
-  
+
 	  throw new Error(response.error || 'Failed to create property');
 	} catch (error) {
 	  console.error('Property creation error:', error);
+	  addToast(`فشل إنشاء العقار: ${error.message}`, 'error');
 	  return { success: false, error: error.message };
 	}
 }

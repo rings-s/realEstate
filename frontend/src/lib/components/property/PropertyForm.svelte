@@ -638,60 +638,154 @@
 		};
 	}
 
-	// In PropertyForm.svelte, modify handleSubmit
 	async function handleSubmit() {
-	// Log the current form data to check what we have
-		console.log("Form Data Before Submit:", {
-			title: formData.title,
-			property_type: formData.property_type,
-			description: formData.description,
-			status: formData.status,
-			deed_number: formData.deed_number,
-			address: formData.address,
-			city: formData.city,
-			state: formData.state
+		// --- Comprehensive Validation before Submission ---
+		errors = {}; // Reset errors first
+		const requiredFields = [
+			{ key: 'title', label: 'عنوان العقار' },
+			{ key: 'property_type', label: 'نوع العقار' },
+			{ key: 'description', label: 'وصف العقار' },
+			{ key: 'deed_number', label: 'رقم الصك' },
+			{ key: 'status', label: 'حالة العقار' },
+			{ key: 'address', label: 'العنوان التفصيلي' },
+			{ key: 'city', label: 'المدينة' },
+			{ key: 'state', label: 'المنطقة/الولاية' } // Add state if it's required
+		];
+
+		requiredFields.forEach(field => {
+			if (!formData[field.key] || (typeof formData[field.key] === 'string' && !formData[field.key].trim())) {
+				errors[field.key] = `يرجى إدخال ${field.label}`;
+			}
 		});
 
-		const propertyFormData = new FormData();
-
-		// Add basic required fields first
-		propertyFormData.append('title', formData.title);
-		propertyFormData.append('property_type', formData.property_type);
-		propertyFormData.append('description', formData.description);
-		propertyFormData.append('status', formData.status || 'available');
-		propertyFormData.append('deed_number', formData.deed_number);
-		propertyFormData.append('address', formData.address);
-		propertyFormData.append('city', formData.city);
-		propertyFormData.append('state', formData.state);
-
-		// Add JSON fields
-		if (formData.location) {
-			propertyFormData.append('location', JSON.stringify(formData.location));
-		}
-		if (formData.features?.length) {
-			propertyFormData.append('features', JSON.stringify(formData.features));
-		}
-		if (formData.amenities?.length) {
-			propertyFormData.append('amenities', JSON.stringify(formData.amenities));
+		// Also validate specific format requirements if needed (e.g., deed_number)
+		if (formData.deed_number && !/^[a-zA-Z0-9]+$/.test(formData.deed_number)) {
+			errors.deed_number = 'رقم الصك يجب أن يحتوي على أحرف وأرقام فقط';
 		}
 
-		// Add files
-		if (uploadedImages?.length) {
-			uploadedImages.forEach(img => {
-			if (img.file instanceof File) {
-				propertyFormData.append('media', img.file);
+		// Validate media (ensure at least one image is present)
+		if (uploadedImages.length === 0) {
+			errors.media = 'يرجى إضافة صورة واحدة على الأقل';
+		}
+
+		// Validate other crucial fields like location if necessary
+		if (!formData.location?.latitude || !formData.location?.longitude) {
+			errors.location = 'يرجى تحديد الموقع على الخريطة أو إدخال الإحداثيات';
+		}
+
+		// Check if any errors were found
+		if (Object.keys(errors).length > 0) {
+			addToast('يرجى مراجعة النموذج وتصحيح الأخطاء الموضحة', 'error');
+			errors = { ...errors }; // Trigger reactivity
+			// Optionally, navigate to the first step with an error
+			const firstErrorStep = steps.findIndex(step => step.fields.some(f => errors[f]));
+			if (firstErrorStep !== -1) {
+				currentStep = firstErrorStep + 1;
+				window.scrollTo({ top: 0, behavior: 'smooth' });
 			}
+			return;
+		}
+		// --- End Comprehensive Validation ---
+
+		// Validate current step before submitting (Kept as a safety check, though maybe redundant now)
+		// if (!validateStep(currentStep)) {
+		// 	addToast('يرجى تصحيح الأخطاء أو إكمال الحقول المطلوبة للمتابعة', 'error');
+		// 	errors = { ...errors }; // Trigger reactivity
+		// 	return;
+		// }
+
+		try {
+			// Create FormData with required fields first
+			const propertyFormData = new FormData();
+			
+			// Add basic text fields
+			propertyFormData.append('title', formData.title);
+			propertyFormData.append('property_type', formData.property_type);
+			propertyFormData.append('description', formData.description);
+			propertyFormData.append('status', formData.status || 'available');
+			propertyFormData.append('address', formData.address);
+			propertyFormData.append('city', formData.city);
+			propertyFormData.append('state', formData.state);
+			
+			// Add deed_number - make sure it's not undefined or null
+			if (formData.deed_number) {
+			propertyFormData.append('deed_number', formData.deed_number);
+			}
+			
+			// Add numeric fields with validation - convert to strings
+			if (formData.size_sqm) propertyFormData.append('size_sqm', String(formData.size_sqm));
+			if (formData.bedrooms) propertyFormData.append('bedrooms', String(formData.bedrooms));
+			if (formData.bathrooms) propertyFormData.append('bathrooms', String(formData.bathrooms));
+			if (formData.floors) propertyFormData.append('floors', String(formData.floors));
+			if (formData.parking_spaces) propertyFormData.append('parking_spaces', String(formData.parking_spaces));
+			if (formData.year_built) propertyFormData.append('year_built', String(formData.year_built));
+			if (formData.market_value) propertyFormData.append('market_value', String(formData.market_value));
+			if (formData.minimum_bid) propertyFormData.append('minimum_bid', String(formData.minimum_bid));
+			if (formData.postal_code) propertyFormData.append('postal_code', formData.postal_code);
+			if (formData.country) propertyFormData.append('country', formData.country);
+			
+			// Add boolean fields - convert to strings "true" or "false"
+			propertyFormData.append('is_published', formData.is_published ? "true" : "false");
+			propertyFormData.append('is_featured', formData.is_featured ? "true" : "false");
+			
+			// Handle location separately - this field is causing the issue
+			if (formData.location) {
+			const locationObj = {};
+			if (typeof formData.location.latitude === 'number' && !isNaN(formData.location.latitude)) {
+				locationObj.latitude = formData.location.latitude;
+			}
+			if (typeof formData.location.longitude === 'number' && !isNaN(formData.location.longitude)) {
+				locationObj.longitude = formData.location.longitude;
+			}
+			
+			if (Object.keys(locationObj).length > 0) {
+				propertyFormData.append('location', JSON.stringify(locationObj));
+			}
+			}
+			
+			// Add other JSON fields only if they contain data
+			if (Array.isArray(formData.features) && formData.features.length > 0) {
+			propertyFormData.append('features', JSON.stringify(formData.features));
+			}
+			
+			if (Array.isArray(formData.amenities) && formData.amenities.length > 0) {
+			propertyFormData.append('amenities', JSON.stringify(formData.amenities));
+			}
+			
+			if (Array.isArray(formData.rooms) && formData.rooms.length > 0) {
+			propertyFormData.append('rooms', JSON.stringify(formData.rooms));
+			}
+			
+			if (formData.specifications && Object.keys(formData.specifications).length > 0) {
+			propertyFormData.append('specifications', JSON.stringify(formData.specifications));
+			}
+			
+			if (formData.pricing_details && Object.keys(formData.pricing_details).length > 0) {
+			propertyFormData.append('pricing_details', JSON.stringify(formData.pricing_details));
+			}
+			
+			if (Array.isArray(formData.highQualityStreets) && formData.highQualityStreets.length > 0) {
+			propertyFormData.append('highQualityStreets', JSON.stringify(formData.highQualityStreets));
+			}
+
+			// Add media files
+			if (uploadedImages && uploadedImages.length > 0) {
+			uploadedImages.forEach((img) => {
+				if (img.file instanceof File) {
+				propertyFormData.append('media', img.file);
+				}
 			});
-		}
+			}
 
-		// Log what we're about to send
-		console.log("FormData entries before dispatch:");
-		for (let [key, value] of propertyFormData.entries()) {
-			console.log(key, ':', value);
+			// Log and dispatch
+			console.log("Sending FormData to API");
+			dispatch('submit', propertyFormData);
+		} catch (error) {
+			console.error("Error preparing form data:", error);
+			addToast(`خطأ في تجهيز البيانات: ${error.message}`, 'error');
 		}
-
-		dispatch('submit', propertyFormData);
 	}
+
 	// Initialize form data if initialData is provided
 	onMount(() => {
 		if (initialData) {
@@ -1318,7 +1412,9 @@
 
 				<div class="mt-6 border-t pt-6">
 					<h3 class="mb-2 text-lg font-semibold">تفاصيل الغرف (اختياري)</h3>
-					<p class="mb-4 text-sm text-slate-500">أضف تفاصيل عن الغرف الموجودة بالعقار ومساحاتها.</p>
+					<p class="mb-4 text-sm text-slate-500">
+						أضف تفاصيل عن الغرف الموجودة بالعقار ومساحاتها.
+					</p>
 					<RoomEditor bind:rooms={formData.rooms} />
 					{#if errors.rooms}
 						<span class="mt-1 text-sm text-red-600">{errors.rooms}</span>

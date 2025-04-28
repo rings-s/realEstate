@@ -243,7 +243,7 @@ export async function togglePropertyFavorite(propertyId) {
 				if (prop?.id === propertyId) {
 					return { ...prop, is_favorite: !prop.is_favorite };
 				}
-				return prop;
+				return prop; // Return unchanged prop otherwise
 			});
 			return { success: true, isFavorite: response.data?.is_favorite };
 		} else {

@@ -262,41 +262,6 @@
 		}
 	}
 
-	// Add this check before submitting
-	function validateFormData(formData) {
-		const requiredFields = [
-			'title',
-			'property_type',
-			'status',
-			'address',
-			'city',
-			'state',
-			'description',
-			'deed_number'
-		];
-
-		const missing = requiredFields.filter(field => !formData.get(field));
-		
-		if (missing.length > 0) {
-			throw new Error(`الحقول التالية مطلوبة: ${missing.join(', ')}`);
-		}
-
-		return true;
-	}
-
-	// Add this to your property form validation
-	function validateDeedNumber(deedNumber) {
-		if (!deedNumber) return '';
-
-		// Add any specific format validation rules here
-		const deedNumberRegex = /^[A-Za-z0-9-_]+$/;
-		if (!deedNumberRegex.test(deedNumber)) {
-			return 'رقم الصك يجب أن يحتوي على أحرف وأرقام فقط';
-		}
-
-		return '';
-	}
-
 	function removeAmenity(index) {
 		formData.amenities = formData.amenities.filter((_, i) => i !== index);
 	}
@@ -599,7 +564,7 @@
 		}
 	}
 
-		// Helper function to check if fields in a step are complete
+	// Helper function to check if fields in a step are complete
 	function isStepComplete(step) {
 		const fields = steps[step - 1].fields;
 		return fields.every(field => {
@@ -623,7 +588,7 @@
 		});
 	}
 
-		// Progress tracking
+	// Progress tracking
 	function getStepProgress() {
 		const totalSteps = steps.length;
 		const completedSteps = steps.slice(0, currentStep).filter((_, index) => 
@@ -641,109 +606,121 @@
 	async function handleSubmit() {
 		// --- Comprehensive Validation before Submission ---
 		errors = {}; // Reset errors first
+		
+		// Essential backend-required fields validation
 		const requiredFields = [
 			{ key: 'title', label: 'عنوان العقار' },
 			{ key: 'property_type', label: 'نوع العقار' },
 			{ key: 'description', label: 'وصف العقار' },
-			{ key: 'deed_number', label: 'رقم الصك' },
 			{ key: 'status', label: 'حالة العقار' },
 			{ key: 'address', label: 'العنوان التفصيلي' },
 			{ key: 'city', label: 'المدينة' },
-			{ key: 'state', label: 'المنطقة/الولاية' } // Add state if it's required
+			{ key: 'state', label: 'المنطقة/الولاية' }
 		];
 
+		// Validate all required fields first
 		requiredFields.forEach(field => {
 			if (!formData[field.key] || (typeof formData[field.key] === 'string' && !formData[field.key].trim())) {
-				errors[field.key] = `يرجى إدخال ${field.label}`;
+			errors[field.key] = `يرجى إدخال ${field.label}`;
 			}
 		});
 
-		// Also validate specific format requirements if needed (e.g., deed_number)
-		if (formData.deed_number && !/^[a-zA-Z0-9]+$/.test(formData.deed_number)) {
-			errors.deed_number = 'رقم الصك يجب أن يحتوي على أحرف وأرقام فقط';
+		// Size validation - backend needs this
+		if (!formData.size_sqm || parseFloat(formData.size_sqm) <= 0) {
+			errors.size_sqm = 'يرجى إدخال مساحة صحيحة (أكبر من 0)';
 		}
 
-		// Validate media (ensure at least one image is present)
+		// Market value validation - backend needs this
+		if (!formData.market_value || parseFloat(formData.market_value) <= 0) {
+			errors.market_value = 'يرجى إدخال قيمة سوقية صحيحة (أكبر من 0)';
+		}
+
+		// Media validation - at least one image
 		if (uploadedImages.length === 0) {
 			errors.media = 'يرجى إضافة صورة واحدة على الأقل';
-		}
-
-		// Validate other crucial fields like location if necessary
-		if (!formData.location?.latitude || !formData.location?.longitude) {
-			errors.location = 'يرجى تحديد الموقع على الخريطة أو إدخال الإحداثيات';
 		}
 
 		// Check if any errors were found
 		if (Object.keys(errors).length > 0) {
 			addToast('يرجى مراجعة النموذج وتصحيح الأخطاء الموضحة', 'error');
 			errors = { ...errors }; // Trigger reactivity
-			// Optionally, navigate to the first step with an error
+			
+			// Go to first step with error
 			const firstErrorStep = steps.findIndex(step => step.fields.some(f => errors[f]));
 			if (firstErrorStep !== -1) {
-				currentStep = firstErrorStep + 1;
-				window.scrollTo({ top: 0, behavior: 'smooth' });
+			currentStep = firstErrorStep + 1;
+			window.scrollTo({ top: 0, behavior: 'smooth' });
 			}
 			return;
 		}
-		// --- End Comprehensive Validation ---
-
-		// Validate current step before submitting (Kept as a safety check, though maybe redundant now)
-		// if (!validateStep(currentStep)) {
-		// 	addToast('يرجى تصحيح الأخطاء أو إكمال الحقول المطلوبة للمتابعة', 'error');
-		// 	errors = { ...errors }; // Trigger reactivity
-		// 	return;
-		// }
 
 		try {
-			// Create FormData with required fields first
+			// Create fresh FormData object
 			const propertyFormData = new FormData();
 			
-			// Add basic text fields
+			// Add text fields (required)
 			propertyFormData.append('title', formData.title);
 			propertyFormData.append('property_type', formData.property_type);
 			propertyFormData.append('description', formData.description);
-			propertyFormData.append('status', formData.status || 'available');
+			propertyFormData.append('status', formData.status);
 			propertyFormData.append('address', formData.address);
 			propertyFormData.append('city', formData.city);
 			propertyFormData.append('state', formData.state);
 			
-			// Add deed_number - make sure it's not undefined or null
+			// Add other text fields if present
 			if (formData.deed_number) {
 			propertyFormData.append('deed_number', formData.deed_number);
 			}
+			if (formData.postal_code) {
+			propertyFormData.append('postal_code', formData.postal_code);
+			}
+			if (formData.country) {
+			propertyFormData.append('country', formData.country);
+			}
 			
-			// Add numeric fields with validation - convert to strings
-			if (formData.size_sqm) propertyFormData.append('size_sqm', String(formData.size_sqm));
-			if (formData.bedrooms) propertyFormData.append('bedrooms', String(formData.bedrooms));
-			if (formData.bathrooms) propertyFormData.append('bathrooms', String(formData.bathrooms));
-			if (formData.floors) propertyFormData.append('floors', String(formData.floors));
-			if (formData.parking_spaces) propertyFormData.append('parking_spaces', String(formData.parking_spaces));
-			if (formData.year_built) propertyFormData.append('year_built', String(formData.year_built));
-			if (formData.market_value) propertyFormData.append('market_value', String(formData.market_value));
-			if (formData.minimum_bid) propertyFormData.append('minimum_bid', String(formData.minimum_bid));
-			if (formData.postal_code) propertyFormData.append('postal_code', formData.postal_code);
-			if (formData.country) propertyFormData.append('country', formData.country);
+			// Add numeric fields - convert to strings with guaranteed non-empty values
+			propertyFormData.append('size_sqm', formData.size_sqm.toString());
+			propertyFormData.append('market_value', formData.market_value.toString());
 			
-			// Add boolean fields - convert to strings "true" or "false"
+			// Add other numeric fields only if they have values
+			if (formData.bedrooms !== '' && formData.bedrooms !== null && formData.bedrooms !== undefined) {
+			propertyFormData.append('bedrooms', formData.bedrooms.toString());
+			}
+			if (formData.bathrooms !== '' && formData.bathrooms !== null && formData.bathrooms !== undefined) {
+			propertyFormData.append('bathrooms', formData.bathrooms.toString());
+			}
+			if (formData.floors !== '' && formData.floors !== null && formData.floors !== undefined) {
+			propertyFormData.append('floors', formData.floors.toString());
+			}
+			if (formData.parking_spaces !== '' && formData.parking_spaces !== null && formData.parking_spaces !== undefined) {
+			propertyFormData.append('parking_spaces', formData.parking_spaces.toString());
+			}
+			if (formData.year_built !== '' && formData.year_built !== null && formData.year_built !== undefined) {
+			propertyFormData.append('year_built', formData.year_built.toString());
+			}
+			if (formData.minimum_bid !== '' && formData.minimum_bid !== null && formData.minimum_bid !== undefined) {
+			propertyFormData.append('minimum_bid', formData.minimum_bid.toString());
+			}
+			
+			// Add boolean fields
 			propertyFormData.append('is_published', formData.is_published ? "true" : "false");
 			propertyFormData.append('is_featured', formData.is_featured ? "true" : "false");
 			
-			// Handle location separately - this field is causing the issue
+			// Handle location field - crucial for validation
 			if (formData.location) {
-			const locationObj = {};
-			if (typeof formData.location.latitude === 'number' && !isNaN(formData.location.latitude)) {
-				locationObj.latitude = formData.location.latitude;
+			// Create new object with validated numeric coordinates
+			const locationData = {
+				latitude: parseFloat(formData.location.latitude),
+				longitude: parseFloat(formData.location.longitude)
+			};
+			
+			// Only include if we have valid coordinates 
+			if (!isNaN(locationData.latitude) && !isNaN(locationData.longitude)) {
+				propertyFormData.append('location', JSON.stringify(locationData));
 			}
-			if (typeof formData.location.longitude === 'number' && !isNaN(formData.location.longitude)) {
-				locationObj.longitude = formData.location.longitude;
 			}
 			
-			if (Object.keys(locationObj).length > 0) {
-				propertyFormData.append('location', JSON.stringify(locationObj));
-			}
-			}
-			
-			// Add other JSON fields only if they contain data
+			// Handle JSON arrays - ensure proper formatting
 			if (Array.isArray(formData.features) && formData.features.length > 0) {
 			propertyFormData.append('features', JSON.stringify(formData.features));
 			}
@@ -756,6 +733,7 @@
 			propertyFormData.append('rooms', JSON.stringify(formData.rooms));
 			}
 			
+			// Handle JSON objects - ensure proper formatting
 			if (formData.specifications && Object.keys(formData.specifications).length > 0) {
 			propertyFormData.append('specifications', JSON.stringify(formData.specifications));
 			}
@@ -764,11 +742,7 @@
 			propertyFormData.append('pricing_details', JSON.stringify(formData.pricing_details));
 			}
 			
-			if (Array.isArray(formData.highQualityStreets) && formData.highQualityStreets.length > 0) {
-			propertyFormData.append('highQualityStreets', JSON.stringify(formData.highQualityStreets));
-			}
-
-			// Add media files
+			// Add media files - crucial for validation
 			if (uploadedImages && uploadedImages.length > 0) {
 			uploadedImages.forEach((img) => {
 				if (img.file instanceof File) {
@@ -777,8 +751,65 @@
 			});
 			}
 
-			// Log and dispatch
-			console.log("Sending FormData to API");
+			// Debug output to console
+			console.log("Sending FormData to API:");
+			for (let [key, value] of propertyFormData.entries()) {
+			if (value instanceof File) {
+				console.log(`${key}: [File] ${value.name} (${value.size} bytes)`);
+			} else if (key === 'location' || key === 'features' || key === 'amenities' || 
+						key === 'rooms' || key === 'specifications' || key === 'pricing_details') {
+				// For JSON data, don't log the entire contents
+				console.log(`${key}: [JSON] ${value.substring(0, 30)}...`);
+			} else {
+				console.log(`${key}: ${value}`);
+			}
+			}
+
+			// Direct API call for testing
+			try {
+				console.log("ATTEMPTING DIRECT API CALL");
+				const token = localStorage.getItem('token');
+				if (!token) {
+					console.error("No auth token found");
+				} else {
+					const directResponse = await fetch('http://localhost:8000/api/properties/', {
+						method: 'POST',
+						headers: {
+							'Authorization': `Bearer ${token}`
+						},
+						body: propertyFormData
+					});
+					
+					console.log("Direct API response status:", directResponse.status);
+					
+					if (!directResponse.ok) {
+						const errorData = await directResponse.json();
+						console.error("Direct API error:", errorData);
+						
+						// Check for field-level validation errors
+						if (errorData && typeof errorData === 'object') {
+							Object.entries(errorData).forEach(([field, errors]) => {
+								console.log(`Field '${field}' has errors:`, errors);
+							});
+						}
+					} else {
+						const successData = await directResponse.json();
+						console.log("Direct API success:", successData);
+						
+						addToast('تم إضافة العقار بنجاح (مباشرة)', 'success');
+						
+						// Redirect to the new property page
+						if (successData && successData.data && successData.data.slug) {
+							window.location.href = `/properties/${successData.data.slug}`;
+							return; // Stop here since we're redirecting
+						}
+					}
+				}
+			} catch (directError) {
+				console.error("Direct API call failed:", directError);
+			}
+
+			// Submit form data to parent component
 			dispatch('submit', propertyFormData);
 		} catch (error) {
 			console.error("Error preparing form data:", error);
@@ -1657,6 +1688,81 @@
 		</div>
 	</form>
 </div>
+
+<!-- Direct HTML form for testing -->
+{#if currentStep === 6}
+<div class="mt-8 p-4 border border-red-300 rounded-lg bg-red-50">
+  <h3 class="text-lg font-bold text-red-700 mb-4">استخدام نموذج مباشر (للتصحيح فقط)</h3>
+  
+  <form action="http://localhost:8000/api/properties/" method="POST" enctype="multipart/form-data">
+    <!-- Hidden Authorization header (will need handling on server) -->
+    <input type="hidden" name="_authorization" value={`Bearer ${localStorage.getItem('token')}`}>
+    
+    <!-- Required fields -->
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">عنوان العقار</label>
+        <input type="text" name="title" value={formData.title} class="input w-full">
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium mb-1">نوع العقار</label>
+        <input type="text" name="property_type" value={formData.property_type} class="input w-full">
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium mb-1">الحالة</label>
+        <input type="text" name="status" value={formData.status} class="input w-full">
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium mb-1">العنوان</label>
+        <input type="text" name="address" value={formData.address} class="input w-full">
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium mb-1">المدينة</label>
+        <input type="text" name="city" value={formData.city} class="input w-full">
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium mb-1">المنطقة</label>
+        <input type="text" name="state" value={formData.state} class="input w-full">
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium mb-1">الوصف</label>
+        <textarea name="description" class="input w-full">{formData.description}</textarea>
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium mb-1">رقم الصك</label>
+        <input type="text" name="deed_number" value={formData.deed_number || 'TEST-123'} class="input w-full">
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium mb-1">المساحة</label>
+        <input type="number" name="size_sqm" value={formData.size_sqm} class="input w-full">
+      </div>
+      
+      <div>
+        <label class="block text-sm font-medium mb-1">السعر</label>
+        <input type="number" name="market_value" value={formData.market_value} class="input w-full">
+      </div>
+    </div>
+    
+    <!-- File upload -->
+    <div class="mb-4">
+      <label class="block text-sm font-medium mb-1">صورة العقار</label>
+      <input type="file" name="media" accept="image/*" required>
+    </div>
+    
+    <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+      إرسال النموذج المباشر
+    </button>
+  </form>
+</div>
+{/if}
 
 <style>
 	/* Add basic fade-in animation */

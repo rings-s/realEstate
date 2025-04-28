@@ -19,19 +19,16 @@
         throw new Error('Expected FormData object but received different data type');
       }
       
-      // Debug what we're sending
-      console.log("Sending property data to API...");
+      // Debug the FormData
+      console.log("--- FormData Contents ---");
       for (let [key, value] of formData.entries()) {
-        if (typeof value === 'string' && (key === 'location' || key === 'features' || 
-            key === 'amenities' || key === 'rooms' || key === 'specifications' || 
-            key === 'pricing_details' || key === 'highQualityStreets')) {
-          console.log(`${key}: ${value.substring(0, 100)}${value.length > 100 ? '...' : ''}`);
-        } else if (value instanceof File) {
-          console.log(`${key}: File (${value.name}, ${value.size} bytes)`);
+        if (value instanceof File) {
+          console.log(`${key}: [File] ${value.name} (${value.size} bytes)`);
         } else {
           console.log(`${key}: ${value}`);
         }
       }
+      console.log("------------------------");
       
       const result = await createProperty(formData);
       

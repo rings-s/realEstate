@@ -6194,3 +6194,44 @@ WARNING 2025-04-28 14:28:48,932 log 27131 133154062988992 Bad Request: /api/prop
 WARNING 2025-04-28 14:28:48,933 basehttp 27131 133154062988992 "POST /api/properties/ HTTP/1.1" 400 366
 WARNING 2025-04-28 14:29:02,468 log 27131 133154062988992 Bad Request: /api/properties/
 WARNING 2025-04-28 14:29:02,468 basehttp 27131 133154062988992 "POST /api/properties/ HTTP/1.1" 400 366
+WARNING 2025-04-28 14:35:08,949 log 27131 133154090251968 Bad Request: /api/properties/
+WARNING 2025-04-28 14:35:08,950 basehttp 27131 133154090251968 "POST /api/properties/ HTTP/1.1" 400 366
+INFO 2025-04-28 14:41:54,453 middleware 27131 133154090251968 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-28 14:41:54,550 views 27131 133154090251968 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 14:41:54,553 basehttp 27131 133154090251968 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+INFO 2025-04-28 14:41:58,055 basehttp 27131 133154090251968 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+INFO 2025-04-28 14:42:01,805 basehttp 27131 133154090251968 "GET /api/properties/?page=1&page_size=12&ordering=newest HTTP/1.1" 200 7434
+WARNING 2025-04-28 14:43:32,360 log 27131 133154090251968 Bad Request: /api/properties/
+WARNING 2025-04-28 14:43:32,361 basehttp 27131 133154090251968 "POST /api/properties/ HTTP/1.1" 400 366
+WARNING 2025-04-28 14:43:38,784 log 27131 133154090251968 Bad Request: /api/properties/
+WARNING 2025-04-28 14:43:38,785 basehttp 27131 133154090251968 "POST /api/properties/ HTTP/1.1" 400 366
+WARNING 2025-04-28 14:45:19,454 log 27131 133154090251968 Bad Request: /api/properties/
+WARNING 2025-04-28 14:45:19,455 basehttp 27131 133154090251968 "POST /api/properties/ HTTP/1.1" 400 366
+WARNING 2025-04-28 14:45:26,844 log 27131 133154090251968 Bad Request: /api/properties/
+WARNING 2025-04-28 14:45:26,844 basehttp 27131 133154090251968 "POST /api/properties/ HTTP/1.1" 400 366
+INFO 2025-04-28 14:55:20,656 middleware 27131 133154090251968 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA...'
+INFO 2025-04-28 14:55:20,815 views 27131 133154090251968 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 14:55:20,819 basehttp 27131 133154090251968 "POST /api/accounts/login/ HTTP/1.1" 200 1186
+WARNING 2025-04-28 14:58:04,889 log 27131 133154090251968 Bad Request: /api/properties/
+WARNING 2025-04-28 14:58:04,889 basehttp 27131 133154090251968 "POST /api/properties/ HTTP/1.1" 400 163
+WARNING 2025-04-28 14:58:04,921 log 27131 133154090251968 Bad Request: /api/properties/
+WARNING 2025-04-28 14:58:04,922 basehttp 27131 133154090251968 "POST /api/properties/ HTTP/1.1" 400 366
+WARNING 2025-04-28 14:58:13,488 log 27131 133154062988992 Unauthorized: /api/properties/
+WARNING 2025-04-28 14:58:13,488 basehttp 27131 133154062988992 "POST /api/properties/ HTTP/1.1" 401 5143
+INFO 2025-04-28 14:58:14,148 basehttp 27131 133153825998528 "GET /static/rest_framework/js/ajax-form.js HTTP/1.1" 200 3796
+INFO 2025-04-28 14:58:14,155 basehttp 27131 133153842783936 "GET /static/rest_framework/css/default.css HTTP/1.1" 200 1152
+INFO 2025-04-28 14:58:14,155 basehttp 27131 133154081859264 "GET /static/rest_framework/css/bootstrap-tweaks.css HTTP/1.1" 200 3426
+INFO 2025-04-28 14:58:14,156 basehttp 27131 133153851176640 "GET /static/rest_framework/css/prettify.css HTTP/1.1" 200 817
+INFO 2025-04-28 14:58:14,243 basehttp 27131 133153825998528 "GET /static/rest_framework/js/csrf.js HTTP/1.1" 200 1793
+INFO 2025-04-28 14:58:14,243 basehttp 27131 133153851176640 "GET /static/rest_framework/js/default.js HTTP/1.1" 200 1268
+INFO 2025-04-28 14:58:14,244 basehttp 27131 133154081859264 "GET /static/rest_framework/js/prettify-min.js HTTP/1.1" 200 13632
+INFO 2025-04-28 14:58:14,267 basehttp 27131 133153834391232 "GET /static/rest_framework/js/jquery-3.7.1.min.js HTTP/1.1" 200 87533
+INFO 2025-04-28 14:58:14,310 basehttp 27131 133153834391232 "GET /static/rest_framework/js/load-ajax-form.js HTTP/1.1" 200 59
+INFO 2025-04-28 14:58:14,311 basehttp 27131 133154062988992 "GET /static/rest_framework/css/bootstrap.min.css HTTP/1.1" 200 121457
+INFO 2025-04-28 14:58:14,311 basehttp 27131 133153842783936 "GET /static/rest_framework/js/bootstrap.min.js HTTP/1.1" 200 39680
+INFO 2025-04-28 14:58:14,431 basehttp 27131 133153842783936 "GET /static/rest_framework/img/grid.png HTTP/1.1" 200 1458
+WARNING 2025-04-28 14:58:14,810 log 27131 133153842783936 Not Found: /favicon.ico
+WARNING 2025-04-28 14:58:14,810 basehttp 27131 133153842783936 "GET /favicon.ico HTTP/1.1" 404 2848
+INFO 2025-04-28 14:58:45,865 middleware 27131 133154090251968 Login: rings9619@gmail.com from IP: 127.0.0.1, UA: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36...'
+INFO 2025-04-28 14:58:45,965 views 27131 133154090251968 Successful login for user: rings9619@gmail.com
+INFO 2025-04-28 14:58:45,973 basehttp 27131 133154090251968 "POST /api/accounts/login/ HTTP/1.1" 200 1186

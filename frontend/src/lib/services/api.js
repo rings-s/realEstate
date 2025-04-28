@@ -31,8 +31,6 @@ class ApiService {
     return queryParams.toString();
   }
 
-  // src/lib/services/api.js
-
   async fetch(endpoint, options = {}) {
     try {
       const accessToken = getStoredToken();
@@ -43,12 +41,15 @@ class ApiService {
         headers['Authorization'] = `Bearer ${accessToken}`;
       }
 
-      // Don't set Content-Type for FormData
-      if (!(options.body instanceof FormData)) {
+      // Don't set Content-Type for FormData - browser will set this with correct boundary
+      const isFormData = options.body instanceof FormData;
+      if (!isFormData) {
         headers['Content-Type'] = 'application/json';
         if (options.body && typeof options.body === 'object') {
           options.body = JSON.stringify(options.body);
         }
+      } else {
+        console.log(`Sending FormData to ${url}`);
       }
 
       const requestOptions = {
@@ -59,6 +60,7 @@ class ApiService {
         }
       };
 
+      console.log(`Request to ${url}, method: ${options.method}`);
       const response = await fetch(url, requestOptions);
       const contentType = response.headers.get('content-type');
       
@@ -75,7 +77,38 @@ class ApiService {
       }
 
       if (!response.ok) {
-        const error = data.error || data.detail || 'API request failed';
+        console.error('API Error Response:', data);
+        
+        // Handle validation errors (usually 400 status)
+        if (response.status === 400 && data) {
+          if (data.errors) {
+            // Django REST framework detailed validation errors
+            const errorMessages = [];
+            for (const [field, messages] of Object.entries(data.errors)) {
+              errorMessages.push(`${field}: ${messages.join(', ')}`);
+            }
+            throw new Error(`Validation errors: ${errorMessages.join('; ')}`);
+          } else if (data.error) {
+            // Simple error message
+            throw new Error(data.error);
+          } else if (data.detail) {
+            // DRF default detail field
+            throw new Error(data.detail);
+          } else if (typeof data === 'object') {
+            // Try to extract any field-level errors
+            const errorFields = Object.keys(data).filter(k => 
+              Array.isArray(data[k]) || typeof data[k] === 'string');
+            
+            if (errorFields.length > 0) {
+              const errorMessages = errorFields.map(field => 
+                `${field}: ${Array.isArray(data[field]) ? data[field].join(', ') : data[field]}`);
+              throw new Error(`Validation errors: ${errorMessages.join('; ')}`);
+            }
+          }
+        }
+        
+        // Default error handling
+        const error = data.error || data.detail || `API request failed with status ${response.status}`;
         throw new Error(error);
       }
 
